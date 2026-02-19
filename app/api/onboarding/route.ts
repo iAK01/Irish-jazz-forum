@@ -12,8 +12,6 @@ import {
 } from "@/lib/email-templates/member-pending";
 import { sendEmail } from "@/lib/email";
 
-// POST /app/api/onboarding
-// Complete member onboarding (authenticated users only)
 export async function POST(request: Request) {
   try {
     const session = await auth();
@@ -37,7 +35,6 @@ export async function POST(request: Request) {
       );
     }
 
-    // Validate invitation token
     const validation = await validateInvitationToken(token);
     if (!validation.valid) {
       return NextResponse.json(
@@ -47,8 +44,6 @@ export async function POST(request: Request) {
     }
 
     const invitation = validation.invitation;
-
-    // CRITICAL: Verify that the authenticated email matches the invited email
     const authenticatedEmail = session.user.email.toLowerCase();
     const invitedEmail = invitation.email.toLowerCase();
 
@@ -62,12 +57,9 @@ export async function POST(request: Request) {
       );
     }
 
-    // Determine the name to use: prefer what they entered in the form,
-    // fall back to OAuth name from session
-    const resolvedName = profileData.name?.trim() || session.user.name || authenticatedEmail;
+    const resolvedName = profileData.personalName?.trim() || session.user.name || authenticatedEmail;
 
     // Find or create the User in our custom UserModel
-    // (The NextAuth adapter creates its own record; we maintain a separate one)
     let user = await UserModel.findOne({ email: authenticatedEmail });
 
     if (!user) {
@@ -75,18 +67,81 @@ export async function POST(request: Request) {
         email: authenticatedEmail,
         name: resolvedName,
         image: session.user.image || undefined,
-        // googleId intentionally omitted for magic link users
         role: "member",
       });
     } else {
-      // Update name if it was missing (e.g. magic link user who had no name yet)
       if (!user.name || user.name === authenticatedEmail) {
         user.name = resolvedName;
         await user.save();
       }
     }
 
-    // Check if member profile slug is already taken
+    const invitationType = invitation.invitationType || "new_member";
+
+    // =============================================
+    // PATH A: Join an existing member organisation
+    // =============================================
+    if (invitationType === "join_member") {
+      const memberSlug = invitation.memberSlug;
+
+      if (!memberSlug) {
+        return NextResponse.json(
+          { success: false, error: "No member organisation specified in this invitation" },
+          { status: 400 }
+        );
+      }
+
+      const existingMember = await MemberModel.findOne({ slug: memberSlug });
+
+      if (!existingMember) {
+        return NextResponse.json(
+          { success: false, error: "The member organisation this invitation references no longer exists" },
+          { status: 404 }
+        );
+      }
+
+      // Check user isn't already attached to this member
+      const alreadyLinked = existingMember.users?.some(
+        (u: any) => u.userEmail === authenticatedEmail
+      );
+
+      if (!alreadyLinked) {
+        await MemberModel.findByIdAndUpdate(existingMember._id, {
+          $push: {
+            users: {
+              userId: user._id.toString(),
+              userEmail: authenticatedEmail,
+              role: "staff",
+              addedAt: new Date(),
+            },
+          },
+        });
+      }
+
+      // Link User to this member profile
+      await UserModel.findByIdAndUpdate(user._id, {
+        memberProfile: memberSlug,
+        role: "member",
+      });
+
+      await markInvitationUsed(token, existingMember._id.toString());
+
+      return NextResponse.json({
+        success: true,
+        message: `You have been added to ${existingMember.name}.`,
+        data: {
+          memberId: existingMember._id.toString(),
+          memberSlug: existingMember.slug,
+          memberName: existingMember.name,
+          status: existingMember.membershipStatus,
+          invitationType: "join_member",
+        },
+      });
+    }
+
+    // =============================================
+    // PATH B: Create a new member organisation
+    // =============================================
     const existingMember = await MemberModel.findOne({ slug: profileData.slug });
     if (existingMember) {
       return NextResponse.json(
@@ -95,13 +150,17 @@ export async function POST(request: Request) {
       );
     }
 
-    // Create Member profile with prospective status
-    // Store userId and userEmail for reliable User↔Member lookups in both directions
     const member = await MemberModel.create({
       ...profileData,
-      name: resolvedName, // Use the resolved name, not whatever came in profileData
-      userId: user._id.toString(),
-      userEmail: authenticatedEmail,
+      name: profileData.name?.trim() || resolvedName,
+      users: [
+        {
+          userId: user._id.toString(),
+          userEmail: authenticatedEmail,
+          role: "primary",
+          addedAt: new Date(),
+        },
+      ],
       membershipStatus: "prospective",
       joinedAt: new Date(),
       privacySettings: {
@@ -112,13 +171,12 @@ export async function POST(request: Request) {
       },
     });
 
-    // Link the Member back to the User
+    // Link User to the new member profile
     await UserModel.findByIdAndUpdate(user._id, {
       memberProfile: member.slug,
-      role: "member", // Ensure role is set
+      role: "member",
     });
 
-    // Mark invitation as used
     await markInvitationUsed(token, member._id.toString());
 
     // Notify admins
@@ -153,13 +211,11 @@ export async function POST(request: Request) {
         memberId: member._id.toString(),
         memberSlug: member.slug,
         status: member.membershipStatus,
+        invitationType: "new_member",
       },
     });
   } catch (error: any) {
     console.error("Onboarding error:", error);
-    return NextResponse.json(
-      { success: false, error: error.message },
-      { status: 500 }
-    );
+    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   }
 }

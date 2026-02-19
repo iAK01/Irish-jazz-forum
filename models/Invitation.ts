@@ -3,26 +3,20 @@
 import { Schema, model, models, Document, Types } from "mongoose";
 
 export type InvitationStatus = "pending" | "accepted" | "expired" | "revoked" | "completed";
+export type InvitationType = "new_member" | "join_member";
 
 export interface Invitation extends Document {
-  // Token & Email
-  token: string; // Unique secure token
-  email: string; // Email address invited
-  
-  // Tracking
-  invitedBy: Types.ObjectId; // Reference to User (admin who sent invitation)
+  token: string;
+  email: string;
+  invitedBy: Types.ObjectId;
   status: InvitationStatus;
-  
-  // Timestamps
+  invitationType: InvitationType; // new_member = create org profile, join_member = attach to existing org
+  memberSlug?: string;            // only set for join_member invitations
   createdAt: Date;
   expiresAt: Date;
-  usedAt?: Date; // When member clicked link and completed signup
-  
-  // Relationship
-  memberCreated?: Types.ObjectId; // Reference to Member created from this invitation
-  
-  // Optional
-  message?: string; // Personal message from inviter
+  usedAt?: Date;
+  memberCreated?: Types.ObjectId;
+  message?: string;
 }
 
 const InvitationSchema = new Schema<Invitation>(
@@ -52,6 +46,14 @@ const InvitationSchema = new Schema<Invitation>(
       default: "pending",
       index: true,
     },
+    invitationType: {
+      type: String,
+      enum: ["new_member", "join_member"],
+      default: "new_member",
+    },
+    memberSlug: {
+      type: String, // slug of existing Member — only used for join_member
+    },
     createdAt: {
       type: Date,
       default: Date.now,
@@ -77,10 +79,7 @@ const InvitationSchema = new Schema<Invitation>(
   }
 );
 
-// Compound index for checking active invitations
 InvitationSchema.index({ email: 1, status: 1 });
-
-// Index for finding expired invitations
 InvitationSchema.index({ expiresAt: 1, status: 1 });
 
 export const InvitationModel =

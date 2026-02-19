@@ -17,18 +17,13 @@ import {
 } from "@/lib/email-templates/invitation";
 import { sendEmail } from "@/lib/email";
 
-// GET /api/invitations
-// List all invitations (admin only)
+// GET /api/invitations — list all (admin only)
 export async function GET() {
   try {
-   const session = await auth();
-
+    const session = await auth();
 
     if (!session?.user?.email) {
-      return NextResponse.json(
-        { success: false, error: "Unauthorized" },
-        { status: 401 }
-      );
+      return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
     }
 
     await dbConnect();
@@ -36,43 +31,29 @@ export async function GET() {
     const user = await UserModel.findOne({ email: session.user.email });
 
     if (!user || !["super_admin", "admin"].includes(user.role)) {
-      return NextResponse.json(
-        { success: false, error: "Forbidden - Admin access required" },
-        { status: 403 }
-      );
+      return NextResponse.json({ success: false, error: "Forbidden" }, { status: 403 });
     }
 
     const invitations = await InvitationModel.find()
       .populate("invitedBy", "name email")
-     .populate({ path: "memberCreated", model: MemberModel, select: "name slug" })
+      .populate({ path: "memberCreated", model: MemberModel, select: "name slug" })
       .sort({ createdAt: -1 })
       .lean();
 
-    return NextResponse.json({
-      success: true,
-      data: invitations,
-    });
+    return NextResponse.json({ success: true, data: invitations });
   } catch (error: any) {
     console.error("Get invitations error:", error);
-    return NextResponse.json(
-      { success: false, error: error.message },
-      { status: 500 }
-    );
+    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   }
 }
 
-// POST /api/invitations
-// Create new invitation (admin only)
+// POST /api/invitations — create new invitation (admin only)
 export async function POST(request: Request) {
   try {
     const session = await auth();
 
-
     if (!session?.user?.email) {
-      return NextResponse.json(
-        { success: false, error: "Unauthorized" },
-        { status: 401 }
-      );
+      return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
     }
 
     await dbConnect();
@@ -80,16 +61,18 @@ export async function POST(request: Request) {
     const user = await UserModel.findOne({ email: session.user.email });
 
     if (!user || !["super_admin", "admin"].includes(user.role)) {
-      return NextResponse.json(
-        { success: false, error: "Forbidden - Admin access required" },
-        { status: 403 }
-      );
+      return NextResponse.json({ success: false, error: "Forbidden" }, { status: 403 });
     }
 
     const body = await request.json();
-    const { email, message, expiryDays = 30 } = body;
+    const {
+      email,
+      message,
+      expiryDays = 30,
+      invitationType = "new_member",
+      memberSlug,
+    } = body;
 
-    // Validate email
     if (!email || !email.includes("@")) {
       return NextResponse.json(
         { success: false, error: "Valid email address is required" },
@@ -97,21 +80,33 @@ export async function POST(request: Request) {
       );
     }
 
+    // For join_member invitations, verify the target member actually exists
+    if (invitationType === "join_member") {
+      if (!memberSlug) {
+        return NextResponse.json(
+          { success: false, error: "A member must be selected for join invitations" },
+          { status: 400 }
+        );
+      }
+      const targetMember = await MemberModel.findOne({ slug: memberSlug }).lean();
+      if (!targetMember) {
+        return NextResponse.json(
+          { success: false, error: "Selected member organisation not found" },
+          { status: 400 }
+        );
+      }
+    }
+
     const normalizedEmail = email.toLowerCase().trim();
 
-    // Check if email already has a pending invitation
     const hasPending = await hasPendingInvitation(normalizedEmail);
     if (hasPending) {
       return NextResponse.json(
-        {
-          success: false,
-          error: "This email already has a pending invitation",
-        },
+        { success: false, error: "This email already has a pending invitation" },
         { status: 400 }
       );
     }
 
-    // Check if email is already a member (has User account)
     const existingUser = await UserModel.findOne({ email: normalizedEmail });
     if (existingUser) {
       return NextResponse.json(
@@ -120,7 +115,6 @@ export async function POST(request: Request) {
       );
     }
 
-    // Generate token and create invitation
     const token = generateInvitationToken();
     const expiresAt = calculateExpiryDate(expiryDays);
 
@@ -131,9 +125,10 @@ export async function POST(request: Request) {
       message,
       expiresAt,
       status: "pending",
+      invitationType,
+      memberSlug: invitationType === "join_member" ? memberSlug : undefined,
     });
 
-    // Send invitation email
     const invitationLink = `${process.env.NEXT_PUBLIC_BASE_URL}/join?token=${token}`;
     const expiryDateFormatted = expiresAt.toLocaleDateString("en-IE", {
       day: "numeric",
@@ -148,13 +143,9 @@ export async function POST(request: Request) {
       personalMessage: message,
     });
 
-    const emailSubject = generateInvitationSubject(
-      user.name || "The Irish Jazz Forum Team"
-    );
-
     await sendEmail({
       to: normalizedEmail,
-      subject: emailSubject,
+      subject: generateInvitationSubject(user.name || "The Irish Jazz Forum Team"),
       html: emailHtml,
     });
 
@@ -164,14 +155,13 @@ export async function POST(request: Request) {
         id: invitation._id.toString(),
         token: invitation.token,
         email: invitation.email,
+        invitationType: invitation.invitationType,
+        memberSlug: invitation.memberSlug,
         expiresAt: invitation.expiresAt.toISOString(),
       },
     });
   } catch (error: any) {
     console.error("Create invitation error:", error);
-    return NextResponse.json(
-      { success: false, error: error.message },
-      { status: 500 }
-    );
+    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   }
 }

@@ -1,3 +1,5 @@
+// /models/Member.ts
+
 import { Schema, model, models, Document } from "mongoose";
 
 export type MemberType =
@@ -58,6 +60,14 @@ export type EcosystemRole =
   | "funding_applicant"
   | "media_content_creator";
 
+// A person attached to this member organisation
+export interface MemberUser {
+  userId: string;       // ObjectId string of the User
+  userEmail: string;    // denormalised for easy querying
+  role: "primary" | "staff"; // primary = created the profile and can edit it, staff = access only
+  addedAt: Date;
+}
+
 export interface Member extends Document {
   // ==========================================
   // CORE IDENTITY
@@ -67,6 +77,12 @@ export interface Member extends Document {
   memberType: MemberType[];
   ecosystemRoles: EcosystemRole[];
   legalStatus?: LegalStatus;
+
+  // ==========================================
+  // LINKED USERS
+  // Multi-user support: multiple people can belong to one org
+  // ==========================================
+  users: MemberUser[];
 
   // ==========================================
   // LOCATION & GEOGRAPHY
@@ -81,14 +97,14 @@ export interface Member extends Document {
   // ACTIVITY PROFILE
   // ==========================================
   primaryArtformTags: string[];
-  activityModes: string[]; // e.g. "festival","year_round_programme","education"
+  activityModes: string[];
   geographicReach: GeographicReach;
   presentsCrossBorderWork: boolean;
   hostsInternationalArtists: boolean;
   annualEventCountEstimate?: number;
   annualUniqueArtistsEstimate?: number;
   annualAudienceEstimate?: number;
-  educationProgrammeTypes: string[]; // e.g. "youth_workshops","third_level"
+  educationProgrammeTypes: string[];
   hasRecordingActivity: boolean;
   usesProfessionalRecording: boolean;
 
@@ -97,8 +113,8 @@ export interface Member extends Document {
   // ==========================================
   artistProfile?: {
     instruments: string[];
-    ensemblesLeading: string[]; // slugs of other Member entries
-    ensemblesParticipating: string[]; // slugs of other Member entries
+    ensemblesLeading: string[];
+    ensemblesParticipating: string[];
     yearsActive?: number;
     hasInternationalTouringExperience: boolean;
   };
@@ -109,23 +125,21 @@ export interface Member extends Document {
   usesWrittenContracts: boolean;
   volunteerHoursPerYearEstimate?: number;
   employsFreelancersRegularly: boolean;
-
   hasBoardOrAdvisoryGroup: boolean;
   boardSize?: number;
   hasWrittenStrategy: boolean;
-
-  ediFocusAreas: string[]; // e.g. "gender_balance","disability","youth"
-  accessibilityFeatures: string[]; // e.g. "step_free_access","loop_system"
-  environmentalSustainabilityPractices: string[]; // e.g. "localised_touring"
+  ediFocusAreas: string[];
+  accessibilityFeatures: string[];
+  environmentalSustainabilityPractices: string[];
 
   // ==========================================
   // DIGITAL CAPACITY
   // ==========================================
-  ticketingSystemsUsed: string[]; // "Ticketsolve","Eventbrite", etc.
-  crmOrMailingTools: string[]; // "Mailchimp", etc.
-  analyticsTools: string[]; // "Google_Analytics", etc.
+  ticketingSystemsUsed: string[];
+  crmOrMailingTools: string[];
+  analyticsTools: string[];
   consentToShareAggregatedData: boolean;
-  preferredSurveyChannels: string[]; // "email_lists","at_venue_qr", etc.
+  preferredSurveyChannels: string[];
 
   // ==========================================
   // FUNDING & ECONOMIC IMPACT
@@ -134,11 +148,11 @@ export interface Member extends Document {
     artsCouncilGrants: {
       year: number;
       amount: number;
-      scheme: string; // "Project Award", "Touring Grant", etc.
+      scheme: string;
       successful: boolean;
     }[];
     localAuthoritySupport: {
-      authority: string; // "Dublin City Council", "Cork County Council"
+      authority: string;
       year: number;
       amount: number;
       scheme?: string;
@@ -151,13 +165,13 @@ export interface Member extends Document {
     privateSponsorship: {
       sponsor: string;
       year: number;
-      amount?: number; // optional for privacy
-      inkind?: string; // description of in-kind support
+      amount?: number;
+      inkind?: string;
     }[];
   };
 
   economicImpact?: {
-    estimatedAnnualValue: number; // e.g. Sligo's €500K
+    estimatedAnnualValue: number;
     localEmploymentSupported?: number;
     touristEngagementEstimate?: number;
   };
@@ -169,12 +183,12 @@ export interface Member extends Document {
     participatesInNorthSouthCollaboration: boolean;
     hasPartnershipsInNI: boolean;
     hasPartnershipsInROI: boolean;
-    borderCountiesServed: string[]; // if applicable
+    borderCountiesServed: string[];
   };
 
   internationalActivity: {
-    participatesInShowcases: string[]; // "Jazzahead", "WOMEX", etc.
-    hasInternationalPartnerships: string[]; // organizations/venues abroad
+    participatesInShowcases: string[];
+    hasInternationalPartnerships: string[];
     countriesPresented: string[];
   };
 
@@ -182,10 +196,10 @@ export interface Member extends Document {
   // EDUCATION & YOUTH PATHWAYS
   // ==========================================
   youthProgrammes?: {
-    ageRanges: string[]; // "under_12", "12-18", "transition_year", "third_level"
-    programmeTypes: string[]; // "summer_school", "year_round", "mentorship"
+    ageRanges: string[];
+    programmeTypes: string[];
     scholarshipsOffered: boolean;
-    alumniSuccessStories: string[]; // free text or references
+    alumniSuccessStories: string[];
     participatesInSchoolOutreach: boolean;
   };
 
@@ -205,18 +219,18 @@ export interface Member extends Document {
   // ==========================================
   mediaPresence: {
     hasRegularMediaCoverage: boolean;
-    featuredInNationalMedia: string[]; // "Irish Times", "RTÉ", "Lyric FM"
+    featuredInNationalMedia: string[];
     featuredInInternationalMedia: string[];
     hasActiveWebsite: boolean;
-    socialMediaPlatforms: string[]; // "instagram", "facebook", "twitter"
-    participatesInJazzIreland: boolean; // listed on jazzireland.ie
+    socialMediaPlatforms: string[];
+    participatesInJazzIreland: boolean;
   };
 
   // ==========================================
   // PARTNERSHIPS & COLLABORATION
   // ==========================================
   partnerships: {
-    regularCollaborators: string[]; // array of Member slugs
+    regularCollaborators: string[];
     projectHistory: {
       partnerSlug: string;
       projectName: string;
@@ -224,7 +238,7 @@ export interface Member extends Document {
       fundingSource?: string;
       description?: string;
     }[];
-    networkMemberships: string[]; // "Jazz Promotion Network", "Better Live", etc.
+    networkMemberships: string[];
   };
 
   // ==========================================
@@ -233,18 +247,16 @@ export interface Member extends Document {
   membershipStatus: MembershipStatus;
   joinedAt: Date;
   lastProfileUpdatedAt?: Date;
-  
+
   forumParticipation: {
     isSteeringCommittee: boolean;
     workingGroups: WorkingGroup[];
     attendedMeetings: Date[];
-    contributedToSubmissions: string[]; // "Music Policy 2022", "Capacity Building 2022"
+    contributedToSubmissions: string[];
   };
-  
+
   willingToBeCaseStudy: boolean;
   internalNotes?: string;
-  userId?: string; // ObjectId ref to User document
-  userEmail?: string; // denormalised for easy querying
 
   // ==========================================
   // PUBLIC PROFILE
@@ -252,7 +264,7 @@ export interface Member extends Document {
   shortTagline?: string;
   longBio?: string;
   heroImageUrl?: string;
-  logoUrl?: string;          // ADD THIS LINE
+  logoUrl?: string;
   galleryImageUrls: string[];
   publicTags: string[];
 
@@ -313,9 +325,9 @@ export interface Member extends Document {
   // ==========================================
   privacySettings: {
     publicProfile: boolean;
-    shareDataForAdvocacy: boolean; // allow aggregated stats in Forum submissions
+    shareDataForAdvocacy: boolean;
     consentDate: Date;
-    consentVersion: string; // track which privacy policy version they agreed to
+    consentVersion: string;
   };
 }
 
@@ -325,48 +337,37 @@ const MemberSchema = new Schema<Member>(
     name: { type: String, required: true, trim: true },
     slug: { type: String, required: true, unique: true, index: true },
     memberType: [{
-  type: String,
-  enum: [
-    "artist",
-    "collective",
-    "organisation",
-    "festival",
-    "venue",
-    "promoter",
-    "education",
-    "media",
-    "label",
-    "audience_rep",
-  ],
-}],
+      type: String,
+      enum: [
+        "artist", "collective", "organisation", "festival", "venue",
+        "promoter", "education", "media", "label", "audience_rep",
+      ],
+    }],
     ecosystemRoles: [{ type: String }],
     legalStatus: {
       type: String,
       enum: [
-        "registered_charity",
-        "clg",
-        "sole_trader",
-        "partnership",
-        "informal_collective",
-        "student_society",
-        "ltd",
-        "other",
+        "registered_charity", "clg", "sole_trader", "partnership",
+        "informal_collective", "student_society", "ltd", "other",
       ],
     },
+
+    // Linked users — multiple people can belong to one org
+    users: [
+      {
+        userId: { type: String, required: true },
+        userEmail: { type: String, required: true },
+        role: { type: String, enum: ["primary", "staff"], default: "staff" },
+        addedAt: { type: Date, default: Date.now },
+      },
+    ],
 
     // Location
     county: { type: String },
     cityTown: { type: String },
     region: {
       type: String,
-      enum: [
-        "Dublin",
-        "Leinster",
-        "Munster",
-        "Connacht",
-        "Ulster (ROI)",
-        "Northern Ireland",
-      ],
+      enum: ["Dublin", "Leinster", "Munster", "Connacht", "Ulster (ROI)", "Northern Ireland"],
     },
     latitude: Number,
     longitude: Number,
@@ -388,7 +389,7 @@ const MemberSchema = new Schema<Member>(
     hasRecordingActivity: { type: Boolean, default: false },
     usesProfessionalRecording: { type: Boolean, default: false },
 
-    // Artist Profile (optional)
+    // Artist Profile
     artistProfile: {
       instruments: [{ type: String }],
       ensemblesLeading: [{ type: String }],
@@ -523,24 +524,22 @@ const MemberSchema = new Schema<Member>(
     },
     joinedAt: { type: Date, default: Date.now },
     lastProfileUpdatedAt: { type: Date },
-    
+
     forumParticipation: {
       isSteeringCommittee: { type: Boolean, default: false },
       workingGroups: [{ type: String }],
       attendedMeetings: [{ type: Date }],
       contributedToSubmissions: [{ type: String }],
     },
-    
+
     willingToBeCaseStudy: { type: Boolean, default: false },
     internalNotes: { type: String },
 
     // Public Profile
-    userId: { type: String, index: true },
-    userEmail: { type: String, index: true },
     shortTagline: { type: String },
     longBio: { type: String },
     heroImageUrl: { type: String },
-    logoUrl: { type: String },          // ADD THIS LINE
+    logoUrl: { type: String },
     galleryImageUrls: [{ type: String }],
     publicTags: [{ type: String }],
 
@@ -561,7 +560,7 @@ const MemberSchema = new Schema<Member>(
       },
     ],
 
-    // Technical Capacity (Venues)
+    // Technical Capacity
     techBackline: {
       drumKit: { type: Boolean, default: false },
       bassAmp: { type: Boolean, default: false },
@@ -611,9 +610,10 @@ const MemberSchema = new Schema<Member>(
   }
 );
 
-// Indexes for common queries
 MemberSchema.index({ memberType: 1 });
 MemberSchema.index({ region: 1 });
+MemberSchema.index({ "users.userId": 1 });
+MemberSchema.index({ "users.userEmail": 1 });
 MemberSchema.index({ "partnerships.regularCollaborators": 1 });
 MemberSchema.index({ "forumParticipation.workingGroups": 1 });
 
