@@ -39,7 +39,7 @@ export default function WorkingGroupThreadList() {
   const { data: session } = useSession();
   const params = useParams();
   const router = useRouter();
-  const groupSlug = groupSlug as string;
+  const groupSlug = params.groupSlug as string;
 
   const [threads, setThreads] = useState<Thread[]>([]);
   const [group, setGroup] = useState<WorkingGroup | null>(null);

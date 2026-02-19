@@ -68,7 +68,7 @@ export default function GeneralThreadView() {
   const { data: session } = useSession();
   const params = useParams();
   const router = useRouter();
-  const threadSlug = threadSlug as string;
+  const threadSlug = params.threadSlug as string;
 
   const [thread, setThread] = useState<Thread | null>(null);
   const [posts, setPosts] = useState<Post[]>([]);

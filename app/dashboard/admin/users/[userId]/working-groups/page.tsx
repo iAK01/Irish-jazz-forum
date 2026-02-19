@@ -27,7 +27,7 @@ export default function UserWorkingGroupsPage() {
   const { data: session } = useSession();
   const params = useParams();
   const router = useRouter();
-  const userId = userId as string;
+ const userId = params.userId as string;
 
   const [user, setUser] = useState<User | null>(null);
   const [allGroups, setAllGroups] = useState<WorkingGroup[]>([]);
