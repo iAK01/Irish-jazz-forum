@@ -51,8 +51,8 @@ interface MemberProfile {
 }
 
 export default function PublicMemberProfilePage() {
-  const params = useParams();
-  const { slug } = await params as string;
+const params = useParams();
+const slug = params.slug as string;  // Remove await, just cast directly
   
   const [member, setMember] = useState<MemberProfile | null>(null);
   const [loading, setLoading] = useState(true);

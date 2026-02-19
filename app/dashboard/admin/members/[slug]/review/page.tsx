@@ -28,7 +28,7 @@ interface MemberReview {
 export default function MemberReviewPage() {
   const params = useParams();
   const router = useRouter();
-  const { slug } = await params as string;  // CHANGED from memberId
+ const slug = params.slug as string;  // Remove await, just cast directly
 
   const [member, setMember] = useState<MemberReview | null>(null);
   const [loading, setLoading] = useState(true);
