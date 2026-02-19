@@ -243,6 +243,8 @@ export interface Member extends Document {
   
   willingToBeCaseStudy: boolean;
   internalNotes?: string;
+  userId?: string; // ObjectId ref to User document
+  userEmail?: string; // denormalised for easy querying
 
   // ==========================================
   // PUBLIC PROFILE
@@ -533,6 +535,8 @@ const MemberSchema = new Schema<Member>(
     internalNotes: { type: String },
 
     // Public Profile
+    userId: { type: String, index: true },
+    userEmail: { type: String, index: true },
     shortTagline: { type: String },
     longBio: { type: String },
     heroImageUrl: { type: String },

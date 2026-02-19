@@ -1,5 +1,4 @@
 // /app/api/auth/[...nextauth]/route.ts
-// CORRECTED NextAuth v5 export
 
 import NextAuth from "next-auth";
 import Google from "next-auth/providers/google";
@@ -8,7 +7,6 @@ import { MongoDBAdapter } from "@auth/mongodb-adapter";
 import clientPromise from "@/lib/mongodb-client";
 import dbConnect from "@/lib/mongodb";
 import { UserModel } from "@/models/User";
-
 
 const { handlers, auth, signIn, signOut } = NextAuth({
   adapter: MongoDBAdapter(clientPromise),
@@ -24,22 +22,26 @@ const { handlers, auth, signIn, signOut } = NextAuth({
     }),
   ],
   callbacks: {
-    // REMOVE the signIn callback completely - let the adapter handle user creation
     async session({ session, user }) {
       await dbConnect();
-      
+
       const dbUser = await UserModel.findOne({ email: session.user?.email });
-      
+
       if (dbUser) {
         session.user.role = dbUser.role;
         session.user.id = dbUser._id.toString();
         session.user.memberProfile = dbUser.memberProfile;
+        // Ensure name from our UserModel is always used (magic link users
+        // may have updated their name during onboarding)
+        if (dbUser.name) {
+          session.user.name = dbUser.name;
+        }
       }
-      
+
       return session;
     },
   },
 });
 
 export const { GET, POST } = handlers;
-export { auth, signIn, signOut }; 
+export { auth, signIn, signOut };

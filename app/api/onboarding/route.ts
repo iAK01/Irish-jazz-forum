@@ -62,34 +62,46 @@ export async function POST(request: Request) {
       );
     }
 
-    // Check if user already exists
+    // Determine the name to use: prefer what they entered in the form,
+    // fall back to OAuth name from session
+    const resolvedName = profileData.name?.trim() || session.user.name || authenticatedEmail;
+
+    // Find or create the User in our custom UserModel
+    // (The NextAuth adapter creates its own record; we maintain a separate one)
     let user = await UserModel.findOne({ email: authenticatedEmail });
 
-    // Create User if doesn't exist
     if (!user) {
       user = await UserModel.create({
         email: authenticatedEmail,
-        name: session.user.name || profileData.name,
-        image: session.user.image,
+        name: resolvedName,
+        image: session.user.image || undefined,
+        // googleId intentionally omitted for magic link users
         role: "member",
       });
+    } else {
+      // Update name if it was missing (e.g. magic link user who had no name yet)
+      if (!user.name || user.name === authenticatedEmail) {
+        user.name = resolvedName;
+        await user.save();
+      }
     }
 
-    // Check if member profile already exists
-    const existingMember = await MemberModel.findOne({
-      slug: profileData.slug,
-    });
-
+    // Check if member profile slug is already taken
+    const existingMember = await MemberModel.findOne({ slug: profileData.slug });
     if (existingMember) {
       return NextResponse.json(
-        { success: false, error: "A member with this slug already exists" },
+        { success: false, error: "A member with this slug already exists. Please choose a different URL slug." },
         { status: 400 }
       );
     }
 
     // Create Member profile with prospective status
+    // Store userId and userEmail for reliable User↔Member lookups in both directions
     const member = await MemberModel.create({
       ...profileData,
+      name: resolvedName, // Use the resolved name, not whatever came in profileData
+      userId: user._id.toString(),
+      userEmail: authenticatedEmail,
       membershipStatus: "prospective",
       joinedAt: new Date(),
       privacySettings: {
@@ -100,15 +112,21 @@ export async function POST(request: Request) {
       },
     });
 
+    // Link the Member back to the User
+    await UserModel.findByIdAndUpdate(user._id, {
+      memberProfile: member.slug,
+      role: "member", // Ensure role is set
+    });
+
     // Mark invitation as used
     await markInvitationUsed(token, member._id.toString());
 
-    // Send notification to admins
+    // Notify admins
     const admins = await UserModel.find({
       role: { $in: ["admin", "super_admin"] },
     }).lean();
 
-    const reviewLink = `${process.env.NEXT_PUBLIC_BASE_URL}/dashboard/admin/members/${member._id}/review`;
+    const reviewLink = `${process.env.NEXT_PUBLIC_BASE_URL}/dashboard/admin/members/${member.slug}/review`;
 
     for (const admin of admins) {
       const emailHtml = generateMemberPendingEmail({
@@ -133,6 +151,7 @@ export async function POST(request: Request) {
       message: "Profile submitted successfully. Awaiting admin approval.",
       data: {
         memberId: member._id.toString(),
+        memberSlug: member.slug,
         status: member.membershipStatus,
       },
     });

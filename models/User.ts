@@ -13,9 +13,10 @@ export interface User extends Document {
   email: string;
   name: string;
   image?: string;
-  googleId: string;
+  googleId?: string; // Optional — magic link users don't have one
+  emailVerified?: Date;
   role: UserRole;
-  memberProfile?: string;
+  memberProfile?: string; // slug of their Member document
   workingGroups?: string[];
   createdAt: Date;
   updatedAt: Date;
@@ -26,13 +27,14 @@ const UserSchema = new Schema<User>(
     email: { type: String, required: true, unique: true },
     name: { type: String, required: true },
     image: String,
-    googleId: { type: String, required: true, unique: true },
+    googleId: { type: String, sparse: true, unique: true }, // sparse = allows multiple nulls
+    emailVerified: { type: Date },
     role: {
       type: String,
       enum: ["public", "member", "working_group", "steering", "admin", "super_admin", "team"],
       default: "public",
     },
-    memberProfile: String,
+    memberProfile: String, // slug of the linked Member document
     workingGroups: [String],
   },
   {
