@@ -11,6 +11,8 @@ export async function PATCH(
     const currentUser = await requireAuth(["super_admin", "admin"]);
     await dbConnect();
     
+    const { id } = await params;  // ADD THIS LINE
+    
     const body = await request.json();
     const { role, memberProfile, workingGroups } = body;
     
