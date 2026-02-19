@@ -52,7 +52,7 @@ export async function PATCH(
     body.lastProfileUpdatedAt = new Date();
     
     const member = await MemberModel.findOneAndUpdate(
-      { slug: (await params).slug },
+      { slug },  // CHANGE THIS LINE
       body,
       { new: true }
     );
