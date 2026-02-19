@@ -1,3 +1,5 @@
+import { Suspense } from "react";
+
 "use client";
 
 import { useState } from "react";

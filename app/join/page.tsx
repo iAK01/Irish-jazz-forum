@@ -1,3 +1,5 @@
+import { Suspense } from "react";
+
 // FILE 2/6: /app/join/page.tsx
 // Updated for NextAuth v5 - signIn syntax
 

@@ -1,3 +1,5 @@
+import { Suspense } from "react";
+
 // /app/join/onboarding/page.tsx
 
 "use client";
