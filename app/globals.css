@@ -1,0 +1,34 @@
+@import "tailwindcss";
+
+:root {
+  --background: #ffffff;
+  --foreground: #171717;
+}
+
+:root {
+  /* existing tokens from the template */
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+
+  /* Irish Jazz Forum brand colours */
+  --color-ijf-bg: #0b0f1a;        /* deep blue/black */
+  --color-ijf-primary: #9b1d1d;   /* rich red */
+  --color-ijf-accent: #e4b95b;    /* warm gold */
+  --color-ijf-surface: #ffffff;   /* cards / panels */
+  --color-ijf-muted: #4b4b4b;     /* secondary text */
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0a0a0a;
+    --foreground: #ededed;
+  }
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: Arial, Helvetica, sans-serif;
+}

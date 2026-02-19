@@ -1,0 +1,46 @@
+{
+  "name": "ijf-site",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev -p 3002",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint"
+  },
+  "overrides": {
+  "@auth/core": "0.41.0"
+},
+  "dependencies": {
+    "@auth/mongodb-adapter": "^3.7.3",
+    "@google-cloud/storage": "^7.17.3",
+    "@tiptap/extension-link": "^3.11.0",
+    "@tiptap/extension-placeholder": "^3.11.0",
+    "@tiptap/react": "^3.11.0",
+    "@tiptap/starter-kit": "^3.11.0",
+    "date-fns": "^4.1.0",
+    "googleapis": "^166.0.0",
+    "lucide-react": "^0.554.0",
+    "mongoose": "^8.20.0",
+    "next": "16.0.3",
+    "next-auth": "^5.0.0-beta.30",
+    "nodemailer": "^7.0.13",
+    "react": "19.2.0",
+    "react-dom": "19.2.0",
+    "react-hook-form": "^7.66.1",
+    "react-select": "^5.10.2",
+    "slugify": "^1.6.6"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4",
+    "@types/node": "^20",
+    "@types/nodemailer": "^7.0.9",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "eslint": "^9",
+    "eslint-config-next": "16.0.3",
+    "tailwindcss": "^4",
+    "typescript": "^5"
+  }
+
+}
