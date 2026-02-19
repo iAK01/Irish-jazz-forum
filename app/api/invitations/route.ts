@@ -5,6 +5,7 @@ import { auth } from "@/app/api/auth/[...nextauth]/route";
 import dbConnect from "@/lib/mongodb";
 import { InvitationModel } from "@/models/Invitation";
 import { UserModel } from "@/models/User";
+import { MemberModel } from "@/models/Member";
 import {
   generateInvitationToken,
   calculateExpiryDate,
