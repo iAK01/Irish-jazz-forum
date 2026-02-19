@@ -1,27 +1,19 @@
-import { Suspense } from "react";
-
-// /app/join/onboarding/page.tsx
-
 "use client";
 
+import { Suspense } from "react";
 import { useEffect, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 
 interface FormData {
-  // Step 1: Identity
   name: string;
   slug: string;
   memberType: string[];
   shortTagline: string;
-
-  // Step 2: Location
   region: string;
   county?: string;
   cityTown?: string;
   geographicReach: string;
-
-  // Step 3: Contact & Links
   email?: string;
   phone?: string;
   websiteUrl?: string;
@@ -32,18 +24,14 @@ interface FormData {
     linkedin?: string;
     youtube?: string;
   };
-
-  // Step 4: Logo
   logoUrl?: string;
-
-  // Step 5: Privacy
   privacySettings: {
     publicProfile: boolean;
     shareDataForAdvocacy: boolean;
   };
 }
 
-export default function OnboardingWizardPage() {
+function OnboardingContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const { data: session, status } = useSession();
@@ -212,7 +200,6 @@ export default function OnboardingWizardPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 px-6 py-12">
       <div className="max-w-3xl mx-auto">
-        {/* Progress Bar */}
         <div className="mb-8">
           <div className="flex items-center justify-between mb-3">
             <span className="text-white font-medium">Step {currentStep} of {totalSteps}</span>
@@ -229,9 +216,7 @@ export default function OnboardingWizardPage() {
           </div>
         </div>
 
-        {/* Main Card */}
         <div className="bg-white rounded-2xl shadow-2xl p-8">
-          {/* Step 1: Identity */}
           {currentStep === 1 && (
             <div className="space-y-6">
               <div>
@@ -311,7 +296,6 @@ export default function OnboardingWizardPage() {
             </div>
           )}
 
-          {/* Step 2: Location */}
           {currentStep === 2 && (
             <div className="space-y-6">
               <div>
@@ -380,7 +364,6 @@ export default function OnboardingWizardPage() {
             </div>
           )}
 
-          {/* Step 3: Contact */}
           {currentStep === 3 && (
             <div className="space-y-6">
               <div>
@@ -458,7 +441,6 @@ export default function OnboardingWizardPage() {
             </div>
           )}
 
-          {/* Step 4: Logo */}
           {currentStep === 4 && (
             <div className="space-y-6">
               <div>
@@ -476,7 +458,6 @@ export default function OnboardingWizardPage() {
             </div>
           )}
 
-          {/* Step 5: Review & Privacy */}
           {currentStep === 5 && (
             <div className="space-y-6">
               <div>
@@ -484,7 +465,6 @@ export default function OnboardingWizardPage() {
                 <p className="text-gray-600">Check your information and set privacy preferences</p>
               </div>
 
-              {/* Summary */}
               <div className="bg-gray-50 rounded-lg p-6 space-y-4">
                 <div>
                   <p className="text-sm text-gray-600 font-medium">Name</p>
@@ -502,7 +482,6 @@ export default function OnboardingWizardPage() {
                 </div>
               </div>
 
-              {/* Privacy */}
               <div className="space-y-4">
                 <h3 className="font-semibold text-gray-900">Privacy Settings</h3>
                 
@@ -541,14 +520,12 @@ export default function OnboardingWizardPage() {
             </div>
           )}
 
-          {/* Error */}
           {error && (
             <div className="mt-6 p-4 bg-red-50 border-2 border-red-200 rounded-lg">
               <p className="text-red-800 font-medium">{error}</p>
             </div>
           )}
 
-          {/* Navigation */}
           <div className="flex gap-4 mt-8 pt-6 border-t border-gray-200">
             {currentStep > 1 && (
               <button
@@ -581,5 +558,20 @@ export default function OnboardingWizardPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function OnboardingWizardPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-white mx-auto mb-4"></div>
+          <p className="text-white text-lg">Loading...</p>
+        </div>
+      </div>
+    }>
+      <OnboardingContent />
+    </Suspense>
   );
 }

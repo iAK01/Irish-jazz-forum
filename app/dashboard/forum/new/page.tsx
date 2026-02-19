@@ -1,7 +1,6 @@
-import { Suspense } from "react";
-
 "use client";
 
+import { Suspense } from "react";
 import { useState } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -34,7 +33,7 @@ interface ThreadFormData {
   tags: string;
 }
 
-export default function NewThreadPage() {
+function NewThreadContent() {
   const { data: session } = useSession();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -186,7 +185,6 @@ export default function NewThreadPage() {
     <DashboardLayout title="New Thread" userName={session?.user?.name || ""}>
       <div className="max-w-5xl mx-auto">
         
-        {/* Breadcrumb */}
         <div className="mb-6">
           <button
             onClick={handleCancel}
@@ -197,7 +195,6 @@ export default function NewThreadPage() {
           </button>
         </div>
 
-        {/* Header Section */}
         <div className="mb-8 p-8 rounded-xl" style={{ background: 'linear-gradient(135deg, var(--color-ijf-bg) 0%, #1a1f2e 100%)' }}>
           <div className="flex items-center gap-4 mb-3">
             <div className="w-14 h-14 rounded-xl flex items-center justify-center" style={{ backgroundColor: 'var(--color-ijf-accent)' }}>
@@ -216,11 +213,9 @@ export default function NewThreadPage() {
           </div>
         </div>
 
-        {/* Main Form Card */}
         <div className="bg-white rounded-xl shadow-lg border border-gray-100">
           <form onSubmit={handleSubmit(onSubmit)} className="p-8">
             
-            {/* Error Alert */}
             {error && (
               <div className="mb-6 p-4 rounded-lg border-l-4" style={{ backgroundColor: 'rgba(239, 68, 68, 0.1)', borderColor: '#ef4444' }}>
                 <div className="flex items-start gap-3">
@@ -235,7 +230,6 @@ export default function NewThreadPage() {
 
             <div className="space-y-6">
               
-              {/* Title Input */}
               <div>
                 <label
                   htmlFor="title"
@@ -268,18 +262,15 @@ export default function NewThreadPage() {
                 )}
               </div>
 
-              {/* Content Editor */}
               <div>
                 <label className="block text-sm font-bold text-gray-900 mb-2">
                   Content <span style={{ color: 'var(--color-ijf-primary)' }}>*</span>
                 </label>
                 <div className="border-2 border-gray-300 rounded-lg overflow-hidden bg-white shadow-sm transition-all focus-within:ring-2 focus-within:border-transparent focus-within:ring-ijf-accent">
                   
-                  {/* Toolbar */}
                   <div className="bg-gray-50 border-b-2 border-gray-200 px-3 py-2.5">
                     <div className="flex items-center gap-2 flex-wrap">
                       
-                      {/* Text Formatting Group */}
                       <div className="flex items-center gap-1 bg-white rounded-md p-1 border border-gray-200">
                         <button
                           type="button"
@@ -322,7 +313,6 @@ export default function NewThreadPage() {
                         </button>
                       </div>
 
-                      {/* Headings Group */}
                       <div className="flex items-center gap-1 bg-white rounded-md p-1 border border-gray-200">
                         <button
                           type="button"
@@ -356,7 +346,6 @@ export default function NewThreadPage() {
                         </button>
                       </div>
 
-                      {/* Lists Group */}
                       <div className="flex items-center gap-1 bg-white rounded-md p-1 border border-gray-200">
                         <button
                           type="button"
@@ -390,7 +379,6 @@ export default function NewThreadPage() {
                         </button>
                       </div>
 
-                      {/* Link Button */}
                       <button
                         type="button"
                         onClick={() => {
@@ -410,10 +398,8 @@ export default function NewThreadPage() {
                         <LinkIcon className="w-4 h-4" />
                       </button>
 
-                      {/* Spacer */}
                       <div className="flex-1"></div>
 
-                      {/* Undo/Redo Group */}
                       <div className="flex items-center gap-1 bg-white rounded-md p-1 border border-gray-200">
                         <button
                           type="button"
@@ -437,7 +423,6 @@ export default function NewThreadPage() {
                     </div>
                   </div>
 
-                  {/* Editor Area */}
                   {editor && (
                     <EditorContent
                       editor={editor}
@@ -452,7 +437,6 @@ export default function NewThreadPage() {
                 </div>
               </div>
 
-              {/* Tags Input */}
               <div>
                 <label
                   htmlFor="tags"
@@ -472,7 +456,6 @@ export default function NewThreadPage() {
                 </p>
               </div>
 
-              {/* File Attachments */}
               <div>
                 <label className="block text-sm font-bold text-gray-900 mb-2">
                   Attachments <span className="text-gray-500 text-xs font-normal">(Optional)</span>
@@ -504,7 +487,6 @@ export default function NewThreadPage() {
                   </label>
                 </div>
 
-                {/* Attached Files List */}
                 {attachments.length > 0 && (
                   <div className="mt-4 space-y-2">
                     <p className="text-xs font-semibold text-gray-700 uppercase tracking-wide">
@@ -536,7 +518,6 @@ export default function NewThreadPage() {
               </div>
             </div>
 
-            {/* Action Buttons */}
             <div className="mt-8 pt-6 border-t border-gray-200 flex items-center justify-between">
               <button
                 type="button"
@@ -566,5 +547,17 @@ export default function NewThreadPage() {
         </div>
       </div>
     </DashboardLayout>
+  );
+}
+
+export default function NewThreadPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900"></div>
+      </div>
+    }>
+      <NewThreadContent />
+    </Suspense>
   );
 }

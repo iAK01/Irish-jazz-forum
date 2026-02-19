@@ -1,7 +1,6 @@
-import { Suspense } from "react";
-
 "use client";
 
+import { Suspense } from "react";
 import { useState } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -17,11 +16,11 @@ interface ThreadFormData {
   tags: string;
 }
 
-export default function NewThreadPage() {
+function NewThreadFormContent() {
   const { data: session } = useSession();
   const router = useRouter();
   const searchParams = useSearchParams();
-  const workingGroup = searchParams.get("workingGroup"); // 'general' or group slug
+  const workingGroup = searchParams.get("workingGroup");
 
   const {
     register,
@@ -67,7 +66,6 @@ export default function NewThreadPage() {
         const file = files[i];
         const formData = new FormData();
         formData.append("file", file);
-        formData.append("workingGroup", workingGroup || "general");
 
         const response = await fetch("/api/upload", {
           method: "POST",
@@ -113,7 +111,6 @@ export default function NewThreadPage() {
     setError("");
 
     try {
-      // Parse tags
       const tagsArray = data.tags
         ? data.tags
             .split(",")
@@ -121,7 +118,6 @@ export default function NewThreadPage() {
             .filter((t) => t.length > 0)
         : [];
 
-      // Determine working groups
       const workingGroups =
         workingGroup && workingGroup !== "general" ? [workingGroup] : [];
 
@@ -145,7 +141,6 @@ export default function NewThreadPage() {
         throw new Error(result.error || "Failed to create thread");
       }
 
-      // Navigate to the new thread
       const threadSlug = result.data.slug;
       if (workingGroup && workingGroup !== "general") {
         router.push(`/dashboard/forum/${workingGroup}/${threadSlug}`);
@@ -193,7 +188,6 @@ export default function NewThreadPage() {
           )}
 
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-            {/* Title */}
             <div>
               <label
                 htmlFor="title"
@@ -225,7 +219,6 @@ export default function NewThreadPage() {
               )}
             </div>
 
-            {/* Tags */}
             <div>
               <label
                 htmlFor="tags"
@@ -245,13 +238,11 @@ export default function NewThreadPage() {
               </p>
             </div>
 
-            {/* Content Editor */}
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                 Post Content *
               </label>
               <div className="border border-gray-300 dark:border-gray-600 rounded-md overflow-hidden">
-                {/* Toolbar */}
                 <div className="bg-gray-50 dark:bg-gray-900 border-b border-gray-300 dark:border-gray-600 p-2 flex flex-wrap gap-1">
                   <button
                     type="button"
@@ -380,7 +371,6 @@ export default function NewThreadPage() {
                   </button>
                 </div>
 
-                {/* Editor */}
                 <EditorContent
                   editor={editor}
                   className="bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
@@ -388,7 +378,6 @@ export default function NewThreadPage() {
               </div>
             </div>
 
-            {/* File Upload */}
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                 Attachments (optional)
@@ -412,7 +401,6 @@ export default function NewThreadPage() {
                 </p>
               )}
 
-              {/* Attachment List */}
               {attachments.length > 0 && (
                 <div className="mt-4 space-y-2">
                   {attachments.map((file, idx) => (
@@ -436,7 +424,6 @@ export default function NewThreadPage() {
               )}
             </div>
 
-            {/* Submit Buttons */}
             <div className="flex gap-4">
               <button
                 type="submit"
@@ -458,5 +445,17 @@ export default function NewThreadPage() {
         </div>
       </div>
     </DashboardLayout>
+  );
+}
+
+export default function NewThreadPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900"></div>
+      </div>
+    }>
+      <NewThreadFormContent />
+    </Suspense>
   );
 }

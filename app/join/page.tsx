@@ -1,15 +1,11 @@
-import { Suspense } from "react";
-
-// FILE 2/6: /app/join/page.tsx
-// Updated for NextAuth v5 - signIn syntax
-
 "use client";
 
+import { Suspense } from "react";
 import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { signIn } from "next-auth/react";
 
-export default function JoinLandingPage() {
+function JoinContent() {
   const searchParams = useSearchParams();
   const token = searchParams?.get("token");
 
@@ -181,5 +177,17 @@ export default function JoinLandingPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function JoinLandingPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900"></div>
+      </div>
+    }>
+      <JoinContent />
+    </Suspense>
   );
 }
