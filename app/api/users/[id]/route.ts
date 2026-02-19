@@ -5,7 +5,7 @@ import { requireAuth } from '@/lib/auth';
 
 export async function PATCH(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const currentUser = await requireAuth(["super_admin", "admin"]);
@@ -16,7 +16,7 @@ export async function PATCH(
     
     // Admin can't change super_admin roles
     if (currentUser.role === "admin") {
-      const targetUser = await UserModel.findById(params.id);
+      const targetUser = await UserModel.findById(id);
       if (targetUser?.role === "super_admin") {
         return NextResponse.json(
           { success: false, error: "Cannot modify super admin" },
@@ -26,7 +26,7 @@ export async function PATCH(
     }
     
     const updatedUser = await UserModel.findByIdAndUpdate(
-      params.id,
+      id,
       { role, memberProfile, workingGroups },
       { new: true }
     );

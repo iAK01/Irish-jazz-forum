@@ -5,12 +5,14 @@ import { requireAuth } from '@/lib/auth';
 
 export async function GET(
   request: Request,
-  { params }: { params: { slug: string } }
+  { params }: { params: Promise<{ slug: string }> }  // ADD Promise<>
 ) {
   try {
     await dbConnect();
     
-    const member = await MemberModel.findOne({ slug: params.slug });
+    const { slug } = await params;  // AWAIT params
+    
+    const member = await MemberModel.findOne({ slug });
     
     if (!member) {
       return NextResponse.json(
@@ -30,13 +32,15 @@ export async function GET(
 
 export async function PATCH(
   request: Request,
-  { params }: { params: { slug: string } }
+  { params }: { params: Promise<{ slug: string }> }  // ADD Promise<>
 ) {
   try {
     const user = await requireAuth();
     await dbConnect();
     
-    if (user.memberProfile !== params.slug && 
+    const { slug } = await params;  // AWAIT params
+    
+    if (user.memberProfile !== slug && 
         !['admin', 'super_admin', 'team'].includes(user.role)) {
       return NextResponse.json(
         { success: false, error: "Unauthorized" },
@@ -48,7 +52,7 @@ export async function PATCH(
     body.lastProfileUpdatedAt = new Date();
     
     const member = await MemberModel.findOneAndUpdate(
-      { slug: params.slug },
+      { slug: (await params).slug },
       body,
       { new: true }
     );

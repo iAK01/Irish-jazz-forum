@@ -52,7 +52,7 @@ interface MemberProfile {
 
 export default function PublicMemberProfilePage() {
   const params = useParams();
-  const slug = params?.slug as string;
+  const { slug } = await params as string;
   
   const [member, setMember] = useState<MemberProfile | null>(null);
   const [loading, setLoading] = useState(true);
