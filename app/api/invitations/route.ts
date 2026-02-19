@@ -44,7 +44,7 @@ export async function GET() {
 
     const invitations = await InvitationModel.find()
       .populate("invitedBy", "name email")
-      .populate("memberCreated", "name slug")
+     .populate({ path: "memberCreated", model: MemberModel, select: "name slug" })
       .sort({ createdAt: -1 })
       .lean();
 

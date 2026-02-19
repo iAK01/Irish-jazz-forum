@@ -9,19 +9,6 @@ export default function Footer() {
         </div>
 
         <div className="flex gap-6 text-sm font-medium">
-          <a
-            href="/privacy"
-            className="text-zinc-700 dark:text-zinc-300 hover:text-black dark:hover:text-white"
-          >
-            Privacy
-          </a>
-
-          <a
-            href="/terms"
-            className="text-zinc-700 dark:text-zinc-300 hover:text-black dark:hover:text-white"
-          >
-            Terms
-          </a>
 
           <a
             href="/contact"

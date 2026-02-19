@@ -368,8 +368,8 @@ export default function ContactPage() {
               <div className="space-y-2 text-gray-300">
                 <p>
                   <span className="font-semibold text-white">Email:</span>{" "}
-                  <a href="mailto:info@irishjazzforum.com" className="hover:underline" style={{ color: 'var(--color-ijf-accent)' }}>
-                    info@irishjazzforum.com
+                  <a href="mailto:ken@improvisedmusic.ie" className="hover:underline" style={{ color: 'var(--color-ijf-accent)' }}>
+                    info[at]irishjazzforum[dot]com
                   </a>
                 </p>
               </div>
