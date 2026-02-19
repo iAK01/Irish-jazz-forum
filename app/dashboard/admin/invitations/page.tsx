@@ -3,11 +3,14 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useSession } from "next-auth/react";
 import Link from "next/link";
 import InvitationList from "@/app/components/InvitationList";
+import DashboardLayout from "@/app/components/dashboard/DashboardLayout";
 import type { InvitationListItem } from "@/types/invitation";
 
 export default function AdminInvitationsPage() {
+  const { data: session } = useSession();
   const [invitations, setInvitations] = useState<InvitationListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -49,6 +52,7 @@ export default function AdminInvitationsPage() {
   }
 
   return (
+    <DashboardLayout title="Member Invitations" userName={session?.user?.name || "Admin"}>
     <div className="max-w-7xl mx-auto px-6 py-8">
       {/* Header */}
       <div className="mb-8">
@@ -105,5 +109,6 @@ export default function AdminInvitationsPage() {
         <InvitationList invitations={invitations} onUpdate={fetchInvitations} />
       </div>
     </div>
+    </DashboardLayout>
   );
 }

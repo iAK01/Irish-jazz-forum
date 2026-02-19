@@ -204,7 +204,7 @@ export default function InvitationList({
                     </button>
                   )}
                   {/* Delete button - only for revoked/expired invitations */}
-                  {["revoked", "expired"].includes(invitation.status) && (
+                 {["revoked", "expired", "accepted", "completed"].includes(invitation.status) && (
                     <button
                       onClick={() => handleDelete(invitation._id, invitation.email)}
                       disabled={actionLoading === invitation._id}

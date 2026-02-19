@@ -8,82 +8,31 @@ export default function Navbar() {
 
   return (
     <nav className="w-full border-b border-zinc-200 dark:border-zinc-800 bg-white dark:bg-black">
-      <div className="max-w-5xl mx-auto flex items-center justify-between py-4 px-6">
-        <Link
-          href="/"
-          className="text-xl font-semibold text-black dark:text-zinc-50"
-        >
+      <div className="max-w-6xl mx-auto flex items-center justify-between py-4 px-6">
+        <Link href="/" className="text-xl font-semibold text-black dark:text-zinc-50">
           Irish Jazz Forum
         </Link>
 
-        <div className="flex gap-6 text-sm font-medium items-center">
-          <Link
-            href="/about"
-            className="text-zinc-700 dark:text-zinc-300 hover:text-black dark:hover:text-white"
-          >
-            About
-          </Link>
-
-          <Link
-            href="/principles"
-            className="text-zinc-700 dark:text-zinc-300 hover:text-black dark:hover:text-white"
-          >
-            Principles
-          </Link>
-
-          <Link
-  href="/members"
-  className="text-zinc-700 dark:text-zinc-300 hover:text-black dark:hover:text-white"
->
-  Members
-</Link>
-
-          <Link
-            href="/charter"
-            className="text-zinc-700 dark:text-zinc-300 hover:text-black dark:hover:text-white"
-          >
-            Charter
-          </Link>
-
-          <Link
-            href="/dashboard/forum"
-            className="text-zinc-700 dark:text-zinc-300 hover:text-black dark:hover:text-white"
-          >
-            Discuss
-          </Link>
-
-          <Link
-            href="/contact"
-            className="text-zinc-700 dark:text-zinc-300 hover:text-black dark:hover:text-white"
-          >
-            Contact
-          </Link>
+        <div className="flex gap-5 text-sm font-medium items-center">
+          <Link href="/about" className="text-zinc-700 dark:text-zinc-300 hover:text-black dark:hover:text-white">About</Link>
+          <Link href="/principles" className="text-zinc-700 dark:text-zinc-300 hover:text-black dark:hover:text-white">Principles</Link>
+          <Link href="/members" className="text-zinc-700 dark:text-zinc-300 hover:text-black dark:hover:text-white">Members</Link>
+          <Link href="/charter" className="text-zinc-700 dark:text-zinc-300 hover:text-black dark:hover:text-white">Charter</Link>
+          <Link href="/news" className="text-zinc-700 dark:text-zinc-300 hover:text-black dark:hover:text-white">News</Link>
+          <Link href="/resources" className="text-zinc-700 dark:text-zinc-300 hover:text-black dark:hover:text-white">Resources</Link>
+          <Link href="/dashboard/forum" className="text-zinc-700 dark:text-zinc-300 hover:text-black dark:hover:text-white">Discuss</Link>
+          <Link href="/contact" className="text-zinc-700 dark:text-zinc-300 hover:text-black dark:hover:text-white">Contact</Link>
 
           {status === "loading" ? (
             <span className="text-zinc-500">...</span>
           ) : session ? (
             <>
-              <Link
-                href="/dashboard"
-                className="text-zinc-700 dark:text-zinc-300 hover:text-black dark:hover:text-white"
-              >
-                Dashboard
-              </Link>
+              <Link href="/dashboard" className="text-zinc-700 dark:text-zinc-300 hover:text-black dark:hover:text-white">Dashboard</Link>
               <span className="text-zinc-500">{session.user.name}</span>
-              <button
-                onClick={() => signOut()}
-                className="text-zinc-700 dark:text-zinc-300 hover:text-black dark:hover:text-white"
-              >
-                Logout
-              </button>
+              <button onClick={() => signOut()} className="text-zinc-700 dark:text-zinc-300 hover:text-black dark:hover:text-white">Logout</button>
             </>
           ) : (
-            <button
-              onClick={() => signIn("google")}
-              className="text-zinc-700 dark:text-zinc-300 hover:text-black dark:hover:text-white"
-            >
-              Login
-            </button>
+            <button onClick={() => signIn("google")} className="text-zinc-700 dark:text-zinc-300 hover:text-black dark:hover:text-white">Login</button>
           )}
         </div>
       </div>
