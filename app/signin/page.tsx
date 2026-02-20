@@ -27,6 +27,19 @@ function SignInContent() {
     }
     setEmailLoading(true);
     setEmailError("");
+
+    const check = await fetch("/api/users/check-email", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: email.trim() }),
+    });
+    const { exists } = await check.json();
+    if (!exists) {
+      setEmailError("No account found for this email address. Please use the link from your invitation email.");
+      setEmailLoading(false);
+      return;
+    }
+
     await signIn("resend", {
       email: email.trim(),
       callbackUrl,
@@ -69,13 +82,11 @@ function SignInContent() {
     <div className="min-h-screen bg-gradient-to-b from-gray-50 to-gray-100 flex items-center justify-center px-4 py-12">
       <div className="max-w-md w-full bg-white rounded-2xl shadow-xl p-8">
 
-        {/* Header */}
         <div className="text-center mb-8">
           <h1 className="text-2xl font-bold text-gray-900 mb-2">Sign in to Irish Jazz Forum</h1>
           <p className="text-gray-500 text-sm">Choose the same method you used when you first joined</p>
         </div>
 
-        {/* Auth error */}
         {error && (
           <div style={{ backgroundColor: "#fef2f2", border: "2px solid #fecaca", borderRadius: "8px", padding: "12px 16px", marginBottom: "20px" }}>
             <p style={{ fontSize: "13px", color: "#991b1b" }}>
@@ -86,7 +97,6 @@ function SignInContent() {
           </div>
         )}
 
-        {/* Option 1 — Google */}
         <div style={{ border: "2px solid #e5e7eb", borderRadius: "12px", padding: "20px", marginBottom: "12px" }}>
           <button
             onClick={handleGoogleSignIn}
@@ -107,14 +117,12 @@ function SignInContent() {
           </div>
         </div>
 
-        {/* Divider */}
         <div style={{ display: "flex", alignItems: "center", gap: "12px", margin: "4px 0 12px" }}>
           <div style={{ flex: 1, height: "1px", backgroundColor: "#e5e7eb" }} />
           <span style={{ fontSize: "12px", color: "#9ca3af", fontWeight: 500 }}>OR</span>
           <div style={{ flex: 1, height: "1px", backgroundColor: "#e5e7eb" }} />
         </div>
 
-        {/* Option 2 — Magic link */}
         <div style={{ border: "2px solid #e5e7eb", borderRadius: "12px", padding: "20px" }}>
           <form onSubmit={handleMagicLink}>
             <label style={{ display: "block", fontSize: "13px", fontWeight: 600, color: "#374151", marginBottom: "8px" }}>
@@ -133,7 +141,7 @@ function SignInContent() {
               disabled={emailLoading}
               style={{ width: "100%", padding: "10px 16px", backgroundColor: "#4CBB5A", color: "white", border: "none", borderRadius: "8px", fontSize: "14px", fontWeight: 600, cursor: emailLoading ? "not-allowed" : "pointer", opacity: emailLoading ? 0.6 : 1, marginBottom: "12px" }}
             >
-              {emailLoading ? "Sending link..." : "Send me a sign-in link"}
+              {emailLoading ? "Checking..." : "Send me a sign-in link"}
             </button>
           </form>
           <div style={{ backgroundColor: "#f8fafc", borderRadius: "6px", padding: "10px 12px" }}>
