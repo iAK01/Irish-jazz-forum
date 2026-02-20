@@ -19,7 +19,12 @@ function JoinContent() {
 
   useEffect(() => {
   if (status === "loading") return;
-  if (!token) { setError("No invitation token found. Please use the link from your invitation email."); setStage("error"); return; }
+   if (!token) {
+  if (status === "authenticated") { router.replace("/dashboard"); return; }
+  setError("No invitation token found. Please use the link from your invitation email.");
+  setStage("error")
+  return;
+  }  
   if (status === "authenticated") { router.replace(`/join/onboarding?token=${token}`); return; }
   validateInvitation();
   }, [status, token]);
