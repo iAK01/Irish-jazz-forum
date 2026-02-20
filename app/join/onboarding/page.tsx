@@ -57,6 +57,7 @@ function OnboardingContent() {
   const totalSteps = isJoinFlow ? 1 : 3;
 
   useEffect(() => {
+    if (status === "loading") return;
     if (status === "unauthenticated") router.push(`/join?token=${token}`);
   }, [status, token]);
 

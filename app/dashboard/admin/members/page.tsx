@@ -22,6 +22,16 @@ interface DeleteModalState {
   loading: boolean;
 }
 
+interface InviteModalState {
+  open: boolean;
+  member: Member | null;
+  email: string;
+  message: string;
+  loading: boolean;
+  sent: boolean;
+  error: string;
+}
+
 export default function MembersListPage() {
   const { data: session } = useSession();
   const [members, setMembers] = useState<Member[]>([]);
@@ -33,6 +43,15 @@ export default function MembersListPage() {
     open: false,
     member: null,
     loading: false,
+  });
+  const [inviteModal, setInviteModal] = useState<InviteModalState>({
+    open: false,
+    member: null,
+    email: "",
+    message: "",
+    loading: false,
+    sent: false,
+    error: "",
   });
 
   useEffect(() => {
@@ -103,20 +122,14 @@ export default function MembersListPage() {
   const handleDelete = async () => {
     if (!deleteModal.member) return;
     setDeleteModal((prev) => ({ ...prev, loading: true }));
-
     try {
-      const res = await fetch(`/api/members/${deleteModal.member.slug}`, {
-        method: "DELETE",
-      });
-
+      const res = await fetch(`/api/members/${deleteModal.member.slug}`, { method: "DELETE" });
       const data = await res.json();
-
       if (!res.ok) {
         alert(data.error || "Failed to delete member");
         setDeleteModal((prev) => ({ ...prev, loading: false }));
         return;
       }
-
       closeDeleteModal();
       fetchMembers();
     } catch (error) {
@@ -126,12 +139,42 @@ export default function MembersListPage() {
     }
   };
 
+  const openInviteModal = (member: Member, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setInviteModal({ open: true, member, email: "", message: "", loading: false, sent: false, error: "" });
+  };
+
+  const closeInviteModal = () => {
+    setInviteModal({ open: false, member: null, email: "", message: "", loading: false, sent: false, error: "" });
+  };
+
+  const handleInviteUser = async () => {
+    if (!inviteModal.member || !inviteModal.email.trim()) return;
+    setInviteModal((prev) => ({ ...prev, loading: true, error: "" }));
+    try {
+      const res = await fetch("/api/invitations", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: inviteModal.email.trim(),
+          invitationType: "join_member",
+          memberSlug: inviteModal.member.slug,
+          message: inviteModal.message.trim() || undefined,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to send invitation");
+      setInviteModal((prev) => ({ ...prev, loading: false, sent: true }));
+      fetchMembers();
+    } catch (err: any) {
+      setInviteModal((prev) => ({ ...prev, loading: false, error: err.message }));
+    }
+  };
+
   if (!session || (session.user.role !== "admin" && session.user.role !== "super_admin")) {
     return (
       <DashboardLayout title="Member Directory" userName="Guest">
-        <div className="p-8">
-          <p>Access denied. Admin privileges required.</p>
-        </div>
+        <div className="p-8"><p>Access denied. Admin privileges required.</p></div>
       </DashboardLayout>
     );
   }
@@ -139,33 +182,27 @@ export default function MembersListPage() {
   return (
     <DashboardLayout title="Member Directory" userName={session.user.name}>
       <div className="max-w-7xl mx-auto">
+
         {/* Header */}
         <div className="mb-6 flex items-center justify-between">
           <div>
             <p className="text-zinc-600 dark:text-zinc-400">Manage all member profiles</p>
             <p className="text-sm text-zinc-500 mt-1">Total members: {filteredMembers.length}</p>
           </div>
-
           <div className="flex gap-3">
             {pendingCount > 0 && (
-              <Link
-                href="/dashboard/admin/members/pending"
-                className="px-4 py-2 bg-yellow-500 hover:bg-yellow-600 text-white rounded-lg font-medium transition-colors flex items-center gap-2"
-              >
+              <Link href="/dashboard/admin/members/pending"
+                className="px-4 py-2 bg-yellow-500 hover:bg-yellow-600 text-white rounded-lg font-medium transition-colors flex items-center gap-2">
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
                 </svg>
                 Pending Approvals
-                <span className="px-2 py-0.5 bg-white text-yellow-700 rounded-full text-xs font-bold">
-                  {pendingCount}
-                </span>
+                <span className="px-2 py-0.5 bg-white text-yellow-700 rounded-full text-xs font-bold">{pendingCount}</span>
               </Link>
             )}
-            <Link
-              href="/dashboard/admin/invitations/new"
+            <Link href="/dashboard/admin/invitations/new"
               className="px-4 py-2 rounded-lg font-medium text-white transition-colors flex items-center gap-2"
-              style={{ backgroundColor: "var(--color-ijf-accent)" }}
-            >
+              style={{ backgroundColor: "var(--color-ijf-accent)" }}>
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
               </svg>
@@ -176,19 +213,13 @@ export default function MembersListPage() {
 
         {/* Search */}
         <div className="mb-6">
-          <input
-            type="text"
-            placeholder="Search by name, type, or region..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full px-4 py-3 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100"
-          />
+          <input type="text" placeholder="Search by name, type, or region..."
+            value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full px-4 py-3 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100" />
         </div>
 
         {loading ? (
-          <div className="text-center py-12">
-            <p className="text-zinc-500">Loading members...</p>
-          </div>
+          <div className="text-center py-12"><p className="text-zinc-500">Loading members...</p></div>
         ) : filteredMembers.length === 0 ? (
           <div className="bg-zinc-100 dark:bg-zinc-800 rounded-lg p-12 text-center">
             <p className="text-zinc-600 dark:text-zinc-400">
@@ -213,31 +244,22 @@ export default function MembersListPage() {
                 {filteredMembers.map((member) => {
                   const types = memberTypeArray(member.memberType);
                   const userCount = member.users?.length ?? 0;
-
                   return (
-<tr
-  key={member._id}
-  onClick={() => window.location.href = `/dashboard/admin/members/${member.slug}`}
-  className="hover:bg-zinc-50 dark:hover:bg-zinc-700/50 transition cursor-pointer"
->                      <td className="px-6 py-4 whitespace-nowrap">
+                    <tr key={member._id}
+                      onClick={() => window.location.href = `/dashboard/admin/members/${member.slug}`}
+                      className="hover:bg-zinc-50 dark:hover:bg-zinc-700/50 transition cursor-pointer">
+                      <td className="px-6 py-4 whitespace-nowrap">
                         <div className="text-sm font-medium text-zinc-900 dark:text-zinc-100">{member.name}</div>
                         <div className="text-sm text-zinc-500">/{member.slug}</div>
                       </td>
                       <td className="px-6 py-4">
                         <div className="flex flex-wrap gap-1">
                           {types.map((type) => (
-                            <span
-                              key={type}
-                              className="px-2 py-1 text-xs font-medium rounded-full bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 capitalize"
-                            >
-                              {type}
-                            </span>
+                            <span key={type} className="px-2 py-1 text-xs font-medium rounded-full bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 capitalize">{type}</span>
                           ))}
                         </div>
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-zinc-900 dark:text-zinc-100">
-                        {member.region || "—"}
-                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-zinc-900 dark:text-zinc-100">{member.region || "—"}</td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-zinc-500">
                         {userCount > 0 ? (
                           <span className="px-2 py-1 bg-zinc-100 dark:bg-zinc-700 rounded text-xs font-medium text-zinc-700 dark:text-zinc-300">
@@ -248,36 +270,34 @@ export default function MembersListPage() {
                         )}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <span
-                          className={`px-2 py-1 text-xs font-medium rounded-full ${
-                            member.membershipStatus === "active"
-                              ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
-                              : "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200"
-                          }`}
-                        >
+                        <span className={`px-2 py-1 text-xs font-medium rounded-full ${
+                          member.membershipStatus === "active"
+                            ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
+                            : "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200"
+                        }`}>
                           {member.membershipStatus}
                         </span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-zinc-500">
                         {new Date(member.joinedAt).toLocaleDateString("en-IE")}
                       </td>
-<td className="px-6 py-4 whitespace-nowrap">
-  <div className="flex items-center gap-2">
-    <Link
-      href={`/dashboard/admin/members/${member.slug}`}
-      onClick={(e) => e.stopPropagation()}
-      className="px-3 py-1 bg-zinc-200 hover:bg-zinc-300 text-zinc-800 rounded text-xs font-medium transition"
-    >
-      Edit
-    </Link>
-    <button
-      onClick={(e) => openDeleteModal(member, e)}
-      className="px-3 py-1 bg-red-500 hover:bg-red-600 text-white rounded text-xs font-medium transition"
-    >
-      Delete
-    </button>
-  </div>
-</td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="flex items-center gap-2">
+                          <button onClick={(e) => openInviteModal(member, e)}
+                            className="px-3 py-1 bg-blue-500 hover:bg-blue-600 text-white rounded text-xs font-medium transition">
+                            Invite User
+                          </button>
+                          <Link href={`/dashboard/admin/members/${member.slug}`}
+                            onClick={(e) => e.stopPropagation()}
+                            className="px-3 py-1 bg-zinc-200 hover:bg-zinc-300 text-zinc-800 rounded text-xs font-medium transition">
+                            Edit
+                          </Link>
+                          <button onClick={(e) => openDeleteModal(member, e)}
+                            className="px-3 py-1 bg-red-500 hover:bg-red-600 text-white rounded text-xs font-medium transition">
+                            Delete
+                          </button>
+                        </div>
+                      </td>
                     </tr>
                   );
                 })}
@@ -286,6 +306,76 @@ export default function MembersListPage() {
           </div>
         )}
       </div>
+
+      {/* Invite User Modal */}
+      {inviteModal.open && inviteModal.member && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
+          <div className="bg-white dark:bg-zinc-800 rounded-xl shadow-2xl max-w-md w-full p-6">
+            {inviteModal.sent ? (
+              <div className="text-center py-4">
+                <div className="w-12 h-12 rounded-full bg-green-100 flex items-center justify-center mx-auto mb-4">
+                  <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                </div>
+                <h3 className="text-lg font-bold text-zinc-900 dark:text-zinc-100 mb-2">Invitation sent</h3>
+                <p className="text-sm text-zinc-600 dark:text-zinc-400 mb-6">
+                  {inviteModal.email} has been invited to join <strong>{inviteModal.member.name}</strong>.
+                </p>
+                <button onClick={closeInviteModal}
+                  className="px-6 py-2 bg-zinc-900 text-white rounded-lg text-sm font-medium hover:bg-zinc-700 transition">
+                  Done
+                </button>
+              </div>
+            ) : (
+              <>
+                <div className="mb-5">
+                  <h3 className="text-lg font-bold text-zinc-900 dark:text-zinc-100">Invite User</h3>
+                  <p className="text-sm text-zinc-500 mt-1">
+                    Invite someone to join <strong className="text-zinc-700 dark:text-zinc-300">{inviteModal.member.name}</strong> as a user
+                  </p>
+                </div>
+
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-semibold text-zinc-700 dark:text-zinc-300 mb-1">Email address *</label>
+                    <input type="email" value={inviteModal.email}
+                      onChange={(e) => setInviteModal((prev) => ({ ...prev, email: e.target.value }))}
+                      placeholder="name@example.com"
+                      className="w-full px-4 py-2.5 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 text-sm" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-zinc-700 dark:text-zinc-300 mb-1">Personal message <span className="font-normal text-zinc-400">(optional)</span></label>
+                    <textarea value={inviteModal.message}
+                      onChange={(e) => setInviteModal((prev) => ({ ...prev, message: e.target.value }))}
+                      placeholder="Add a note to the invitation email..."
+                      rows={3}
+                      className="w-full px-4 py-2.5 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 text-sm resize-none" />
+                  </div>
+                </div>
+
+                {inviteModal.error && (
+                  <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-lg">
+                    <p className="text-sm text-red-700">{inviteModal.error}</p>
+                  </div>
+                )}
+
+                <div className="flex gap-3 mt-6">
+                  <button onClick={closeInviteModal} disabled={inviteModal.loading}
+                    className="flex-1 px-4 py-2 bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-700 dark:hover:bg-zinc-600 text-zinc-900 dark:text-zinc-100 rounded-lg font-medium text-sm transition disabled:opacity-50">
+                    Cancel
+                  </button>
+                  <button onClick={handleInviteUser} disabled={inviteModal.loading || !inviteModal.email.trim()}
+                    className="flex-1 px-4 py-2 text-white rounded-lg font-medium text-sm transition disabled:opacity-50"
+                    style={{ backgroundColor: "var(--color-ijf-accent)" }}>
+                    {inviteModal.loading ? "Sending..." : "Send Invitation"}
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Delete Confirmation Modal */}
       {deleteModal.open && deleteModal.member && (
@@ -341,18 +431,12 @@ export default function MembersListPage() {
             </p>
 
             <div className="flex gap-3">
-              <button
-                onClick={closeDeleteModal}
-                disabled={deleteModal.loading}
-                className="flex-1 px-4 py-2 bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-700 dark:hover:bg-zinc-600 text-zinc-900 dark:text-zinc-100 rounded-lg font-medium text-sm transition disabled:opacity-50"
-              >
+              <button onClick={closeDeleteModal} disabled={deleteModal.loading}
+                className="flex-1 px-4 py-2 bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-700 dark:hover:bg-zinc-600 text-zinc-900 dark:text-zinc-100 rounded-lg font-medium text-sm transition disabled:opacity-50">
                 Cancel
               </button>
-              <button
-                onClick={handleDelete}
-                disabled={deleteModal.loading}
-                className="flex-1 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium text-sm transition disabled:opacity-50"
-              >
+              <button onClick={handleDelete} disabled={deleteModal.loading}
+                className="flex-1 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium text-sm transition disabled:opacity-50">
                 {deleteModal.loading ? "Deleting..." : "Yes, Delete Organisation"}
               </button>
             </div>

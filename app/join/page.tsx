@@ -2,27 +2,27 @@
 
 import { Suspense } from "react";
 import { useEffect, useState } from "react";
-import { useSearchParams } from "next/navigation";
-import { signIn } from "next-auth/react";
+import { useSearchParams, useRouter } from "next/navigation";
+import { signIn, useSession } from "next-auth/react";
 
 function JoinContent() {
   const searchParams = useSearchParams();
   const token = searchParams?.get("token");
-
+  const router = useRouter();
+  const { status } = useSession();
   const [invitation, setInvitation] = useState<any>(null);
   const [stage, setStage] = useState<"loading" | "ready" | "magic_sent" | "error">("loading");
   const [error, setError] = useState("");
   const [emailLoading, setEmailLoading] = useState(false);
   const [resending, setResending] = useState(false);
 
+
   useEffect(() => {
-    if (token) {
-      validateInvitation();
-    } else {
-      setError("No invitation token found. Please use the link from your invitation email.");
-      setStage("error");
-    }
-  }, [token]);
+  if (status === "loading") return;
+  if (!token) { setError("No invitation token found. Please use the link from your invitation email."); setStage("error"); return; }
+  if (status === "authenticated") { router.replace(`/join/onboarding?token=${token}`); return; }
+  validateInvitation();
+  }, [status, token]);
 
   const validateInvitation = async () => {
     try {
