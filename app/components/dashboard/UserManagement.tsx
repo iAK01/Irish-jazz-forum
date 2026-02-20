@@ -383,7 +383,7 @@ export default function UserManagement() {
               </div>
               <div>
                 <span className="text-xs text-zinc-500 uppercase font-medium">Role</span>
-                <p className="text-sm text-zinc-700 dark:text-zinc-300 capitalize">{deleteModal.user.role.replace("_", " ")}</p>
+                <p className="text-sm text-zinc-700 dark:text-zinc-300 capitalize">{deleteModal.user.role?.replace("_", " ") || "—"}</p>
               </div>
               {deleteModal.user.memberOrgs && deleteModal.user.memberOrgs.length > 0 && (
                 <div>
