@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useSession, signIn, signOut } from "next-auth/react";
+import { useSession, signOut } from "next-auth/react";
 
 export default function Navbar() {
   const { data: session, status } = useSession();
@@ -9,16 +9,10 @@ export default function Navbar() {
   return (
     <nav className="w-full border-b border-zinc-200 dark:border-zinc-800 bg-white dark:bg-black">
       <div className="max-w-6xl mx-auto flex items-center justify-between py-4 px-6">
-      <Link href="/" className="flex items-center gap-3">
-  <img
-    src="/images/IJF_Logo.png"
-    alt="Irish Jazz Forum"
-    className="h-10 w-auto"
-  />
-  <span className="text-xl font-semibold text-black dark:text-zinc-50">
-    Irish Jazz Forum
-  </span>
-</Link>
+        <Link href="/" className="flex items-center gap-3">
+          <img src="/images/IJF_Logo.png" alt="Irish Jazz Forum" className="h-10 w-auto" />
+          <span className="text-xl font-semibold text-black dark:text-zinc-50">Irish Jazz Forum</span>
+        </Link>
 
         <div className="flex gap-5 text-sm font-medium items-center">
           <Link href="/about" className="text-zinc-700 dark:text-zinc-300 hover:text-black dark:hover:text-white">About</Link>
@@ -35,10 +29,17 @@ export default function Navbar() {
             <>
               <Link href="/dashboard" className="text-zinc-700 dark:text-zinc-300 hover:text-black dark:hover:text-white">Dashboard</Link>
               <span className="text-zinc-500">{session.user.name}</span>
-              <button onClick={() => signOut()} className="text-zinc-700 dark:text-zinc-300 hover:text-black dark:hover:text-white">Logout</button>
+              <button
+                onClick={() => signOut({ callbackUrl: "/signin" })}
+                className="text-zinc-700 dark:text-zinc-300 hover:text-black dark:hover:text-white"
+              >
+                Logout
+              </button>
             </>
           ) : (
-            <button onClick={() => signIn("google")} className="text-zinc-700 dark:text-zinc-300 hover:text-black dark:hover:text-white">Login</button>
+            <Link href="/signin" className="text-zinc-700 dark:text-zinc-300 hover:text-black dark:hover:text-white">
+              Login
+            </Link>
           )}
         </div>
       </div>

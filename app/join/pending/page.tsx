@@ -55,6 +55,10 @@ export default function JoinPendingPage() {
                 <span>Your personal member dashboard</span>
               </li>
               <li className="flex items-start gap-2">
+  <span>•</span>
+  <span>Full editing of your organisation or artist profile — logo, photos, social links, tour dates, and more</span>
+</li>
+              <li className="flex items-start gap-2">
                 <span>•</span>
                 <span>Forum discussions and working groups</span>
               </li>
@@ -84,14 +88,14 @@ export default function JoinPendingPage() {
                 Have questions about your application?
               </p>
               <a
-                href="mailto:info@irishjazzforum.ie"
+                href="mailto:ken@improvisedmusic.ie"
                 className="inline-flex items-center gap-2 text-sm font-medium hover:underline"
                 style={{ color: 'var(--color-ijf-accent)' }}
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
                 </svg>
-                Contact us at info@irishjazzforum.ie
+                Contact us at info[at]irishjazzforum[dot]com
               </a>
             </div>
           </div>

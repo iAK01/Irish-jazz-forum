@@ -215,8 +215,11 @@ export default function MembersListPage() {
                   const userCount = member.users?.length ?? 0;
 
                   return (
-                    <tr key={member._id} className="hover:bg-zinc-50 dark:hover:bg-zinc-700/50 transition">
-                      <td className="px-6 py-4 whitespace-nowrap">
+<tr
+  key={member._id}
+  onClick={() => window.location.href = `/dashboard/admin/members/${member.slug}`}
+  className="hover:bg-zinc-50 dark:hover:bg-zinc-700/50 transition cursor-pointer"
+>                      <td className="px-6 py-4 whitespace-nowrap">
                         <div className="text-sm font-medium text-zinc-900 dark:text-zinc-100">{member.name}</div>
                         <div className="text-sm text-zinc-500">/{member.slug}</div>
                       </td>
@@ -258,14 +261,23 @@ export default function MembersListPage() {
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-zinc-500">
                         {new Date(member.joinedAt).toLocaleDateString("en-IE")}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <button
-                          onClick={(e) => openDeleteModal(member, e)}
-                          className="px-3 py-1 bg-red-500 hover:bg-red-600 text-white rounded text-xs font-medium transition"
-                        >
-                          Delete
-                        </button>
-                      </td>
+<td className="px-6 py-4 whitespace-nowrap">
+  <div className="flex items-center gap-2">
+    <Link
+      href={`/dashboard/admin/members/${member.slug}`}
+      onClick={(e) => e.stopPropagation()}
+      className="px-3 py-1 bg-zinc-200 hover:bg-zinc-300 text-zinc-800 rounded text-xs font-medium transition"
+    >
+      Edit
+    </Link>
+    <button
+      onClick={(e) => openDeleteModal(member, e)}
+      className="px-3 py-1 bg-red-500 hover:bg-red-600 text-white rounded text-xs font-medium transition"
+    >
+      Delete
+    </button>
+  </div>
+</td>
                     </tr>
                   );
                 })}

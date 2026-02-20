@@ -10,6 +10,9 @@ import { UserModel } from "@/models/User";
 
 const { handlers, auth, signIn, signOut } = NextAuth({
   adapter: MongoDBAdapter(clientPromise),
+  pages: {
+    signIn: "/signin",
+  },
   providers: [
     Google({
       clientId: process.env.GOOGLE_CLIENT_ID!,
@@ -31,8 +34,6 @@ const { handlers, auth, signIn, signOut } = NextAuth({
         session.user.role = dbUser.role;
         session.user.id = dbUser._id.toString();
         session.user.memberProfile = dbUser.memberProfile;
-        // Ensure name from our UserModel is always used (magic link users
-        // may have updated their name during onboarding)
         if (dbUser.name) {
           session.user.name = dbUser.name;
         }

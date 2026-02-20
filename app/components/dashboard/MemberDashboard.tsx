@@ -1,3 +1,5 @@
+// Location: app/components/dashboard/MemberDashboard.tsx
+
 import Link from "next/link";
 import DashboardLayout from "./DashboardLayout";
 
@@ -9,55 +11,81 @@ interface User {
   memberProfile?: string;
 }
 
-export default function MemberDashboard({ user }: { user: User }) {
+interface MemberDashboardProps {
+  user: User;
+  memberName?: string;
+  membershipStatus?: string;
+}
+
+export default function MemberDashboard({ user, memberName, membershipStatus }: MemberDashboardProps) {
+  const isPending = membershipStatus === "prospective";
+
   return (
     <DashboardLayout title="Member Dashboard" userName={user.name} role={user.role}>
-      <div className="max-w-2xl space-y-4">
+      <div className="space-y-6">
 
-        {/* Profile card */}
-        <div className="bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl p-6">
-          <h3 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100 mb-1">
+        {/* Pending approval banner */}
+        {isPending && (
+          <div style={{ backgroundColor: "#fffbeb", border: "2px solid #fcd34d", borderRadius: "12px", padding: "20px 24px", display: "flex", gap: "16px", alignItems: "flex-start" }}>
+            <div style={{ fontSize: "24px", flexShrink: 0 }}>⏳</div>
+            <div>
+              <p style={{ fontWeight: 700, color: "#92400e", fontSize: "15px", marginBottom: "4px" }}>
+                Your membership is pending approval
+              </p>
+              <p style={{ color: "#92400e", fontSize: "14px", lineHeight: "1.6" }}>
+                Your profile for <strong>{memberName}</strong> has been submitted and is awaiting review by the Irish Jazz Forum team. You'll receive an email once it's approved. In the meantime you can browse the site, but full member features are not yet available.
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* Organisation Profile */}
+        <div style={{ backgroundColor: "white", border: "1px solid #e5e7eb", borderRadius: "12px", padding: "24px" }}>
+          <h3 style={{ fontSize: "18px", fontWeight: 700, color: "#111827", marginBottom: "8px" }}>
             Your Organisation Profile
           </h3>
+          <p style={{ fontSize: "14px", color: "#6b7280", marginBottom: "20px" }}>
+            Keep your profile up to date — it feeds directly into the Irish Jazz Forum member directory and our sector data.
+          </p>
           {user.memberProfile ? (
-            <>
-              <p className="text-sm text-zinc-500 mb-4">
-                Keep your profile up to date — it feeds directly into the Irish Jazz Forum member directory and our sector data.
-              </p>
-              <Link
-                href="/dashboard/profile"
-                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-medium text-white transition"
-                style={{ backgroundColor: "var(--color-ijf-accent)" }}
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-                </svg>
-                Edit Profile
-              </Link>
-            </>
+            <Link
+              href="/dashboard/profile"
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "8px",
+                backgroundColor: isPending ? "#e5e7eb" : "#4CBB5A",
+                color: isPending ? "#9ca3af" : "white",
+                padding: "10px 20px",
+                borderRadius: "8px",
+                fontSize: "14px",
+                fontWeight: 600,
+                textDecoration: "none",
+                pointerEvents: isPending ? "none" : "auto",
+              }}
+            >
+              ✏️ Edit Profile
+            </Link>
           ) : (
-            <p className="text-sm text-zinc-500">
+            <p style={{ fontSize: "14px", color: "#6b7280" }}>
               No member profile assigned yet. Contact an administrator.
             </p>
           )}
         </div>
 
-        {/* Forum card */}
-        <div className="bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl p-6">
-          <h3 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100 mb-1">
+        {/* Discussion Forum */}
+        <div style={{ backgroundColor: "white", border: "1px solid #e5e7eb", borderRadius: "12px", padding: "24px" }}>
+          <h3 style={{ fontSize: "18px", fontWeight: 700, color: "#111827", marginBottom: "8px" }}>
             Discussion Forum
           </h3>
-          <p className="text-sm text-zinc-500 mb-4">
+          <p style={{ fontSize: "14px", color: "#6b7280", marginBottom: "20px" }}>
             Join the conversation with other Irish Jazz Forum members.
           </p>
           <Link
             href="/dashboard/forum"
-            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-medium bg-zinc-100 hover:bg-zinc-200 text-zinc-900 transition"
+            style={{ display: "inline-flex", alignItems: "center", gap: "8px", backgroundColor: "white", color: "#374151", border: "2px solid #e5e7eb", padding: "10px 20px", borderRadius: "8px", fontSize: "14px", fontWeight: 600, textDecoration: "none" }}
           >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-            </svg>
-            Go to Forum
+            💬 Go to Forum
           </Link>
         </div>
 
