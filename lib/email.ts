@@ -8,9 +8,10 @@ interface EmailOptions {
   subject: string;
   html: string;
   from?: string;
+  replyTo?: string;
 }
 
-export async function sendEmail({ to, subject, html, from }: EmailOptions) {
+export async function sendEmail({ to, subject, html, from, replyTo }: EmailOptions) {
   // Create transporter
   const transporter = nodemailer.createTransport({
     host: process.env.SMTP_HOST,
@@ -23,12 +24,13 @@ export async function sendEmail({ to, subject, html, from }: EmailOptions) {
   });
 
   // Send email
-  const info = await transporter.sendMail({
-    from: from || process.env.SMTP_FROM || 'Irish Jazz Forum <noreply@irishjazzforum.ie>',
-    to: Array.isArray(to) ? to.join(', ') : to,
-    subject,
-    html,
-  });
+ const info = await transporter.sendMail({
+  from: from || process.env.SMTP_FROM || 'Irish Jazz Forum <noreply@irishjazzforum.ie>',
+  to: Array.isArray(to) ? to.join(', ') : to,
+  replyTo: replyTo,
+  subject,
+  html,
+});
 
   return info;
 }
