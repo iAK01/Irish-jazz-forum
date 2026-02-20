@@ -10,39 +10,57 @@ interface PartnershipsProps {
   setValue: UseFormSetValue<any>;
 }
 
+const IJF_GREEN = "#4CBB5A";
+
+const chipStyle: React.CSSProperties = {
+  backgroundColor: IJF_GREEN,
+  color: "white",
+  display: "inline-flex",
+  alignItems: "center",
+  gap: "8px",
+  padding: "6px 14px",
+  borderRadius: "9999px",
+  fontSize: "14px",
+  fontWeight: 500,
+};
+
+const addBtnStyle: React.CSSProperties = {
+  flexShrink: 0,
+  backgroundColor: IJF_GREEN,
+  color: "white",
+  padding: "8px 20px",
+  borderRadius: "8px",
+  fontSize: "14px",
+  fontWeight: 500,
+  border: "none",
+  cursor: "pointer",
+};
+
+const inputStyle: React.CSSProperties = {
+  flex: 1,
+  minWidth: 0,
+  padding: "8px 16px",
+  border: "1px solid #d1d5db",
+  borderRadius: "8px",
+  fontSize: "14px",
+};
+
 export default function Partnerships({ watch, setValue }: PartnershipsProps) {
   const regularCollaborators = watch("partnerships.regularCollaborators") || [];
   const projectHistory = watch("partnerships.projectHistory") || [];
   const networkMemberships = watch("partnerships.networkMemberships") || [];
 
-  const addCollaborator = () => {
-    const input = document.getElementById("collaborator-input") as HTMLInputElement;
+  const addItem = (inputId: string, current: string[], field: string) => {
+    const input = document.getElementById(inputId) as HTMLInputElement;
     if (input && input.value.trim()) {
-      const newCollaborator = input.value.trim();
-      if (!regularCollaborators.includes(newCollaborator)) {
-        setValue("partnerships.regularCollaborators", [...regularCollaborators, newCollaborator]);
-      }
+      const val = input.value.trim();
+      if (!current.includes(val)) setValue(field, [...current, val]);
       input.value = "";
     }
   };
 
-  const removeCollaborator = (collaborator: string) => {
-    setValue("partnerships.regularCollaborators", regularCollaborators.filter((c: string) => c !== collaborator));
-  };
-
-  const addNetworkMembership = () => {
-    const input = document.getElementById("network-input") as HTMLInputElement;
-    if (input && input.value.trim()) {
-      const newNetwork = input.value.trim();
-      if (!networkMemberships.includes(newNetwork)) {
-        setValue("partnerships.networkMemberships", [...networkMemberships, newNetwork]);
-      }
-      input.value = "";
-    }
-  };
-
-  const removeNetworkMembership = (network: string) => {
-    setValue("partnerships.networkMemberships", networkMemberships.filter((n: string) => n !== network));
+  const removeItem = (field: string, current: string[], value: string) => {
+    setValue(field, current.filter((v: string) => v !== value));
   };
 
   const addProject = () => {
@@ -64,61 +82,33 @@ export default function Partnerships({ watch, setValue }: PartnershipsProps) {
 
   return (
     <div className="space-y-8">
-      <h2 className="text-2xl font-bold text-ijf-accent mb-4">Partnerships & Collaboration</h2>
+      <h2 className="text-2xl font-bold text-ijf-accent">Partnerships & Collaboration</h2>
 
       {/* Regular Collaborators */}
       <div>
-        <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">
-          Regular Collaborators
-        </label>
-        <p className="text-xs text-zinc-500 mb-2">
-          Enter member slugs or organization names
-        </p>
-        <div className="flex gap-2 mb-2">
-          <input
-            id="collaborator-input"
-            type="text"
-            className="flex-1 px-4 py-2 border border-zinc-300 dark:border-zinc-700 rounded bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100"
-            placeholder="e.g., dublin-big-band"
-            onKeyPress={(e) => {
-              if (e.key === "Enter") {
-                e.preventDefault();
-                addCollaborator();
-              }
-            }}
-          />
-          <button
-            type="button"
-            onClick={addCollaborator}
-            className="px-4 py-2 bg-ijf-accent text-ijf-bg rounded hover:bg-ijf-accent/80 font-medium"
-          >
-            Add
-          </button>
+        <label className="block text-sm font-semibold text-zinc-700 mb-1">Regular Collaborators</label>
+        <p className="text-xs text-zinc-500 mb-2">Enter member slugs or organisation names</p>
+        <div style={{ display: "flex", gap: "8px" }}>
+          <input id="collaborator-input" type="text" style={inputStyle} placeholder="e.g., dublin-big-band"
+            onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addItem("collaborator-input", regularCollaborators, "partnerships.regularCollaborators"); } }} />
+          <button type="button" style={addBtnStyle} onClick={() => addItem("collaborator-input", regularCollaborators, "partnerships.regularCollaborators")}>Add</button>
         </div>
-        <div className="flex flex-wrap gap-2">
-          {regularCollaborators.map((collaborator: string) => (
-            <span
-              key={collaborator}
-              className="px-3 py-1 bg-ijf-primary text-ijf-surface rounded-full text-sm flex items-center gap-2"
-            >
-              {collaborator}
-              <button
-                type="button"
-                onClick={() => removeCollaborator(collaborator)}
-                className="hover:text-red-300"
-              >
-                ×
-              </button>
-            </span>
-          ))}
-        </div>
+        {regularCollaborators.length > 0 && (
+          <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", marginTop: "12px" }}>
+            {regularCollaborators.map((c: string) => (
+              <span key={c} style={chipStyle}>
+                {c}
+                <button type="button" onClick={() => removeItem("partnerships.regularCollaborators", regularCollaborators, c)}
+                  style={{ background: "none", border: "none", color: "white", cursor: "pointer", padding: 0, lineHeight: 1 }}>×</button>
+              </span>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Project History */}
       <div>
-        <h3 className="text-lg font-semibold text-zinc-700 dark:text-zinc-300 mb-3">
-          Project History
-        </h3>
+        <h3 className="text-lg font-semibold text-zinc-700 mb-3">Project History</h3>
         <RepeatableTable
           fields={[
             { name: "partnerSlug", label: "Partner", type: "text", required: true, placeholder: "Member slug or name" },
@@ -137,50 +127,24 @@ export default function Partnerships({ watch, setValue }: PartnershipsProps) {
 
       {/* Network Memberships */}
       <div>
-        <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">
-          Network Memberships
-        </label>
-        <p className="text-xs text-zinc-500 mb-2">
-          e.g., Jazz Promotion Network, Better Live, Europe Jazz Network
-        </p>
-        <div className="flex gap-2 mb-2">
-          <input
-            id="network-input"
-            type="text"
-            className="flex-1 px-4 py-2 border border-zinc-300 dark:border-zinc-700 rounded bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100"
-            placeholder="e.g., Jazz Promotion Network"
-            onKeyPress={(e) => {
-              if (e.key === "Enter") {
-                e.preventDefault();
-                addNetworkMembership();
-              }
-            }}
-          />
-          <button
-            type="button"
-            onClick={addNetworkMembership}
-            className="px-4 py-2 bg-ijf-accent text-ijf-bg rounded hover:bg-ijf-accent/80 font-medium"
-          >
-            Add
-          </button>
+        <label className="block text-sm font-semibold text-zinc-700 mb-1">Network Memberships</label>
+        <p className="text-xs text-zinc-500 mb-2">e.g., Jazz Promotion Network, Better Live, Europe Jazz Network</p>
+        <div style={{ display: "flex", gap: "8px" }}>
+          <input id="network-input" type="text" style={inputStyle} placeholder="e.g., Jazz Promotion Network"
+            onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addItem("network-input", networkMemberships, "partnerships.networkMemberships"); } }} />
+          <button type="button" style={addBtnStyle} onClick={() => addItem("network-input", networkMemberships, "partnerships.networkMemberships")}>Add</button>
         </div>
-        <div className="flex flex-wrap gap-2">
-          {networkMemberships.map((network: string) => (
-            <span
-              key={network}
-              className="px-3 py-1 bg-ijf-primary text-ijf-surface rounded-full text-sm flex items-center gap-2"
-            >
-              {network}
-              <button
-                type="button"
-                onClick={() => removeNetworkMembership(network)}
-                className="hover:text-red-300"
-              >
-                ×
-              </button>
-            </span>
-          ))}
-        </div>
+        {networkMemberships.length > 0 && (
+          <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", marginTop: "12px" }}>
+            {networkMemberships.map((n: string) => (
+              <span key={n} style={chipStyle}>
+                {n}
+                <button type="button" onClick={() => removeItem("partnerships.networkMemberships", networkMemberships, n)}
+                  style={{ background: "none", border: "none", color: "white", cursor: "pointer", padding: 0, lineHeight: 1 }}>×</button>
+              </span>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

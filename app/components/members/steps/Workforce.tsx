@@ -53,7 +53,7 @@ export default function Workforce({ register, watch, errors }: WorkforceProps) {
             className="w-4 h-4"
           />
           <span className="text-sm text-zinc-700 dark:text-zinc-300">
-            Employs Freelancers Regularly
+            Employs Freelancers Regularly (aware of Karshan Ruling)
           </span>
         </label>
       </div>

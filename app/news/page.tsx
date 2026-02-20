@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 
+
 async function getNews() {
   try {
     const res = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL}/api/publications?category=news`, {
@@ -19,7 +20,7 @@ export default async function NewsPage() {
 
   return (
     <>
-  
+    
       <main className="min-h-screen bg-white">
         <div className="max-w-4xl mx-auto px-6 py-16">
           <div className="mb-12">
@@ -34,18 +35,23 @@ export default async function NewsPage() {
               <p>No news items published yet.</p>
             </div>
           ) : (
-            <div className="space-y-8">
+            <div className="space-y-10">
               {news.map((item: any) => (
-                <article
-                  key={item._id}
-                  className="border-b border-gray-200 pb-8 last:border-0"
-                >
+                <article key={item._id} className="border-b border-gray-200 pb-10 last:border-0">
+                  {/* Hero image */}
+                  {item.images?.[0] && (
+                    <Link href={`/news/${item.slug}`}>
+                      <img
+                        src={item.images[0]}
+                        alt={item.title}
+                        className="w-full h-56 object-cover rounded-xl mb-5"
+                      />
+                    </Link>
+                  )}
+
                   <div className="flex items-center gap-3 mb-3">
                     {item.tags?.map((tag: string) => (
-                      <span
-                        key={tag}
-                        className="px-2 py-0.5 text-xs font-medium bg-gray-100 text-gray-600 rounded capitalize"
-                      >
+                      <span key={tag} className="px-2 py-0.5 text-xs font-medium bg-gray-100 text-gray-600 rounded capitalize">
                         {tag}
                       </span>
                     ))}
@@ -68,16 +74,11 @@ export default async function NewsPage() {
                     <span className="text-sm text-gray-500">
                       {item.publishedAt
                         ? new Date(item.publishedAt).toLocaleDateString("en-IE", {
-                            day: "numeric",
-                            month: "long",
-                            year: "numeric",
+                            day: "numeric", month: "long", year: "numeric",
                           })
                         : ""}
                     </span>
-                    <Link
-                      href={`/news/${item.slug}`}
-                      className="text-sm font-medium text-ijf-accent hover:underline"
-                    >
+                    <Link href={`/news/${item.slug}`} className="text-sm font-medium text-ijf-accent hover:underline">
                       Read more →
                     </Link>
                   </div>
@@ -87,6 +88,7 @@ export default async function NewsPage() {
           )}
         </div>
       </main>
+   
     </>
   );
 }

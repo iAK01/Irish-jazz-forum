@@ -1,3 +1,5 @@
+// Location: app/components/members/steps/CoreIdentity.tsx
+
 "use client";
 
 import { UseFormRegister, UseFormWatch, UseFormSetValue } from "react-hook-form";
@@ -10,6 +12,10 @@ interface CoreIdentityProps {
   setValue: UseFormSetValue<any>;
   errors: any;
 }
+
+const IJF_GREEN = "#4CBB5A";
+const SELECTED_STYLE: React.CSSProperties = { backgroundColor: IJF_GREEN, borderColor: IJF_GREEN, color: "white", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 16px", borderRadius: "8px", borderWidth: "2px", borderStyle: "solid", fontSize: "14px", fontWeight: 500, cursor: "pointer", width: "100%", textAlign: "left" };
+const UNSELECTED_STYLE: React.CSSProperties = { backgroundColor: "white", borderColor: "#d1d5db", color: "#374151", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 16px", borderRadius: "8px", borderWidth: "2px", borderStyle: "solid", fontSize: "14px", fontWeight: 500, cursor: "pointer", width: "100%", textAlign: "left" };
 
 const MEMBER_TYPES = [
   { value: "artist", label: "Artist" },
@@ -47,152 +53,122 @@ const LEGAL_STATUS_OPTIONS = [
   { value: "other", label: "Other" },
 ];
 
+const PRIORITY_LABEL: Record<number, string> = { 1: "PRIMARY", 2: "SECONDARY", 3: "TERTIARY" };
+
+const Checkmark = () => (
+  <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{ marginLeft: "8px", flexShrink: 0 }}>
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+  </svg>
+);
+
 export default function CoreIdentity({ register, watch, setValue, errors }: CoreIdentityProps) {
   const name = watch("name");
   const slug = watch("slug");
   const memberType = watch("memberType") || [];
   const ecosystemRoles = watch("ecosystemRoles") || [];
 
-  // Auto-generate slug from name
   useEffect(() => {
     if (name && !slug) {
-      const generatedSlug = slugify(name, {
-        lower: true,
-        strict: true,
-      });
-      setValue("slug", generatedSlug);
+      setValue("slug", slugify(name, { lower: true, strict: true }));
     }
   }, [name, slug, setValue]);
 
   const toggleMemberType = (type: string) => {
-    const current = memberType;
-    if (current.includes(type)) {
-      setValue("memberType", current.filter((t: string) => t !== type));
+    if (memberType.includes(type)) {
+      setValue("memberType", memberType.filter((t: string) => t !== type));
     } else {
-      setValue("memberType", [...current, type]);
+      setValue("memberType", [...memberType, type]);
     }
   };
 
   const toggleEcosystemRole = (role: string) => {
-    const current = ecosystemRoles;
-    if (current.includes(role)) {
-      setValue("ecosystemRoles", current.filter((r: string) => r !== role));
+    if (ecosystemRoles.includes(role)) {
+      setValue("ecosystemRoles", ecosystemRoles.filter((r: string) => r !== role));
     } else {
-      setValue("ecosystemRoles", [...current, role]);
+      setValue("ecosystemRoles", [...ecosystemRoles, role]);
     }
   };
 
   return (
-    <div className="space-y-6">
-      <h2 className="text-2xl font-bold text-ijf-accent mb-4">Core Identity</h2>
+    <div className="space-y-8">
+      <h2 className="text-2xl font-bold text-ijf-accent">Core Identity</h2>
 
       {/* Name */}
       <div>
-        <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">
-          Name <span className="text-red-500">*</span>
+        <label className="block text-sm font-semibold text-zinc-700 mb-2">
+          Name <span style={{ color: "#ef4444" }}>*</span>
         </label>
         <input
           type="text"
           {...register("name", { required: "Name is required" })}
-          className="w-full px-4 py-2 border border-zinc-300 dark:border-zinc-700 rounded bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100"
-          placeholder="Your name or organization name"
+          style={{ width: "100%", padding: "8px 16px", border: "1px solid #d1d5db", borderRadius: "8px", fontSize: "14px" }}
+          placeholder="Your name or organisation name"
         />
-        {errors.name && (
-          <p className="text-red-500 text-sm mt-1">{errors.name.message}</p>
-        )}
+        {errors.name && <p style={{ color: "#ef4444", fontSize: "13px", marginTop: "4px" }}>{errors.name.message}</p>}
       </div>
 
       {/* Slug */}
       <div>
-        <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">
-          URL Slug <span className="text-red-500">*</span>
+        <label className="block text-sm font-semibold text-zinc-700 mb-2">
+          URL Slug <span style={{ color: "#ef4444" }}>*</span>
         </label>
         <input
           type="text"
-          {...register("slug", { 
+          {...register("slug", {
             required: "Slug is required",
-            pattern: {
-              value: /^[a-z0-9-]+$/,
-              message: "Slug can only contain lowercase letters, numbers, and hyphens"
-            }
+            pattern: { value: /^[a-z0-9-]+$/, message: "Slug can only contain lowercase letters, numbers, and hyphens" },
           })}
-          className="w-full px-4 py-2 border border-zinc-300 dark:border-zinc-700 rounded bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100"
+          style={{ width: "100%", padding: "8px 16px", border: "1px solid #d1d5db", borderRadius: "8px", fontSize: "14px" }}
           placeholder="auto-generated-from-name"
         />
-        <p className="text-xs text-zinc-500 mt-1">
-          This will be your profile URL: /members/{slug || "your-slug"}
-        </p>
-        {errors.slug && (
-          <p className="text-red-500 text-sm mt-1">{errors.slug.message}</p>
-        )}
+        <p className="text-xs text-zinc-500 mt-1">Your profile URL: /members/{slug || "your-slug"}</p>
+        {errors.slug && <p style={{ color: "#ef4444", fontSize: "13px", marginTop: "4px" }}>{errors.slug.message}</p>}
       </div>
 
-      {/* Member Type (Multi-select with Priority) */}
+      {/* Member Type */}
       <div>
-        <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">
-          Member Type <span className="text-red-500">*</span>
+        <label className="block text-sm font-semibold text-zinc-700 mb-1">
+          Member Type <span style={{ color: "#ef4444" }}>*</span>
         </label>
         <p className="text-xs text-zinc-500 mb-3">
-          Select all that apply. First selected = PRIMARY, others = SECONDARY/TERTIARY
+          Select all that apply — first selected becomes your primary type
         </p>
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: "8px" }}>
           {MEMBER_TYPES.map((type) => {
             const isSelected = memberType.includes(type.value);
             const priority = memberType.indexOf(type.value) + 1;
-            
             return (
-              <button
-                key={type.value}
-                type="button"
-                onClick={() => toggleMemberType(type.value)}
-                className={`px-4 py-2 border rounded text-sm font-medium transition ${
-                  isSelected
-                    ? "bg-ijf-accent text-ijf-bg border-ijf-accent"
-                    : "bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 border-zinc-300 dark:border-zinc-700 hover:border-ijf-accent"
-                }`}
-              >
-                {type.label}
+              <button key={type.value} type="button" onClick={() => toggleMemberType(type.value)}
+                style={isSelected ? SELECTED_STYLE : UNSELECTED_STYLE}>
+                <span>{type.label}</span>
                 {isSelected && (
-                  <span className="ml-2 text-xs">
-                    {priority === 1 ? "PRIMARY" : priority === 2 ? "SECONDARY" : "TERTIARY"}
+                  <span style={{ display: "flex", alignItems: "center", gap: "6px", flexShrink: 0 }}>
+                    <span style={{ fontSize: "11px", fontWeight: 700, opacity: 0.85 }}>
+                      {PRIORITY_LABEL[priority] || ""}
+                    </span>
+                    <Checkmark />
                   </span>
                 )}
               </button>
             );
           })}
         </div>
-        {errors.memberType && (
-          <p className="text-red-500 text-sm mt-1">{errors.memberType.message}</p>
-        )}
+        {errors.memberType && <p style={{ color: "#ef4444", fontSize: "13px", marginTop: "4px" }}>{errors.memberType.message}</p>}
       </div>
 
       {/* Ecosystem Roles */}
       <div>
-        <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">
-          Ecosystem Roles
-        </label>
-        <p className="text-xs text-zinc-500 mb-3">
-          Select all roles that describe your participation in the jazz ecosystem
-        </p>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+        <label className="block text-sm font-semibold text-zinc-700 mb-1">Ecosystem Roles</label>
+        <p className="text-xs text-zinc-500 mb-3">Select all roles that describe your participation in the jazz ecosystem</p>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: "8px" }}>
           {ECOSYSTEM_ROLES.map((role) => {
             const isSelected = ecosystemRoles.includes(role.value);
-            
             return (
-              <label
-                key={role.value}
-                className="flex items-center gap-2 px-4 py-2 border rounded cursor-pointer hover:bg-zinc-50 dark:hover:bg-zinc-800"
-              >
-                <input
-                  type="checkbox"
-                  checked={isSelected}
-                  onChange={() => toggleEcosystemRole(role.value)}
-                  className="w-4 h-4"
-                />
-                <span className="text-sm text-zinc-700 dark:text-zinc-300">
-                  {role.label}
-                </span>
-              </label>
+              <button key={role.value} type="button" onClick={() => toggleEcosystemRole(role.value)}
+                style={isSelected ? SELECTED_STYLE : UNSELECTED_STYLE}>
+                <span>{role.label}</span>
+                {isSelected && <Checkmark />}
+              </button>
             );
           })}
         </div>
@@ -200,18 +176,14 @@ export default function CoreIdentity({ register, watch, setValue, errors }: Core
 
       {/* Legal Status */}
       <div>
-        <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">
-          Legal Status
-        </label>
+        <label className="block text-sm font-semibold text-zinc-700 mb-2">Legal Status</label>
         <select
           {...register("legalStatus")}
-          className="w-full px-4 py-2 border border-zinc-300 dark:border-zinc-700 rounded bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100"
+          style={{ width: "100%", padding: "8px 16px", border: "1px solid #d1d5db", borderRadius: "8px", fontSize: "14px", backgroundColor: "white" }}
         >
           <option value="">Select legal status (optional)</option>
           {LEGAL_STATUS_OPTIONS.map((option) => (
-            <option key={option.value} value={option.value}>
-              {option.label}
-            </option>
+            <option key={option.value} value={option.value}>{option.label}</option>
           ))}
         </select>
       </div>

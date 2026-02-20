@@ -9,6 +9,10 @@ interface EDIProps {
   setValue: UseFormSetValue<any>;
 }
 
+const IJF_GREEN = "#4CBB5A";
+const SELECTED_STYLE = { backgroundColor: IJF_GREEN, borderColor: IJF_GREEN, color: "white" };
+const UNSELECTED_STYLE = { backgroundColor: "white", borderColor: "#d1d5db", color: "#374151" };
+
 const EDI_FOCUS_AREAS = [
   { value: "gender_balance", label: "Gender Balance" },
   { value: "disability", label: "Disability" },
@@ -40,118 +44,93 @@ export default function EDI({ watch, setValue }: EDIProps) {
   const accessibilityFeatures = watch("accessibilityFeatures") || [];
   const sustainabilityPractices = watch("environmentalSustainabilityPractices") || [];
 
-  const toggleEDIFocus = (area: string) => {
-    const current = ediFocusAreas;
-    if (current.includes(area)) {
-      setValue("ediFocusAreas", current.filter((a: string) => a !== area));
+  const toggle = (field: string, current: string[], value: string) => {
+    if (current.includes(value)) {
+      setValue(field, current.filter((v: string) => v !== value));
     } else {
-      setValue("ediFocusAreas", [...current, area]);
+      setValue(field, [...current, value]);
     }
   };
 
-  const toggleAccessibility = (feature: string) => {
-    const current = accessibilityFeatures;
-    if (current.includes(feature)) {
-      setValue("accessibilityFeatures", current.filter((f: string) => f !== feature));
-    } else {
-      setValue("accessibilityFeatures", [...current, feature]);
-    }
-  };
-
-  const toggleSustainability = (practice: string) => {
-    const current = sustainabilityPractices;
-    if (current.includes(practice)) {
-      setValue("environmentalSustainabilityPractices", current.filter((p: string) => p !== practice));
-    } else {
-      setValue("environmentalSustainabilityPractices", [...current, practice]);
-    }
-  };
+  const ToggleButton = ({
+    label,
+    isSelected,
+    onClick,
+  }: {
+    label: string;
+    isSelected: boolean;
+    onClick: () => void;
+  }) => (
+    <button
+      type="button"
+      onClick={onClick}
+      className="flex items-center justify-between px-4 py-3 rounded-lg border-2 text-sm font-medium transition-all"
+      style={isSelected ? SELECTED_STYLE : UNSELECTED_STYLE}
+    >
+      <span>{label}</span>
+      {isSelected && (
+        <svg className="w-4 h-4 flex-shrink-0 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+        </svg>
+      )}
+    </button>
+  );
 
   return (
-    <div className="space-y-6">
-      <h2 className="text-2xl font-bold text-ijf-accent mb-4">Equity, Diversity & Inclusion</h2>
+    <div className="space-y-8">
+      <h2 className="text-2xl font-bold text-ijf-accent">Equality, Diversity & Inclusion</h2>
 
       {/* EDI Focus Areas */}
       <div>
-        <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">
+        <label className="block text-sm font-semibold text-zinc-700 dark:text-zinc-300 mb-1">
           EDI Focus Areas
         </label>
+        <p className="text-xs text-zinc-500 mb-3">Select all areas your organisation actively focuses on</p>
         <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-          {EDI_FOCUS_AREAS.map((area) => {
-            const isSelected = ediFocusAreas.includes(area.value);
-            return (
-              <label
-                key={area.value}
-                className="flex items-center gap-2 px-4 py-2 border rounded cursor-pointer hover:bg-zinc-50 dark:hover:bg-zinc-800"
-              >
-                <input
-                  type="checkbox"
-                  checked={isSelected}
-                  onChange={() => toggleEDIFocus(area.value)}
-                  className="w-4 h-4"
-                />
-                <span className="text-sm text-zinc-700 dark:text-zinc-300">
-                  {area.label}
-                </span>
-              </label>
-            );
-          })}
+          {EDI_FOCUS_AREAS.map((area) => (
+            <ToggleButton
+              key={area.value}
+              label={area.label}
+              isSelected={ediFocusAreas.includes(area.value)}
+              onClick={() => toggle("ediFocusAreas", ediFocusAreas, area.value)}
+            />
+          ))}
         </div>
       </div>
 
       {/* Accessibility Features */}
       <div>
-        <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">
+        <label className="block text-sm font-semibold text-zinc-700 dark:text-zinc-300 mb-1">
           Accessibility Features
         </label>
+        <p className="text-xs text-zinc-500 mb-3">Select all accessibility features your venue or events provide</p>
         <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-          {ACCESSIBILITY_FEATURES.map((feature) => {
-            const isSelected = accessibilityFeatures.includes(feature.value);
-            return (
-              <label
-                key={feature.value}
-                className="flex items-center gap-2 px-4 py-2 border rounded cursor-pointer hover:bg-zinc-50 dark:hover:bg-zinc-800"
-              >
-                <input
-                  type="checkbox"
-                  checked={isSelected}
-                  onChange={() => toggleAccessibility(feature.value)}
-                  className="w-4 h-4"
-                />
-                <span className="text-sm text-zinc-700 dark:text-zinc-300">
-                  {feature.label}
-                </span>
-              </label>
-            );
-          })}
+          {ACCESSIBILITY_FEATURES.map((feature) => (
+            <ToggleButton
+              key={feature.value}
+              label={feature.label}
+              isSelected={accessibilityFeatures.includes(feature.value)}
+              onClick={() => toggle("accessibilityFeatures", accessibilityFeatures, feature.value)}
+            />
+          ))}
         </div>
       </div>
 
-      {/* Environmental Sustainability */}
+      {/* Sustainability Practices */}
       <div>
-        <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">
+        <label className="block text-sm font-semibold text-zinc-700 dark:text-zinc-300 mb-1">
           Environmental Sustainability Practices
         </label>
+        <p className="text-xs text-zinc-500 mb-3">Select all practices your organisation actively uses</p>
         <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-          {SUSTAINABILITY_PRACTICES.map((practice) => {
-            const isSelected = sustainabilityPractices.includes(practice.value);
-            return (
-              <label
-                key={practice.value}
-                className="flex items-center gap-2 px-4 py-2 border rounded cursor-pointer hover:bg-zinc-50 dark:hover:bg-zinc-800"
-              >
-                <input
-                  type="checkbox"
-                  checked={isSelected}
-                  onChange={() => toggleSustainability(practice.value)}
-                  className="w-4 h-4"
-                />
-                <span className="text-sm text-zinc-700 dark:text-zinc-300">
-                  {practice.label}
-                </span>
-              </label>
-            );
-          })}
+          {SUSTAINABILITY_PRACTICES.map((practice) => (
+            <ToggleButton
+              key={practice.value}
+              label={practice.label}
+              isSelected={sustainabilityPractices.includes(practice.value)}
+              onClick={() => toggle("environmentalSustainabilityPractices", sustainabilityPractices, practice.value)}
+            />
+          ))}
         </div>
       </div>
     </div>

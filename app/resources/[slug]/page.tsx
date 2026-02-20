@@ -2,8 +2,7 @@
 
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import Navbar from "@/app/components/Navbar";
-import Footer from "@/app/components/Footer";
+
 
 async function getPublication(slug: string) {
   try {
@@ -25,11 +24,7 @@ const resourceTypeLabel: Record<string, string> = {
   other: "Other",
 };
 
-export default async function ResourceItemPage({
-  params,
-}: {
-  params: Promise<{ slug: string }>;
-}) {
+export default async function ResourceItemPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
   const item = await getPublication(slug);
 
@@ -37,7 +32,7 @@ export default async function ResourceItemPage({
 
   return (
     <>
-      <Navbar />
+
       <main className="min-h-screen bg-white">
         <div className="max-w-3xl mx-auto px-6 py-16">
           <div className="mb-8">
@@ -81,16 +76,31 @@ export default async function ResourceItemPage({
               </div>
             </header>
 
-            <div
-              className="prose prose-gray max-w-none"
-              dangerouslySetInnerHTML={{ __html: item.body }}
-            />
+            {/* Hero image */}
+            {item.images?.[0] && (
+              <img
+                src={item.images[0]}
+                alt={item.title}
+                className="w-full h-72 object-cover rounded-xl mb-10"
+              />
+            )}
 
+            {/* Body */}
+            <div className="prose prose-gray max-w-none" dangerouslySetInnerHTML={{ __html: item.body }} />
+
+            {/* Additional images */}
+            {item.images?.length > 1 && (
+              <div className="mt-10 grid grid-cols-2 gap-4">
+                {item.images.slice(1).map((url: string, i: number) => (
+                  <img key={i} src={url} alt={`Image ${i + 2}`} className="w-full h-48 object-cover rounded-lg" />
+                ))}
+              </div>
+            )}
+
+            {/* Attachments */}
             {item.attachments?.length > 0 && (
               <div className="mt-12 pt-8 border-t border-gray-200">
-                <h3 className="text-sm font-semibold text-gray-900 uppercase tracking-wider mb-4">
-                  Attachments
-                </h3>
+                <h3 className="text-sm font-semibold text-gray-900 uppercase tracking-wider mb-4">Attachments</h3>
                 <div className="space-y-2">
                   {item.attachments.map((att: any, i: number) => (
                     <a
@@ -112,7 +122,7 @@ export default async function ResourceItemPage({
           </article>
         </div>
       </main>
-      <Footer />
+
     </>
   );
 }

@@ -10,12 +10,13 @@ export interface Publication extends Document {
   title: string;
   slug: string;
   excerpt: string;
-  body: string; // TipTap HTML
+  body: string;
   category: PublicationCategory;
   resourceType?: ResourceType;
   status: PublicationStatus;
   author: Types.ObjectId;
   tags: string[];
+  images: string[]; // GCS public URLs
   attachments: {
     label: string;
     url: string;
@@ -53,6 +54,7 @@ const PublicationSchema = new Schema<Publication>(
       required: true,
     },
     tags: [{ type: String }],
+    images: [{ type: String }],
     attachments: [
       {
         label: { type: String, required: true },

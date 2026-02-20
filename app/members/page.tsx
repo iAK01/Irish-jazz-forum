@@ -160,11 +160,11 @@ export default function PublicMembersPage() {
 
         <div className="max-w-7xl mx-auto px-6 py-16">
           <div className="flex items-center gap-4 mb-6">
-            <div className="w-20 h-20 rounded-xl flex items-center justify-center" style={{ backgroundColor: 'var(--color-ijf-primary)' }}>
-              <svg className="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-              </svg>
-            </div>
+           <img
+  src="/images/IJF_Logo.png"
+  alt="Irish Jazz Forum"
+  className="w-20 h-20 object-contain"
+/>
             <div>
               <h1 className="text-5xl font-bold text-white mb-2">Member Directory</h1>
               <p className="text-xl text-gray-300">

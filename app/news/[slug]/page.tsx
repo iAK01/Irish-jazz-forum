@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
+
 async function getPublication(slug: string) {
   try {
     const res = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL}/api/publications/${slug}`, {
@@ -15,11 +16,7 @@ async function getPublication(slug: string) {
   }
 }
 
-export default async function NewsItemPage({
-  params,
-}: {
-  params: Promise<{ slug: string }>;
-}) {
+export default async function NewsItemPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
   const item = await getPublication(slug);
 
@@ -27,14 +24,11 @@ export default async function NewsItemPage({
 
   return (
     <>
-  
+ 
       <main className="min-h-screen bg-white">
         <div className="max-w-3xl mx-auto px-6 py-16">
           <div className="mb-8">
-            <Link
-              href="/news"
-              className="text-sm text-gray-500 hover:text-gray-900 transition-colors"
-            >
+            <Link href="/news" className="text-sm text-gray-500 hover:text-gray-900 transition-colors">
               ← Back to News
             </Link>
           </div>
@@ -44,10 +38,7 @@ export default async function NewsItemPage({
               {item.tags?.length > 0 && (
                 <div className="flex gap-2 mb-4">
                   {item.tags.map((tag: string) => (
-                    <span
-                      key={tag}
-                      className="px-2 py-0.5 text-xs font-medium bg-gray-100 text-gray-600 rounded capitalize"
-                    >
+                    <span key={tag} className="px-2 py-0.5 text-xs font-medium bg-gray-100 text-gray-600 rounded capitalize">
                       {tag}
                     </span>
                   ))}
@@ -59,40 +50,51 @@ export default async function NewsItemPage({
                 </div>
               )}
 
-              <h1 className="text-4xl font-bold text-gray-900 mb-4 leading-tight">
-                {item.title}
-              </h1>
-
+              <h1 className="text-4xl font-bold text-gray-900 mb-4 leading-tight">{item.title}</h1>
               <p className="text-xl text-gray-600 leading-relaxed mb-6">{item.excerpt}</p>
 
               <div className="flex items-center gap-4 text-sm text-gray-500 border-t border-b border-gray-100 py-4">
                 {item.publishedAt && (
                   <span>
                     {new Date(item.publishedAt).toLocaleDateString("en-IE", {
-                      day: "numeric",
-                      month: "long",
-                      year: "numeric",
+                      day: "numeric", month: "long", year: "numeric",
                     })}
                   </span>
                 )}
-                {item.author?.name && (
-                  <span>By {item.author.name}</span>
-                )}
+                {item.author?.name && <span>By {item.author.name}</span>}
               </div>
             </header>
 
-            {/* Rich text body from TipTap */}
-            <div
-              className="prose prose-gray max-w-none"
-              dangerouslySetInnerHTML={{ __html: item.body }}
-            />
+            {/* Hero image */}
+            {item.images?.[0] && (
+              <img
+                src={item.images[0]}
+                alt={item.title}
+                className="w-full h-72 object-cover rounded-xl mb-10"
+              />
+            )}
+
+            {/* Body */}
+            <div className="prose prose-gray max-w-none" dangerouslySetInnerHTML={{ __html: item.body }} />
+
+            {/* Additional images */}
+            {item.images?.length > 1 && (
+              <div className="mt-10 grid grid-cols-2 gap-4">
+                {item.images.slice(1).map((url: string, i: number) => (
+                  <img
+                    key={i}
+                    src={url}
+                    alt={`Image ${i + 2}`}
+                    className="w-full h-48 object-cover rounded-lg"
+                  />
+                ))}
+              </div>
+            )}
 
             {/* Attachments */}
             {item.attachments?.length > 0 && (
               <div className="mt-12 pt-8 border-t border-gray-200">
-                <h3 className="text-sm font-semibold text-gray-900 uppercase tracking-wider mb-4">
-                  Attachments
-                </h3>
+                <h3 className="text-sm font-semibold text-gray-900 uppercase tracking-wider mb-4">Attachments</h3>
                 <div className="space-y-2">
                   {item.attachments.map((att: any, i: number) => (
                     <a
@@ -114,6 +116,7 @@ export default async function NewsItemPage({
           </article>
         </div>
       </main>
+
     </>
   );
 }

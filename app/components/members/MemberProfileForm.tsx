@@ -437,6 +437,7 @@ export default function MemberProfileForm({ initialData, mode, isAdmin = false }
       case "CareerSupport":
         return (
           <CareerSupport
+            watch={watch}
             register={register}
           />
         );

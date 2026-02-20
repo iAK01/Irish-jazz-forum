@@ -3,7 +3,7 @@
 "use client";
 
 import { useSession } from "next-auth/react";
-import { useState, useCallback } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
 import DashboardLayout from "@/app/components/dashboard/DashboardLayout";
@@ -11,12 +11,7 @@ import DashboardLayout from "@/app/components/dashboard/DashboardLayout";
 const TipTapEditor = dynamic(() => import("@/app/components/TipTapEditor"), { ssr: false });
 
 function slugify(str: string) {
-  return str
-    .toLowerCase()
-    .trim()
-    .replace(/[^\w\s-]/g, "")
-    .replace(/\s+/g, "-")
-    .replace(/-+/g, "-");
+  return str.toLowerCase().trim().replace(/[^\w\s-]/g, "").replace(/\s+/g, "-").replace(/-+/g, "-");
 }
 
 export default function NewPublicationPage() {
@@ -28,12 +23,14 @@ export default function NewPublicationPage() {
     slug: "",
     excerpt: "",
     category: "news" as "news" | "resource",
-    resourceType: "policy" as string,
+    resourceType: "policy",
     status: "draft" as "draft" | "members_only" | "public",
     tags: "",
   });
   const [body, setBody] = useState("");
+  const [images, setImages] = useState<string[]>([]);
   const [attachments, setAttachments] = useState<{ label: string; url: string }[]>([]);
+  const [uploadingImage, setUploadingImage] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
@@ -42,10 +39,43 @@ export default function NewPublicationPage() {
     setForm((f) => ({ ...f, title, slug: slugify(title) }));
   };
 
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    setUploadingImage(true);
+    try {
+      for (const file of Array.from(files)) {
+        const formData = new FormData();
+        formData.append("file", file);
+        // No workingGroup param = goes to GCS
+
+        const res = await fetch("/api/upload", { method: "POST", body: formData });
+        const data = await res.json();
+
+        if (!res.ok || !data.success) {
+          alert(`Failed to upload ${file.name}: ${data.error}`);
+          continue;
+        }
+
+        setImages((prev) => [...prev, data.url]);
+      }
+    } catch (err) {
+      alert("Upload failed");
+    } finally {
+      setUploadingImage(false);
+      e.target.value = "";
+    }
+  };
+
+  const removeImage = (url: string) => {
+    setImages((prev) => prev.filter((i) => i !== url));
+  };
+
   const addAttachment = () => setAttachments((a) => [...a, { label: "", url: "" }]);
   const removeAttachment = (i: number) => setAttachments((a) => a.filter((_, idx) => idx !== i));
   const updateAttachment = (i: number, field: "label" | "url", value: string) => {
-    setAttachments((a) => a.map((att, idx) => idx === i ? { ...att, [field]: value } : att));
+    setAttachments((a) => a.map((att, idx) => (idx === i ? { ...att, [field]: value } : att)));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -63,6 +93,7 @@ export default function NewPublicationPage() {
         body: JSON.stringify({
           ...form,
           body,
+          images,
           tags: form.tags.split(",").map((t) => t.trim()).filter(Boolean),
           attachments: attachments.filter((a) => a.label && a.url),
           resourceType: form.category === "resource" ? form.resourceType : undefined,
@@ -79,11 +110,7 @@ export default function NewPublicationPage() {
   };
 
   if (!session || !["admin", "super_admin", "team"].includes(session.user.role)) {
-    return (
-      <DashboardLayout title="New Publication" userName="Guest">
-        <p>Access denied.</p>
-      </DashboardLayout>
-    );
+    return <DashboardLayout title="New Publication" userName="Guest"><p>Access denied.</p></DashboardLayout>;
   }
 
   return (
@@ -188,12 +215,61 @@ export default function NewPublicationPage() {
             />
           </div>
 
+          {/* Images */}
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <label className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
+                Images
+              </label>
+              <label className={`text-xs font-medium px-3 py-1.5 rounded-lg cursor-pointer transition ${
+                uploadingImage
+                  ? "bg-zinc-200 text-zinc-400 cursor-not-allowed"
+                  : "bg-zinc-900 text-white hover:bg-zinc-700"
+              }`}>
+                {uploadingImage ? "Uploading..." : "+ Upload Images"}
+                <input
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  className="hidden"
+                  onChange={handleImageUpload}
+                  disabled={uploadingImage}
+                />
+              </label>
+            </div>
+
+            {images.length > 0 && (
+              <div className="grid grid-cols-3 gap-3 mt-3">
+                {images.map((url, i) => (
+                  <div key={url} className="relative group">
+                    <img
+                      src={url}
+                      alt={`Image ${i + 1}`}
+                      className="w-full h-32 object-cover rounded-lg border border-zinc-200"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => removeImage(url)}
+                      className="absolute top-1 right-1 w-6 h-6 bg-red-600 text-white rounded-full text-xs font-bold opacity-0 group-hover:opacity-100 transition flex items-center justify-center"
+                    >
+                      ×
+                    </button>
+                    {i === 0 && (
+                      <span className="absolute bottom-1 left-1 px-1.5 py-0.5 bg-black/60 text-white text-xs rounded">
+                        Hero
+                      </span>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+            <p className="text-xs text-zinc-400 mt-2">First image will be used as the hero image on the listing page.</p>
+          </div>
+
           {/* Body */}
           <div>
             <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">Body</label>
-            <div className="border border-zinc-300 dark:border-zinc-600 rounded-lg overflow-hidden">
-              <TipTapEditor content={body} onChange={setBody} />
-            </div>
+            <TipTapEditor content={body} onChange={setBody} />
           </div>
 
           {/* Attachments */}
@@ -219,7 +295,7 @@ export default function NewPublicationPage() {
                     placeholder="URL"
                     value={att.url}
                     onChange={(e) => updateAttachment(i, "url", e.target.value)}
-                    className="flex-2 px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded-lg text-sm bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 w-64"
+                    className="w-64 px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded-lg text-sm bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100"
                   />
                   <button type="button" onClick={() => removeAttachment(i)} className="text-red-500 hover:text-red-700 text-sm font-medium">
                     Remove

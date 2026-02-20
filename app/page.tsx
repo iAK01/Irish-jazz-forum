@@ -39,14 +39,21 @@ export default function Home() {
       <section className="w-full py-24 bg-gray-50">
         <div className="max-w-6xl mx-auto px-8">
           
-          <div className="text-center mb-16">
-            <h2 className="text-4xl font-bold mb-4" style={{ color: 'var(--color-ijf-primary)' }}>
-              Our Mission
-            </h2>
-            <p className="text-lg text-gray-600 max-w-2xl mx-auto">
-              Three pillars guide our work to strengthen Ireland's jazz community
-            </p>
-          </div>
+        <div className="flex items-center gap-8 mb-16">
+  <img
+    src="/images/IJF_Logo.png"
+    alt="Irish Jazz Forum"
+    className="w-24 h-24 object-contain flex-shrink-0"
+  />
+  <div>
+    <h2 className="text-4xl font-bold mb-4" style={{ color: 'var(--color-ijf-primary)' }}>
+      Our Mission
+    </h2>
+    <p className="text-lg text-gray-600 max-w-2xl">
+      Three pillars guide our work to strengthen Ireland's jazz community
+    </p>
+  </div>
+</div>
 
           <div className="grid md:grid-cols-3 gap-10">
 

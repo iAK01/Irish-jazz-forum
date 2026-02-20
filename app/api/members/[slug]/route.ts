@@ -39,9 +39,10 @@ export async function PATCH(
     }
 
     const body = await request.json();
-    body.lastProfileUpdatedAt = new Date();
-
-    const member = await MemberModel.findOneAndUpdate({ slug }, body, { new: true });
+// Strip fields that should never be overwritten by the form
+const { users, _id, slug: _slug, createdAt, __v, ...updateData } = body;
+updateData.lastProfileUpdatedAt = new Date();
+const member = await MemberModel.findOneAndUpdate({ slug }, updateData, { new: true });
 
     if (!member) {
       return NextResponse.json({ success: false, error: "Member not found" }, { status: 404 });
