@@ -1,5 +1,3 @@
-// /app/dashboard/forum/general/[threadSlug]/page.tsx
-
 "use client";
 
 import { useEffect, useState } from "react";
@@ -49,10 +47,7 @@ interface Post {
     uploadedAt: string;
   }>;
   editedAt?: string;
-  editedBy?: {
-    name: string;
-    email: string;
-  };
+  editedBy?: { name: string; email: string };
   createdAt: string;
   deleted: boolean;
 }
@@ -76,14 +71,18 @@ export default function GeneralThreadView() {
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState("");
-
-  // Delete thread state
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState("");
-
-  // Admin menu state
   const [showAdminMenu, setShowAdminMenu] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const check = () => setIsMobile(window.innerWidth < 768);
+    check();
+    window.addEventListener("resize", check);
+    return () => window.removeEventListener("resize", check);
+  }, []);
 
   useEffect(() => {
     if (session?.user) {
@@ -96,7 +95,6 @@ export default function GeneralThreadView() {
       setLoading(true);
       setError("");
 
-      // Fetch thread details
       const threadRes = await fetch(`/api/threads?workingGroup=general`);
       const threadData = await threadRes.json();
 
@@ -104,9 +102,7 @@ export default function GeneralThreadView() {
         throw new Error(threadData.error || "Failed to fetch thread");
       }
 
-      const currentThread = threadData.data.find(
-        (t: Thread) => t.slug === threadSlug
-      );
+      const currentThread = threadData.data.find((t: Thread) => t.slug === threadSlug);
 
       if (!currentThread) {
         setError("Thread not found");
@@ -115,11 +111,8 @@ export default function GeneralThreadView() {
       }
 
       setThread(currentThread);
-
-      // Fetch posts (first page)
       await fetchPosts(currentThread._id, 1);
 
-      // Increment view count
       await fetch(`/api/threads/${currentThread._id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -134,13 +127,9 @@ export default function GeneralThreadView() {
 
   const fetchPosts = async (threadId: string, page: number) => {
     try {
-      if (page > 1) {
-        setLoadingMore(true);
-      }
+      if (page > 1) setLoadingMore(true);
 
-      const postsRes = await fetch(
-        `/api/threads/${threadId}/posts?page=${page}`
-      );
+      const postsRes = await fetch(`/api/threads/${threadId}/posts?page=${page}`);
       const postsData = await postsRes.json();
 
       if (!postsRes.ok || !postsData.success) {
@@ -169,46 +158,35 @@ export default function GeneralThreadView() {
 
   const handleReplyAdded = (newPost: Post) => {
     setPosts((prev) => [...prev, newPost]);
-    if (thread) {
-      setThread({ ...thread, replyCount: thread.replyCount + 1 });
-    }
+    if (thread) setThread({ ...thread, replyCount: thread.replyCount + 1 });
   };
 
   const handlePostEdited = (postId: string, newContent: string) => {
     setPosts((prev) =>
       prev.map((p) =>
-        p._id === postId
-          ? { ...p, content: newContent, editedAt: new Date().toISOString() }
-          : p
+        p._id === postId ? { ...p, content: newContent, editedAt: new Date().toISOString() } : p
       )
     );
   };
 
   const handlePostDeleted = (postId: string) => {
     setPosts((prev) => prev.filter((p) => p._id !== postId));
-    if (thread) {
-      setThread({ ...thread, replyCount: Math.max(0, thread.replyCount - 1) });
-    }
+    if (thread) setThread({ ...thread, replyCount: Math.max(0, thread.replyCount - 1) });
   };
 
   const handleDeleteThread = async () => {
     if (!thread) return;
-
     try {
       setDeleting(true);
       setDeleteError("");
 
-      const response = await fetch(`/api/threads/${thread._id}`, {
-        method: "DELETE",
-      });
-
+      const response = await fetch(`/api/threads/${thread._id}`, { method: "DELETE" });
       const data = await response.json();
 
       if (!response.ok || !data.success) {
         throw new Error(data.error || "Failed to delete thread");
       }
 
-      // Redirect to general discussion
       router.push("/dashboard/forum/general");
     } catch (err: any) {
       setDeleteError(err.message || "Failed to delete thread");
@@ -216,32 +194,20 @@ export default function GeneralThreadView() {
     }
   };
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case "active":
-        return "bg-green-100 text-green-800 border-green-200";
-      case "resolved":
-        return "bg-blue-100 text-blue-800 border-blue-200";
-      case "archived":
-        return "bg-gray-100 text-gray-800 border-gray-200";
-      case "stalled":
-        return "bg-yellow-100 text-yellow-800 border-yellow-200";
-      case "abandoned":
-        return "bg-red-100 text-red-800 border-red-200";
-      default:
-        return "bg-gray-100 text-gray-800 border-gray-200";
-    }
+  const statusStyles: Record<string, React.CSSProperties> = {
+    active: { backgroundColor: "#dcfce7", color: "#166534", borderColor: "#bbf7d0" },
+    resolved: { backgroundColor: "#dbeafe", color: "#1e40af", borderColor: "#bfdbfe" },
+    archived: { backgroundColor: "#f3f4f6", color: "#374151", borderColor: "#e5e7eb" },
+    stalled: { backgroundColor: "#fef9c3", color: "#854d0e", borderColor: "#fef08a" },
+    abandoned: { backgroundColor: "#fee2e2", color: "#991b1b", borderColor: "#fecaca" },
   };
 
   if (loading) {
     return (
-      <DashboardLayout
-        title="Loading..."
-        userName={session?.user?.name || ""}
-      >
-        <div className="text-center py-12">
-          <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2" style={{ borderColor: 'var(--color-ijf-accent)' }}></div>
-          <p className="text-gray-500 mt-4">Loading thread...</p>
+      <DashboardLayout title="Loading..." userName={session?.user?.name || ""}>
+        <div style={{ textAlign: "center", padding: "3rem 0" }}>
+          <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2" style={{ borderColor: "var(--color-ijf-accent)" }} />
+          <p style={{ color: "#6b7280", marginTop: "1rem" }}>Loading thread...</p>
         </div>
       </DashboardLayout>
     );
@@ -249,23 +215,17 @@ export default function GeneralThreadView() {
 
   if (error || !thread) {
     return (
-      <DashboardLayout
-        title="Error"
-        userName={session?.user?.name || ""}
-      >
-        <div className="text-center py-12">
-          <div className="w-20 h-20 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-6">
-            <svg className="w-10 h-10 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <DashboardLayout title="Error" userName={session?.user?.name || ""}>
+        <div style={{ textAlign: "center", padding: "3rem 0" }}>
+          <div style={{ width: "5rem", height: "5rem", backgroundColor: "#fee2e2", borderRadius: "9999px", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 1.5rem" }}>
+            <svg className="w-10 h-10" style={{ color: "#dc2626" }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
             </svg>
           </div>
-          <h3 className="text-2xl font-bold text-gray-900 mb-3">
-            {error || "Thread not found"}
-          </h3>
+          <h3 style={{ fontSize: "1.5rem", fontWeight: 700, color: "#111827", marginBottom: "0.75rem" }}>{error || "Thread not found"}</h3>
           <button
             onClick={() => router.push("/dashboard/forum/general")}
-            className="px-6 py-3 rounded-lg font-semibold transition cursor-pointer"
-            style={{ backgroundColor: 'var(--color-ijf-accent)', color: 'var(--color-ijf-bg)' }}
+            style={{ padding: "0.75rem 1.5rem", borderRadius: "0.5rem", fontWeight: 600, backgroundColor: "var(--color-ijf-accent)", color: "var(--color-ijf-bg)", cursor: "pointer" }}
           >
             Back to General Discussion
           </button>
@@ -275,142 +235,73 @@ export default function GeneralThreadView() {
   }
 
   const currentUser = session?.user as any;
-  const isAdmin =
-    currentUser.role === "super_admin" || currentUser.role === "admin";
+  const isAdmin = currentUser.role === "super_admin" || currentUser.role === "admin";
   const isSuperAdmin = currentUser.role === "super_admin";
 
   return (
-    <DashboardLayout
-      title={thread.title}
-      userName={session?.user?.name || ""}
-    >
-      <div className="max-w-5xl mx-auto">
+    <DashboardLayout title={thread.title} userName={session?.user?.name || ""}>
+      <div style={{ maxWidth: "64rem", margin: "0 auto" }}>
+
         {/* Breadcrumb */}
-        <div className="mb-6">
-          <Link
-            href="/dashboard/forum"
-            className="text-sm hover:underline"
-            style={{ color: 'var(--color-ijf-accent)' }}
-          >
-            Forum
-          </Link>
-          <span className="mx-2 text-gray-400">/</span>
-          <Link
-            href="/dashboard/forum/general"
-            className="text-sm hover:underline"
-            style={{ color: 'var(--color-ijf-accent)' }}
-          >
-            General Discussion
-          </Link>
-          <span className="mx-2 text-gray-400">/</span>
-          <span className="text-sm text-gray-700">
-            {thread.title}
-          </span>
+        <div style={{ marginBottom: "1.5rem", fontSize: "0.875rem", display: "flex", alignItems: "center", flexWrap: "wrap", gap: "0.25rem" }}>
+          <Link href="/dashboard/forum" className="hover:underline" style={{ color: "var(--color-ijf-accent)" }}>Forum</Link>
+          <span style={{ color: "#9ca3af", margin: "0 0.25rem" }}>/</span>
+          <Link href="/dashboard/forum/general" className="hover:underline" style={{ color: "var(--color-ijf-accent)" }}>General Discussion</Link>
+          {!isMobile && (
+            <>
+              <span style={{ color: "#9ca3af", margin: "0 0.25rem" }}>/</span>
+              <span style={{ color: "#374151" }}>{thread.title}</span>
+            </>
+          )}
         </div>
 
-        {/* Gradient Header */}
-        <div className="mb-8 p-8 rounded-xl" style={{ background: 'linear-gradient(135deg, var(--color-ijf-bg) 0%, #1a1f2e 100%)' }}>
-          <div className="flex items-start justify-between">
-            <div className="flex-1">
-              <div className="flex items-center gap-3 mb-3">
-                {thread.pinned && (
-                  <span className="text-3xl">📌</span>
-                )}
-                <h1 className="text-4xl font-bold text-white">
-                  {thread.title}
-                </h1>
-              </div>
-              
-              <div className="flex items-center gap-3 mb-4">
-                <span
-                  className={`inline-block px-3 py-1 rounded-full text-xs font-semibold border ${getStatusColor(
-                    thread.status
-                  )}`}
-                >
-                  {thread.status}
-                </span>
-                
-                {thread.tags && thread.tags.length > 0 && (
-                  <>
-                    {thread.tags.map((tag, idx) => (
-                      <span
-                        key={idx}
-                        className="px-3 py-1 text-xs font-medium rounded-full"
-                        style={{ backgroundColor: 'rgba(228, 185, 91, 0.3)', color: 'white' }}
-                      >
-                        {tag}
-                      </span>
-                    ))}
-                  </>
-                )}
-              </div>
-
-              <div className="flex items-center gap-4 text-sm text-gray-300">
-                <div className="flex items-center gap-2">
-                  {thread.createdBy.image ? (
-                    <img
-                      src={thread.createdBy.image}
-                      alt={thread.createdBy.name}
-                      className="w-8 h-8 rounded-full"
-                    />
-                  ) : (
-                    <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-bold" style={{ backgroundColor: 'var(--color-ijf-accent)' }}>
-                      {thread.createdBy.name.charAt(0)}
-                    </div>
-                  )}
-                  <span className="font-medium text-white">{thread.createdBy.name}</span>
-                </div>
-                <span className="text-gray-400">•</span>
-                <span>
-                  {new Date(thread.createdAt).toLocaleDateString("en-IE", {
-                    day: "numeric",
-                    month: "long",
-                    year: "numeric",
-                  })}
-                </span>
-              </div>
+        {/* Header */}
+        <div
+          style={{
+            marginBottom: "2rem",
+            padding: isMobile ? "1.25rem" : "2rem",
+            borderRadius: "0.75rem",
+            background: "linear-gradient(135deg, var(--color-ijf-bg) 0%, #1a1f2e 100%)",
+          }}
+        >
+          {/* Title + admin menu */}
+          <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "1rem", marginBottom: "0.75rem" }}>
+            <div style={{ display: "flex", alignItems: "flex-start", gap: "0.5rem", flex: 1 }}>
+              {thread.pinned && <span style={{ fontSize: "1.5rem", flexShrink: 0 }}>📌</span>}
+              <h1 style={{ fontSize: isMobile ? "1.375rem" : "2rem", fontWeight: 700, color: "white", lineHeight: 1.3 }}>
+                {thread.title}
+              </h1>
             </div>
 
-            {/* Admin Menu */}
             {isAdmin && (
-              <div className="relative ml-4">
+              <div style={{ position: "relative", flexShrink: 0 }}>
                 <button
                   onClick={() => setShowAdminMenu(!showAdminMenu)}
-                  className="p-2 rounded-lg transition cursor-pointer"
-                  style={{ backgroundColor: 'rgba(255, 255, 255, 0.1)' }}
+                  style={{ padding: "0.5rem", borderRadius: "0.5rem", backgroundColor: "rgba(255,255,255,0.1)", cursor: "pointer" }}
                 >
-                  <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-5 h-5" style={{ color: "white" }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" />
                   </svg>
                 </button>
 
                 {showAdminMenu && (
-                  <div className="absolute right-0 mt-2 w-56 bg-white rounded-lg shadow-xl border border-gray-200 z-10">
+                  <div style={{ position: "absolute", right: 0, marginTop: "0.5rem", width: "14rem", backgroundColor: "white", borderRadius: "0.5rem", boxShadow: "0 10px 25px rgba(0,0,0,0.15)", border: "1px solid #e5e7eb", zIndex: 10 }}>
                     <button
-                      onClick={() => {
-                        alert("Pin/Unpin not yet implemented");
-                        setShowAdminMenu(false);
-                      }}
-                      className="w-full text-left px-4 py-3 hover:bg-gray-50 text-sm text-gray-700 cursor-pointer"
+                      onClick={() => { alert("Pin/Unpin not yet implemented"); setShowAdminMenu(false); }}
+                      style={{ width: "100%", textAlign: "left", padding: "0.75rem 1rem", fontSize: "0.875rem", color: "#374151", cursor: "pointer", display: "block" }}
                     >
                       {thread.pinned ? "📌 Unpin Thread" : "📌 Pin Thread"}
                     </button>
                     <button
-                      onClick={() => {
-                        alert("Status change not yet implemented");
-                        setShowAdminMenu(false);
-                      }}
-                      className="w-full text-left px-4 py-3 hover:bg-gray-50 text-sm text-gray-700 border-t border-gray-100 cursor-pointer"
+                      onClick={() => { alert("Status change not yet implemented"); setShowAdminMenu(false); }}
+                      style={{ width: "100%", textAlign: "left", padding: "0.75rem 1rem", fontSize: "0.875rem", color: "#374151", cursor: "pointer", borderTop: "1px solid #f3f4f6", display: "block" }}
                     >
                       Change Status
                     </button>
                     {isSuperAdmin && (
                       <button
-                        onClick={() => {
-                          setShowDeleteDialog(true);
-                          setShowAdminMenu(false);
-                        }}
-                        className="w-full text-left px-4 py-3 hover:bg-red-50 text-sm text-red-600 border-t border-gray-100 cursor-pointer"
+                        onClick={() => { setShowDeleteDialog(true); setShowAdminMenu(false); }}
+                        style={{ width: "100%", textAlign: "left", padding: "0.75rem 1rem", fontSize: "0.875rem", color: "#dc2626", cursor: "pointer", borderTop: "1px solid #f3f4f6", display: "block" }}
                       >
                         🗑️ Delete Thread
                       </button>
@@ -421,49 +312,92 @@ export default function GeneralThreadView() {
             )}
           </div>
 
-          {/* Stats */}
-          <div className="flex items-center gap-6 mt-6 pt-6 border-t border-white/20">
-            <div className="flex items-center gap-2">
-              <svg className="w-5 h-5 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          {/* Status + tags */}
+          <div style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem", marginBottom: "1rem" }}>
+            <span
+              style={{
+                ...(statusStyles[thread.status] || statusStyles.archived),
+                padding: "0.2rem 0.75rem",
+                borderRadius: "9999px",
+                fontSize: "0.75rem",
+                fontWeight: 600,
+                border: "1px solid",
+              }}
+            >
+              {thread.status}
+            </span>
+            {thread.tags && thread.tags.map((tag, idx) => (
+              <span
+                key={idx}
+                style={{ padding: "0.2rem 0.75rem", fontSize: "0.75rem", fontWeight: 500, borderRadius: "9999px", backgroundColor: "rgba(228,185,91,0.3)", color: "white" }}
+              >
+                {tag}
+              </span>
+            ))}
+          </div>
+
+          {/* Author + date */}
+          <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", fontSize: "0.875rem", color: "#d1d5db" }}>
+            {thread.createdBy.image ? (
+              <img src={thread.createdBy.image} alt={thread.createdBy.name} style={{ width: "2rem", height: "2rem", borderRadius: "9999px" }} />
+            ) : (
+              <div style={{ width: "2rem", height: "2rem", borderRadius: "9999px", backgroundColor: "var(--color-ijf-accent)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--color-ijf-bg)", fontSize: "0.8rem", fontWeight: 700, flexShrink: 0 }}>
+                {thread.createdBy.name.charAt(0)}
+              </div>
+            )}
+            <span style={{ color: "white", fontWeight: 500 }}>{thread.createdBy.name}</span>
+            <span style={{ color: "#6b7280" }}>•</span>
+            <span>
+              {new Date(thread.createdAt).toLocaleDateString("en-IE", { day: "numeric", month: isMobile ? "short" : "long", year: "numeric" })}
+            </span>
+          </div>
+
+          {/* Stats bar */}
+          <div style={{ display: "flex", gap: "1.5rem", marginTop: "1.5rem", paddingTop: "1rem", borderTop: "1px solid rgba(255,255,255,0.2)" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+              <svg className="w-4 h-4" style={{ color: "#d1d5db" }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
               </svg>
-              <span className="text-sm font-semibold text-white">{thread.replyCount}</span>
-              <span className="text-sm text-gray-300">replies</span>
+              <span style={{ fontSize: "0.875rem", fontWeight: 600, color: "white" }}>{thread.replyCount}</span>
+              <span style={{ fontSize: "0.875rem", color: "#d1d5db" }}>replies</span>
             </div>
-            <div className="flex items-center gap-2">
-              <svg className="w-5 h-5 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+              <svg className="w-4 h-4" style={{ color: "#d1d5db" }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
               </svg>
-              <span className="text-sm font-semibold text-white">{thread.viewCount}</span>
-              <span className="text-sm text-gray-300">views</span>
+              <span style={{ fontSize: "0.875rem", fontWeight: 600, color: "white" }}>{thread.viewCount}</span>
+              <span style={{ fontSize: "0.875rem", color: "#d1d5db" }}>views</span>
             </div>
           </div>
 
-          {/* Status Warning */}
+          {/* Status warning */}
           {thread.status && thread.status !== "active" && thread.status !== "open" && (
-            <div className={`mt-6 p-4 rounded-lg border ${getStatusColor(thread.status)}`}>
-              <p className="text-sm font-medium">
-                This thread is marked as: <strong>{thread.status}</strong>
-              </p>
+            <div
+              style={{
+                ...(statusStyles[thread.status] || statusStyles.archived),
+                marginTop: "1rem",
+                padding: "0.75rem 1rem",
+                borderRadius: "0.5rem",
+                border: "1px solid",
+                fontSize: "0.875rem",
+                fontWeight: 500,
+              }}
+            >
+              This thread is marked as: <strong>{thread.status}</strong>
             </div>
           )}
         </div>
 
-        {/* White Content Card - Original Post */}
-        <div className="mb-8 p-8 rounded-xl bg-white shadow-lg border border-gray-100">
-          <h2 className="text-lg font-bold text-gray-900 mb-4">Original Post</h2>
-        </div>
-
-        {/* Delete Error */}
+        {/* Delete error */}
         {deleteError && (
-          <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
-            <p className="text-red-800 font-medium">{deleteError}</p>
+          <div style={{ marginBottom: "1.5rem", padding: "1rem", backgroundColor: "#fef2f2", border: "1px solid #fecaca", borderRadius: "0.5rem" }}>
+            <p style={{ color: "#991b1b", fontWeight: 500 }}>{deleteError}</p>
           </div>
         )}
 
         {/* Posts */}
-        <div className="mb-8">
+        <div style={{ marginBottom: "2rem" }}>
           <PostList
             posts={posts}
             currentUserId={currentUser._id}
@@ -473,32 +407,38 @@ export default function GeneralThreadView() {
           />
         </div>
 
-        {/* Load More Button */}
+        {/* Load more */}
         {pagination?.hasMore && (
-          <div className="text-center mb-8">
+          <div style={{ textAlign: "center", marginBottom: "2rem" }}>
             <button
               onClick={handleLoadMore}
               disabled={loadingMore}
-              className="px-8 py-3 rounded-lg font-semibold transition shadow-lg hover:shadow-xl disabled:opacity-50 cursor-pointer"
-              style={{ backgroundColor: 'var(--color-ijf-accent)', color: 'var(--color-ijf-bg)' }}
+              style={{
+                padding: "0.75rem 2rem",
+                borderRadius: "0.5rem",
+                fontWeight: 600,
+                backgroundColor: "var(--color-ijf-accent)",
+                color: "var(--color-ijf-bg)",
+                cursor: "pointer",
+                opacity: loadingMore ? 0.5 : 1,
+              }}
             >
               {loadingMore ? "Loading..." : "Load More Replies"}
             </button>
           </div>
         )}
 
-        {/* Reply Composer */}
-        <div className="bg-white rounded-xl shadow-lg border border-gray-100 p-6">
-          <h3 className="text-xl font-bold text-gray-900 mb-4">Add Your Reply</h3>
-          <ReplyComposer 
-            threadId={thread._id} 
+        {/* Reply composer */}
+        <div style={{ backgroundColor: "white", borderRadius: "0.75rem", boxShadow: "0 4px 6px -1px rgba(0,0,0,0.1)", border: "1px solid #f3f4f6", padding: isMobile ? "1rem" : "1.5rem" }}>
+          <h3 style={{ fontSize: isMobile ? "1rem" : "1.25rem", fontWeight: 700, color: "#111827", marginBottom: "1rem" }}>Add Your Reply</h3>
+          <ReplyComposer
+            threadId={thread._id}
             onReplyAdded={handleReplyAdded}
             workingGroup="general"
           />
         </div>
       </div>
 
-      {/* Delete Thread Confirmation Dialog */}
       <ConfirmDeleteDialog
         isOpen={showDeleteDialog}
         onClose={() => setShowDeleteDialog(false)}
@@ -506,9 +446,7 @@ export default function GeneralThreadView() {
         title="Delete Thread"
         message="Are you sure you want to delete this thread? This will also delete all posts and attachments."
         itemName={thread.title}
-        counts={{
-          posts: posts.length,
-        }}
+        counts={{ posts: posts.length }}
         isLoading={deleting}
       />
     </DashboardLayout>
