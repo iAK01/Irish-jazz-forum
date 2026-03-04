@@ -18,6 +18,7 @@ export interface User extends Document {
   role: UserRole;
   memberProfile?: string; // slug of their Member document
   workingGroups?: string[];
+  lastSeenAt?: Date;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -29,6 +30,7 @@ const UserSchema = new Schema<User>(
     image: String,
     googleId: { type: String, sparse: true, unique: true }, // sparse = allows multiple nulls
     emailVerified: { type: Date },
+    lastSeenAt: { type: Date, default: null },
     role: {
       type: String,
       enum: ["public", "member", "working_group", "steering", "admin", "super_admin", "team"],

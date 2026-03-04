@@ -9,11 +9,12 @@
     "lint": "eslint"
   },
   "overrides": {
-  "@auth/core": "0.41.0"
-},
+    "@auth/core": "0.41.0"
+  },
   "dependencies": {
     "@auth/mongodb-adapter": "^3.7.3",
     "@google-cloud/storage": "^7.17.3",
+    "@tiptap/extension-character-count": "^3.20.0",
     "@tiptap/extension-link": "^3.11.0",
     "@tiptap/extension-placeholder": "^3.11.0",
     "@tiptap/react": "^3.11.0",
@@ -42,5 +43,4 @@
     "tailwindcss": "^4",
     "typescript": "^5"
   }
-
 }

@@ -25,7 +25,11 @@ export async function requireAuth(allowedRoles?: UserRole[]) {
   
   // Fetch full user from database to get workingGroups and _id
   await dbConnect();
-  const fullUser = await UserModel.findOne({ email: sessionUser.email }).lean() as any;
+ const fullUser = await UserModel.findOneAndUpdate(
+  { email: sessionUser.email },
+  { lastSeenAt: new Date() },
+  { new: true }
+).lean() as any;
   
   if (!fullUser) {
     throw new Error("User not found in database");

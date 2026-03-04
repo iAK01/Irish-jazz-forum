@@ -26,12 +26,22 @@ interface Thread {
   updatedAt: string;
 }
 
+interface Member {
+  _id: string;
+  name: string;
+  email: string;
+  image?: string;
+  lastSeenAt?: string;
+}
+
 interface WorkingGroup {
   _id: string;
   name: string;
   slug: string;
   description: string;
   isPrivate: boolean;
+  coordinator: Member;
+  members: Member[];
 }
 
 export default function WorkingGroupThreadList() {
@@ -106,6 +116,23 @@ export default function WorkingGroupThreadList() {
     return date.toLocaleDateString("en-IE", { day: "numeric", month: "short", year: "numeric" });
   };
 
+  const isOnline = (lastSeenAt?: string) => {
+    if (!lastSeenAt) return false;
+    return Date.now() - new Date(lastSeenAt).getTime() < 5 * 60 * 1000;
+  };
+
+  const formatLastSeen = (lastSeenAt?: string) => {
+    if (!lastSeenAt) return "Never active";
+    const diff = Date.now() - new Date(lastSeenAt).getTime();
+    const mins = Math.floor(diff / 60000);
+    const hours = Math.floor(diff / 3600000);
+    const days = Math.floor(diff / 86400000);
+    if (mins < 1) return "Just now";
+    if (mins < 60) return `${mins}m ago`;
+    if (hours < 24) return `${hours}h ago`;
+    return `${days}d ago`;
+  };
+
   const statusStyles: Record<string, React.CSSProperties> = {
     resolved: { backgroundColor: "#dbeafe", color: "#1e40af" },
     archived: { backgroundColor: "#f3f4f6", color: "#374151" },
@@ -148,6 +175,122 @@ export default function WorkingGroupThreadList() {
   const pinnedThreads = threads.filter((t) => t.pinned);
   const regularThreads = threads.filter((t) => !t.pinned);
 
+  const coordinator = group?.coordinator as Member | undefined;
+  const allMembers = (group?.members as Member[]) || [];
+  const seenIds = new Set<string>();
+  if (coordinator?._id) seenIds.add(coordinator._id);
+  const otherMembers = allMembers.filter((m) => {
+    if (!m._id || seenIds.has(m._id)) return false;
+    seenIds.add(m._id);
+    return true;
+  });
+  const allGroupMembers = coordinator ? [coordinator, ...otherMembers] : otherMembers;
+  const onlineCount = allGroupMembers.filter((m) => isOnline(m.lastSeenAt)).length;
+
+  const MemberAvatar = ({ member, isCoordinator }: { member: Member; isCoordinator?: boolean }) => {
+    const online = isOnline(member.lastSeenAt);
+    return (
+      <div
+        style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}
+        title={`${member.name} — ${online ? "Online now" : `Last seen ${formatLastSeen(member.lastSeenAt)}`}`}
+      >
+        <div style={{ position: "relative", flexShrink: 0 }}>
+          {member.image ? (
+            <img
+              src={member.image}
+              alt={member.name}
+              style={{
+                width: isMobile ? "1.75rem" : "2rem",
+                height: isMobile ? "1.75rem" : "2rem",
+                borderRadius: "9999px",
+                border: `2px solid ${isCoordinator ? "var(--color-ijf-accent)" : "white"}`,
+              }}
+            />
+          ) : (
+            <div style={{
+              width: isMobile ? "1.75rem" : "2rem",
+              height: isMobile ? "1.75rem" : "2rem",
+              borderRadius: "9999px",
+              backgroundColor: isCoordinator ? "var(--color-ijf-accent)" : "#e5e7eb",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              fontSize: "0.6rem",
+              fontWeight: 700,
+              color: isCoordinator ? "var(--color-ijf-bg)" : "#374151",
+              border: "2px solid white",
+            }}>
+              {member.name.charAt(0).toUpperCase()}
+            </div>
+          )}
+          <div style={{
+            position: "absolute",
+            bottom: "0",
+            right: "0",
+            width: "0.5rem",
+            height: "0.5rem",
+            borderRadius: "9999px",
+            backgroundColor: online ? "#22c55e" : "#d1d5db",
+            border: "1.5px solid white",
+          }} />
+        </div>
+
+        {!isMobile && (
+          <div>
+            <div style={{ fontSize: "0.8rem", fontWeight: 600, color: "#111827", lineHeight: 1.2 }}>
+              {member.name.split(" ")[0]}
+            </div>
+            {isCoordinator ? (
+              <div style={{ fontSize: "0.65rem", color: "var(--color-ijf-accent)", fontWeight: 600 }}>Coordinator</div>
+            ) : (
+              <div style={{ fontSize: "0.65rem", color: "#9ca3af" }}>
+                {online ? "Online" : formatLastSeen(member.lastSeenAt)}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const MemberStrip = () => (
+    <div style={{
+      marginBottom: "1rem",
+      padding: isMobile ? "0.75rem 1rem" : "0.875rem 1.25rem",
+      backgroundColor: "white",
+      borderRadius: "0.625rem",
+      border: "1px solid #e5e7eb",
+      display: "flex",
+      alignItems: "center",
+      gap: isMobile ? "0.75rem" : "1.25rem",
+      flexWrap: "wrap",
+    }}>
+      <span style={{ fontSize: "0.7rem", fontWeight: 700, color: "#9ca3af", textTransform: "uppercase", letterSpacing: "0.06em", flexShrink: 0 }}>
+        Members
+      </span>
+
+      <div style={{ width: "1px", height: "1.5rem", backgroundColor: "#f0f0f0", flexShrink: 0 }} />
+
+      {coordinator && <MemberAvatar member={coordinator} isCoordinator />}
+
+      {otherMembers.length > 0 && (
+        <>
+          <div style={{ width: "1px", height: "1.5rem", backgroundColor: "#f0f0f0", flexShrink: 0 }} />
+          <div style={{ display: "flex", alignItems: "center", gap: isMobile ? "0.5rem" : "0.875rem", flexWrap: "wrap" }}>
+            {otherMembers.map((member) => (
+              <MemberAvatar key={member._id} member={member} />
+            ))}
+          </div>
+        </>
+      )}
+
+      <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: "0.375rem", flexShrink: 0 }}>
+        <div style={{ width: "0.5rem", height: "0.5rem", borderRadius: "9999px", backgroundColor: "#22c55e" }} />
+        <span style={{ fontSize: "0.75rem", color: "#6b7280" }}>{onlineCount} online</span>
+      </div>
+    </div>
+  );
+
   const ThreadRow = ({ thread }: { thread: Thread }) => {
     const isNonActive = thread.status && thread.status !== "active" && thread.status !== "open";
 
@@ -174,10 +317,7 @@ export default function WorkingGroupThreadList() {
             (e.currentTarget as HTMLDivElement).style.transform = "translateY(0)";
           }}
         >
-          {/* Main content — left */}
           <div style={{ flex: 1, padding: isMobile ? "0.875rem" : "1rem 1.25rem", minWidth: 0 }}>
-
-            {/* Title row */}
             <div style={{ display: "flex", alignItems: "flex-start", gap: "0.5rem", marginBottom: "0.5rem" }}>
               {thread.pinned && <span style={{ fontSize: "0.875rem", flexShrink: 0, marginTop: "0.1rem" }}>📌</span>}
               <h3 style={{
@@ -195,7 +335,6 @@ export default function WorkingGroupThreadList() {
               </h3>
             </div>
 
-            {/* Meta row: avatar + name + date + tags */}
             <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: "0.375rem" }}>
               {thread.createdBy.image ? (
                 <img src={thread.createdBy.image} alt={thread.createdBy.name} style={{ width: "1.125rem", height: "1.125rem", borderRadius: "9999px", flexShrink: 0 }} />
@@ -208,14 +347,12 @@ export default function WorkingGroupThreadList() {
               <span style={{ color: "#d1d5db", fontSize: "0.75rem" }}>·</span>
               <span style={{ fontSize: "0.8125rem", color: "#9ca3af" }}>{formatDate(thread.lastActivityAt || thread.createdAt)}</span>
 
-              {/* Tags */}
               {!isMobile && thread.tags.slice(0, 3).map((tag, idx) => (
                 <span key={idx} style={{ padding: "0.1rem 0.45rem", backgroundColor: "#f3f4f6", borderRadius: "0.25rem", fontSize: "0.7rem", fontWeight: 500, color: "#6b7280" }}>
                   {tag}
                 </span>
               ))}
 
-              {/* Non-active status badge — inline with meta */}
               {isNonActive && (
                 <span style={{
                   ...(statusStyles[thread.status] || statusStyles.archived),
@@ -230,7 +367,6 @@ export default function WorkingGroupThreadList() {
             </div>
           </div>
 
-          {/* Stats + visibility — right */}
           <div style={{
             display: "flex",
             flexDirection: "column",
@@ -243,7 +379,6 @@ export default function WorkingGroupThreadList() {
             minWidth: isMobile ? "5rem" : "7rem",
             flexShrink: 0,
           }}>
-            {/* Stats row */}
             <div style={{ display: "flex", gap: isMobile ? "0.75rem" : "1.25rem", alignItems: "flex-end" }}>
               <div style={{ textAlign: "center" }}>
                 <div style={{ fontSize: isMobile ? "1rem" : "1.25rem", fontWeight: 700, color: "var(--color-ijf-primary)", lineHeight: 1 }}>
@@ -259,7 +394,6 @@ export default function WorkingGroupThreadList() {
               </div>
             </div>
 
-            {/* Visibility badge */}
             <div style={{
               display: "flex",
               alignItems: "center",
@@ -272,16 +406,14 @@ export default function WorkingGroupThreadList() {
               {thread.publicToMembers ? (
                 <>
                   <svg width="10" height="10" fill="none" stroke="var(--color-ijf-accent)" strokeWidth={2} viewBox="0 0 24 24">
-                    <circle cx="12" cy="12" r="10" />
-                    <path d="M2 12h20M12 2a15.3 15.3 0 010 20M12 2a15.3 15.3 0 000 20" />
+                    <circle cx="12" cy="12" r="10" /><path d="M2 12h20M12 2a15.3 15.3 0 010 20M12 2a15.3 15.3 0 000 20" />
                   </svg>
                   <span style={{ fontSize: "0.65rem", fontWeight: 600, color: "#92701a", whiteSpace: "nowrap" }}>Public</span>
                 </>
               ) : (
                 <>
                   <svg width="10" height="10" fill="none" stroke="#9ca3af" strokeWidth={2} viewBox="0 0 24 24">
-                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
-                    <path d="M7 11V7a5 5 0 0110 0v4" />
+                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0110 0v4" />
                   </svg>
                   <span style={{ fontSize: "0.65rem", fontWeight: 600, color: "#9ca3af", whiteSpace: "nowrap" }}>Group only</span>
                 </>
@@ -297,7 +429,6 @@ export default function WorkingGroupThreadList() {
     <DashboardLayout title={group?.name || "Working Group"} userName={session?.user?.name || ""}>
       <div style={{ maxWidth: "72rem", margin: "0 auto" }}>
 
-        {/* Breadcrumb */}
         <div style={{ marginBottom: "1.25rem" }}>
           <Link href="/dashboard/forum" className="hover:underline" style={{ color: "var(--color-ijf-accent)", fontSize: "0.875rem" }}>
             ← Back to Forum
@@ -335,23 +466,12 @@ export default function WorkingGroupThreadList() {
 
             <button
               onClick={() => router.push(`/dashboard/forum/new?workingGroup=${groupSlug}`)}
-              style={{
-                padding: "0.625rem 1.25rem",
-                borderRadius: "0.5rem",
-                fontWeight: 600,
-                backgroundColor: "var(--color-ijf-accent)",
-                color: "var(--color-ijf-bg)",
-                width: isMobile ? "100%" : "auto",
-                cursor: "pointer",
-                fontSize: "0.875rem",
-                whiteSpace: "nowrap",
-              }}
+              style={{ padding: "0.625rem 1.25rem", borderRadius: "0.5rem", fontWeight: 600, backgroundColor: "var(--color-ijf-accent)", color: "var(--color-ijf-bg)", width: isMobile ? "100%" : "auto", cursor: "pointer", fontSize: "0.875rem", whiteSpace: "nowrap" }}
             >
               + New Thread
             </button>
           </div>
 
-          {/* Stats bar */}
           <div style={{ display: "flex", gap: "1.5rem", paddingTop: "0.875rem", borderTop: "1px solid rgba(255,255,255,0.15)" }}>
             <div style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>
               <svg style={{ color: "#9ca3af", width: "0.875rem", height: "0.875rem" }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -367,8 +487,7 @@ export default function WorkingGroupThreadList() {
             )}
             <div style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>
               <svg width="14" height="14" fill="none" stroke="#9ca3af" strokeWidth={2} viewBox="0 0 24 24">
-                <circle cx="12" cy="12" r="10" />
-                <path d="M2 12h20M12 2a15.3 15.3 0 010 20M12 2a15.3 15.3 0 000 20" />
+                <circle cx="12" cy="12" r="10" /><path d="M2 12h20M12 2a15.3 15.3 0 010 20M12 2a15.3 15.3 0 000 20" />
               </svg>
               <span style={{ color: "#9ca3af", fontSize: "0.8125rem" }}>
                 {threads.filter(t => t.publicToMembers).length} public
@@ -376,6 +495,9 @@ export default function WorkingGroupThreadList() {
             </div>
           </div>
         </div>
+
+        {/* Member strip */}
+        {group && <MemberStrip />}
 
         {/* Thread list */}
         {threads.length === 0 ? (
@@ -396,11 +518,8 @@ export default function WorkingGroupThreadList() {
           </div>
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-
-            {/* Pinned first */}
             {pinnedThreads.map((thread) => <ThreadRow key={thread._id} thread={thread} />)}
 
-            {/* Divider if both sections exist */}
             {pinnedThreads.length > 0 && regularThreads.length > 0 && (
               <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", padding: "0.25rem 0" }}>
                 <div style={{ flex: 1, height: "1px", backgroundColor: "#e5e7eb" }} />
@@ -409,7 +528,6 @@ export default function WorkingGroupThreadList() {
               </div>
             )}
 
-            {/* Regular threads */}
             {regularThreads.map((thread) => <ThreadRow key={thread._id} thread={thread} />)}
           </div>
         )}

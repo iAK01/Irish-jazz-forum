@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense } from "react";
+import { Suspense, useRef } from "react";
 import { useState } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -22,7 +22,7 @@ import {
   Link as LinkIcon,
   Undo2,
   Redo2,
-  Upload,
+  Paperclip,
   X,
   FileText,
   AlertCircle,
@@ -40,12 +40,13 @@ function NewThreadContent() {
   const searchParams = useSearchParams();
   const workingGroup = searchParams.get("workingGroup");
 
-  const { register, handleSubmit, formState: { errors }, reset, watch, setValue } = useForm<ThreadFormData>();
+  const { register, handleSubmit, formState: { errors }, watch, setValue } = useForm<ThreadFormData>();
 
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
-  const [attachments, setAttachments] = useState<any[]>([]);
+  const [attachments, setAttachments] = useState<{ filename: string; url: string; mimetype: string; size: number; uploadedAt: Date }[]>([]);
   const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const editor = useEditor({
     immediatelyRender: false,
@@ -69,7 +70,7 @@ function NewThreadContent() {
     setUploading(true);
     setError("");
     try {
-      const uploadedFiles = [];
+      const uploadedFiles: { filename: string; url: string; mimetype: string; size: number; uploadedAt: Date }[] = [];
       for (let i = 0; i < files.length; i++) {
         const file = files[i];
         const formData = new FormData();
@@ -78,24 +79,19 @@ function NewThreadContent() {
         const response = await fetch("/api/upload", { method: "POST", body: formData });
         if (!response.ok) throw new Error(`Failed to upload ${file.name}`);
         const data = await response.json();
-        uploadedFiles.push({
-          filename: file.name,
-          url: data.url,
-          mimetype: file.type,
-          size: file.size,
-          uploadedAt: new Date(),
-        });
+        uploadedFiles.push({ filename: file.name, url: data.url, mimetype: file.type, size: file.size, uploadedAt: new Date() });
       }
-      setAttachments([...attachments, ...uploadedFiles]);
+      setAttachments((prev) => [...prev, ...uploadedFiles]);
     } catch (err: any) {
       setError(err.message || "File upload failed");
     } finally {
       setUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
     }
   };
 
   const removeAttachment = (index: number) => {
-    setAttachments(attachments.filter((_, i) => i !== index));
+    setAttachments((prev) => prev.filter((_, i) => i !== index));
   };
 
   const onSubmit = async (data: ThreadFormData) => {
@@ -153,7 +149,6 @@ function NewThreadContent() {
     <DashboardLayout title="New Thread" userName={session?.user?.name || ""}>
       <div style={{ maxWidth: "52rem", margin: "0 auto" }}>
 
-        {/* Back link */}
         <button
           onClick={handleCancel}
           style={{ color: "var(--color-ijf-accent)", fontSize: "0.875rem", marginBottom: "1.25rem", display: "inline-block", cursor: "pointer" }}
@@ -162,30 +157,16 @@ function NewThreadContent() {
           ← Back to {workingGroup && workingGroup !== "general" ? "Working Group" : "General Discussion"}
         </button>
 
-        {/* Header — compact */}
-        <div
-          style={{
-            marginBottom: "1.75rem",
-            padding: "1.25rem 1.5rem",
-            borderRadius: "0.75rem",
-            background: "linear-gradient(135deg, var(--color-ijf-bg) 0%, #1a1f2e 100%)",
-            display: "flex",
-            alignItems: "center",
-            gap: "1rem",
-          }}
-        >
-          <div
-            style={{
-              width: "2.5rem",
-              height: "2.5rem",
-              borderRadius: "0.5rem",
-              backgroundColor: "var(--color-ijf-accent)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              flexShrink: 0,
-            }}
-          >
+        <div style={{
+          marginBottom: "1.75rem",
+          padding: "1.25rem 1.5rem",
+          borderRadius: "0.75rem",
+          background: "linear-gradient(135deg, var(--color-ijf-bg) 0%, #1a1f2e 100%)",
+          display: "flex",
+          alignItems: "center",
+          gap: "1rem",
+        }}>
+          <div style={{ width: "2.5rem", height: "2.5rem", borderRadius: "0.5rem", backgroundColor: "var(--color-ijf-accent)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
             <svg style={{ color: "var(--color-ijf-bg)", width: "1.1rem", height: "1.1rem" }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
             </svg>
@@ -193,16 +174,16 @@ function NewThreadContent() {
           <div>
             <h1 style={{ fontSize: "1.25rem", fontWeight: 700, color: "white", lineHeight: 1.3 }}>Create New Thread</h1>
             <p style={{ fontSize: "0.8125rem", color: "#9ca3af", marginTop: "0.1rem" }}>
-              {workingGroup && workingGroup !== "general" ? `Posting in: ${workingGroup.replace(/-/g, " ").replace(/\b\w/g, c => c.toUpperCase())}` : "General Discussion"}
+              {workingGroup && workingGroup !== "general"
+                ? `Posting in: ${workingGroup.replace(/-/g, " ").replace(/\b\w/g, c => c.toUpperCase())}`
+                : "General Discussion"}
             </p>
           </div>
         </div>
 
-        {/* Form card */}
         <div style={{ backgroundColor: "white", borderRadius: "0.75rem", boxShadow: "0 4px 24px rgba(0,0,0,0.07)", border: "1px solid #f0f0f0" }}>
           <form onSubmit={handleSubmit(onSubmit)} style={{ padding: "2rem" }}>
 
-            {/* Error */}
             {error && (
               <div style={{ marginBottom: "1.5rem", padding: "1rem", borderRadius: "0.5rem", backgroundColor: "rgba(239,68,68,0.07)", borderLeft: "4px solid #ef4444" }}>
                 <div style={{ display: "flex", alignItems: "flex-start", gap: "0.75rem" }}>
@@ -253,13 +234,14 @@ function NewThreadContent() {
                 <label style={{ display: "block", fontSize: "0.9375rem", fontWeight: 700, color: "#111827", marginBottom: "0.5rem" }}>
                   Content <span style={{ color: "var(--color-ijf-primary)" }}>*</span>
                 </label>
+
                 <div style={{ border: "2px solid #e5e7eb", borderRadius: "0.5rem", overflow: "hidden", backgroundColor: "white" }}>
 
-                  {/* Toolbar — all buttons tabIndex=-1 so tab skips straight to editor */}
+                  {/* Toolbar */}
                   <div style={{ backgroundColor: "#f9fafb", borderBottom: "1px solid #e5e7eb", padding: "0.5rem 0.75rem" }}>
                     <div style={{ display: "flex", alignItems: "center", gap: "0.375rem", flexWrap: "wrap" }}>
 
-                      {/* Format group */}
+                      {/* Format */}
                       <div style={{ display: "flex", alignItems: "center", gap: "0.125rem", backgroundColor: "white", borderRadius: "0.375rem", padding: "0.25rem", border: "1px solid #e5e7eb" }}>
                         {[
                           { label: "Bold", icon: <Bold className="w-4 h-4" />, action: () => editor?.chain().focus().toggleBold().run(), active: editor?.isActive("bold") },
@@ -306,6 +288,35 @@ function NewThreadContent() {
                         title="Insert Link"
                       ><LinkIcon className="w-4 h-4" /></button>
 
+                      {/* Divider */}
+                      <div style={{ width: "1px", height: "1.5rem", backgroundColor: "#e5e7eb", margin: "0 0.125rem" }} />
+
+                      {/* Paperclip */}
+                      <input ref={fileInputRef} type="file" multiple onChange={handleFileUpload} disabled={uploading} style={{ display: "none" }} />
+                      <button
+                        type="button"
+                        tabIndex={-1}
+                        onClick={() => fileInputRef.current?.click()}
+                        disabled={uploading}
+                        title={uploading ? "Uploading..." : "Attach files"}
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "0.25rem",
+                          padding: "0.375rem 0.5rem",
+                          borderRadius: "0.375rem",
+                          cursor: uploading ? "wait" : "pointer",
+                          backgroundColor: attachments.length > 0 ? "rgba(228,185,91,0.12)" : "white",
+                          color: attachments.length > 0 ? "var(--color-ijf-accent)" : "#374151",
+                          border: `1px solid ${attachments.length > 0 ? "rgba(228,185,91,0.4)" : "#e5e7eb"}`,
+                          opacity: uploading ? 0.6 : 1,
+                        }}
+                      >
+                        <Paperclip className="w-4 h-4" />
+                        {attachments.length > 0 && <span style={{ fontSize: "0.75rem", fontWeight: 600 }}>{attachments.length}</span>}
+                        {uploading && <span style={{ fontSize: "0.75rem" }}>Uploading...</span>}
+                      </button>
+
                       <div style={{ flex: 1 }} />
 
                       {/* Undo/Redo */}
@@ -322,10 +333,26 @@ function NewThreadContent() {
                     </div>
                   </div>
 
+                  {/* Editor */}
                   {editor ? (
                     <EditorContent editor={editor} style={{ backgroundColor: "white", color: "#111827" }} />
                   ) : (
                     <div style={{ padding: "1rem", color: "#9ca3af", fontSize: "0.875rem" }}>Loading editor...</div>
+                  )}
+
+                  {/* Attachment chips */}
+                  {attachments.length > 0 && (
+                    <div style={{ padding: "0.75rem 1rem", borderTop: "1px solid #f0f0f0", display: "flex", flexWrap: "wrap", gap: "0.5rem" }}>
+                      {attachments.map((file, idx) => (
+                        <div key={idx} style={{ display: "flex", alignItems: "center", gap: "0.375rem", padding: "0.25rem 0.625rem", backgroundColor: "#f9fafb", border: "1px solid #e5e7eb", borderRadius: "0.5rem" }}>
+                          <FileText style={{ width: "0.875rem", height: "0.875rem", color: "#9ca3af", flexShrink: 0 }} />
+                          <span style={{ fontSize: "0.8125rem", color: "#374151", fontWeight: 500, maxWidth: "12rem", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{file.filename}</span>
+                          <button type="button" onClick={() => removeAttachment(idx)} style={{ color: "#9ca3af", cursor: "pointer", marginLeft: "0.125rem", display: "flex" }}>
+                            <X style={{ width: "0.875rem", height: "0.875rem" }} />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
                   )}
                 </div>
               </div>
@@ -339,67 +366,10 @@ function NewThreadContent() {
                   id="tags"
                   type="text"
                   {...register("tags")}
-                  style={{
-                    width: "100%",
-                    padding: "0.875rem 1rem",
-                    fontSize: "1rem",
-                    border: "2px solid #e5e7eb",
-                    borderRadius: "0.5rem",
-                    backgroundColor: "white",
-                    color: "#111827",
-                    outline: "none",
-                    boxSizing: "border-box",
-                  }}
+                  style={{ width: "100%", padding: "0.875rem 1rem", fontSize: "1rem", border: "2px solid #e5e7eb", borderRadius: "0.5rem", backgroundColor: "white", color: "#111827", outline: "none", boxSizing: "border-box" }}
                   placeholder="e.g. funding, education, advocacy"
                 />
-                <p style={{ marginTop: "0.375rem", fontSize: "0.8125rem", color: "#9ca3af" }}>
-                  Separate tags with commas
-                </p>
-              </div>
-
-              {/* Attachments */}
-              <div>
-                <label style={{ display: "block", fontSize: "0.9375rem", fontWeight: 700, color: "#111827", marginBottom: "0.5rem" }}>
-                  Attachments <span style={{ fontSize: "0.8125rem", fontWeight: 400, color: "#9ca3af" }}>(Optional)</span>
-                </label>
-                <input type="file" multiple onChange={handleFileUpload} disabled={uploading} id="file-upload" style={{ display: "none" }} />
-                <label
-                  htmlFor="file-upload"
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    gap: "0.75rem",
-                    width: "100%",
-                    padding: "1.5rem",
-                    border: "2px dashed #d1d5db",
-                    borderRadius: "0.5rem",
-                    backgroundColor: "#f9fafb",
-                    cursor: uploading ? "wait" : "pointer",
-                    boxSizing: "border-box",
-                  }}
-                >
-                  <Upload style={{ width: "1.25rem", height: "1.25rem", color: "#9ca3af", flexShrink: 0 }} />
-                  <span style={{ fontSize: "0.9rem", color: "#6b7280", fontWeight: 500 }}>
-                    {uploading ? "Uploading..." : "Click to upload files"}
-                  </span>
-                </label>
-
-                {attachments.length > 0 && (
-                  <div style={{ marginTop: "0.75rem", display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-                    {attachments.map((file, idx) => (
-                      <div key={idx} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0.625rem 0.875rem", backgroundColor: "white", borderRadius: "0.5rem", border: "1px solid #e5e7eb" }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: "0.625rem" }}>
-                          <FileText style={{ width: "1rem", height: "1rem", color: "#9ca3af", flexShrink: 0 }} />
-                          <span style={{ fontSize: "0.875rem", color: "#374151", fontWeight: 500 }}>{file.filename}</span>
-                        </div>
-                        <button type="button" onClick={() => removeAttachment(idx)} style={{ padding: "0.25rem", color: "#ef4444", cursor: "pointer", borderRadius: "0.25rem" }}>
-                          <X style={{ width: "1rem", height: "1rem" }} />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
+                <p style={{ marginTop: "0.375rem", fontSize: "0.8125rem", color: "#9ca3af" }}>Separate tags with commas</p>
               </div>
 
             </div>
@@ -420,55 +390,30 @@ function NewThreadContent() {
                 gap: "1rem",
               }}
             >
-              {/* Toggle pill */}
               <div style={{ position: "relative", width: "2.75rem", height: "1.5rem", borderRadius: "9999px", backgroundColor: isPublic ? "var(--color-ijf-accent)" : "#d1d5db", transition: "background-color 0.2s", flexShrink: 0 }}>
                 <div style={{ position: "absolute", top: "0.2rem", left: isPublic ? "1.35rem" : "0.2rem", width: "1.1rem", height: "1.1rem", borderRadius: "9999px", backgroundColor: "white", boxShadow: "0 1px 3px rgba(0,0,0,0.2)", transition: "left 0.2s" }} />
               </div>
-
-              {/* Text */}
               <div style={{ flex: 1 }}>
                 <p style={{ fontSize: "0.9rem", fontWeight: 600, color: "#111827" }}>Make visible to all forum members</p>
                 <p style={{ fontSize: "0.8125rem", color: "#6b7280", marginTop: "0.125rem" }}>
                   By default, threads are only visible to working group members. Enable this to allow all members to read and reply.
                 </p>
               </div>
-
-              {/* Globe */}
               <svg width="22" height="22" fill="none" stroke="var(--color-ijf-accent)" strokeWidth={2} viewBox="0 0 24 24" style={{ flexShrink: 0, opacity: isPublic ? 1 : 0.25, transition: "opacity 0.2s" }}>
-                <circle cx="12" cy="12" r="10" />
-                <path d="M2 12h20M12 2a15.3 15.3 0 010 20M12 2a15.3 15.3 0 000 20" />
+                <circle cx="12" cy="12" r="10" /><path d="M2 12h20M12 2a15.3 15.3 0 010 20M12 2a15.3 15.3 0 000 20" />
               </svg>
-
               <input type="checkbox" {...register("publicToMembers")} style={{ display: "none" }} />
             </div>
 
             {/* Footer */}
             <div style={{ marginTop: "1.75rem", paddingTop: "1.25rem", borderTop: "1px solid #f0f0f0", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-              <button
-                type="button"
-                onClick={handleCancel}
-                disabled={submitting}
+              <button type="button" onClick={handleCancel} disabled={submitting}
                 style={{ padding: "0.625rem 1.25rem", fontSize: "0.9rem", fontWeight: 500, color: "#6b7280", cursor: "pointer", borderRadius: "0.5rem" }}
               >
                 Cancel
               </button>
-              <button
-                type="submit"
-                disabled={submitting}
-                style={{
-                  padding: "0.75rem 2rem",
-                  fontSize: "0.9375rem",
-                  fontWeight: 600,
-                  color: "white",
-                  backgroundColor: "var(--color-ijf-primary)",
-                  borderRadius: "0.5rem",
-                  cursor: submitting ? "not-allowed" : "pointer",
-                  opacity: submitting ? 0.6 : 1,
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "0.5rem",
-                  boxShadow: "0 2px 8px rgba(0,0,0,0.15)",
-                }}
+              <button type="submit" disabled={submitting}
+                style={{ padding: "0.75rem 2rem", fontSize: "0.9375rem", fontWeight: 600, color: "white", backgroundColor: "var(--color-ijf-primary)", borderRadius: "0.5rem", cursor: submitting ? "not-allowed" : "pointer", opacity: submitting ? 0.6 : 1, display: "flex", alignItems: "center", gap: "0.5rem", boxShadow: "0 2px 8px rgba(0,0,0,0.15)" }}
               >
                 {submitting ? (
                   <>

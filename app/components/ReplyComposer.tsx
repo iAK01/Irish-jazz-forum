@@ -2,11 +2,12 @@
 
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Link from "@tiptap/extension-link";
 import Placeholder from "@tiptap/extension-placeholder";
+import CharacterCount from "@tiptap/extension-character-count";
 import {
   Bold,
   Italic,
@@ -18,9 +19,10 @@ import {
   Link as LinkIcon,
   Undo2,
   Redo2,
-  Upload,
+  Paperclip,
   X,
   FileText,
+  ChevronDown,
 } from "lucide-react";
 
 interface ReplyComposerProps {
@@ -28,6 +30,8 @@ interface ReplyComposerProps {
   workingGroup?: string;
   onReplyAdded: (newPost: any) => void;
 }
+
+const DRAFT_KEY = (threadId: string) => `reply-draft-${threadId}`;
 
 export default function ReplyComposer({
   threadId,
@@ -38,27 +42,73 @@ export default function ReplyComposer({
   const [error, setError] = useState("");
   const [attachments, setAttachments] = useState<any[]>([]);
   const [uploading, setUploading] = useState(false);
-  const [showPreview, setShowPreview] = useState(false);
+  const [showMoreTools, setShowMoreTools] = useState(false);
+  const [wordCount, setWordCount] = useState(0);
+  const [hasDraft, setHasDraft] = useState(false);
+  const moreToolsRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const editor = useEditor({
     immediatelyRender: false,
     extensions: [
       StarterKit,
-      Link.configure({
-        openOnClick: false,
-      }),
+      Link.configure({ openOnClick: false }),
       Placeholder.configure({
-        placeholder: "Write your reply...",
+        placeholder: "Write your reply here — what do you think?",
       }),
+      CharacterCount,
     ],
     content: "",
     editorProps: {
       attributes: {
-        class:
-          "prose prose-sm max-w-none focus:outline-none min-h-[200px] px-4 py-3",
+        class: "prose prose-sm max-w-none focus:outline-none px-4 py-3",
+style: "min-height: 200px;",
       },
     },
+    onUpdate({ editor }) {
+      const text = editor.getText();
+      const words = text.trim() ? text.trim().split(/\s+/).length : 0;
+      setWordCount(words);
+
+      // Save draft
+      const html = editor.getHTML();
+      if (html && html !== "<p></p>") {
+        localStorage.setItem(DRAFT_KEY(threadId), html);
+        setHasDraft(true);
+      } else {
+        localStorage.removeItem(DRAFT_KEY(threadId));
+        setHasDraft(false);
+      }
+    },
   });
+
+  // Load draft on mount
+  useEffect(() => {
+    if (!editor) return;
+    const draft = localStorage.getItem(DRAFT_KEY(threadId));
+    if (draft && draft !== "<p></p>") {
+      editor.commands.setContent(draft);
+      setHasDraft(true);
+      const text = editor.getText();
+      setWordCount(text.trim() ? text.trim().split(/\s+/).length : 0);
+    }
+  }, [editor, threadId]);
+
+  // Close "more tools" dropdown on outside click
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (moreToolsRef.current && !moreToolsRef.current.contains(e.target as Node)) {
+        setShowMoreTools(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  const clearDraft = () => {
+    localStorage.removeItem(DRAFT_KEY(threadId));
+    setHasDraft(false);
+  };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
@@ -68,8 +118,7 @@ export default function ReplyComposer({
     setError("");
 
     try {
-      const uploadedFiles = [];
-
+      const uploadedFiles: { filename: string; url: string; mimetype: string; size: number; uploadedAt: Date }[] = [];
       for (let i = 0; i < files.length; i++) {
         const file = files[i];
         const formData = new FormData();
@@ -81,9 +130,7 @@ export default function ReplyComposer({
           body: formData,
         });
 
-        if (!response.ok) {
-          throw new Error(`Failed to upload ${file.name}`);
-        }
+        if (!response.ok) throw new Error(`Failed to upload ${file.name}`);
 
         const data = await response.json();
         uploadedFiles.push({
@@ -94,22 +141,21 @@ export default function ReplyComposer({
           uploadedAt: new Date(),
         });
       }
-
-      setAttachments([...attachments, ...uploadedFiles]);
+      setAttachments((prev) => [...prev, ...uploadedFiles]);
     } catch (err: any) {
       setError(err.message || "File upload failed");
     } finally {
       setUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
     }
   };
 
   const removeAttachment = (index: number) => {
-    setAttachments(attachments.filter((_, i) => i !== index));
+    setAttachments((prev) => prev.filter((_, i) => i !== index));
   };
 
   const handleSubmit = async () => {
     if (!editor) return;
-
     const content = editor.getHTML();
     if (!content || content === "<p></p>") {
       setError("Reply content is required");
@@ -120,29 +166,19 @@ export default function ReplyComposer({
     setError("");
 
     try {
-      const payload = {
-        content,
-        attachments,
-      };
-
       const response = await fetch(`/api/threads/${threadId}/posts`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
+        body: JSON.stringify({ content, attachments }),
       });
 
       const result = await response.json();
+      if (!response.ok || !result.success) throw new Error(result.error || "Failed to post reply");
 
-      if (!response.ok || !result.success) {
-        throw new Error(result.error || "Failed to post reply");
-      }
-
-      // Clear form
       editor.commands.setContent("");
       setAttachments([]);
-      setShowPreview(false);
-
-      // Notify parent
+      setWordCount(0);
+      clearDraft();
       onReplyAdded(result.data);
     } catch (err: any) {
       setError(err.message || "An error occurred");
@@ -151,293 +187,232 @@ export default function ReplyComposer({
     }
   };
 
+  const toolbarBtn = (active: boolean) => ({
+    base: `p-2 rounded transition-colors cursor-pointer`,
+    style: active ? { backgroundColor: "var(--color-ijf-accent)", color: "white" } : {},
+    className: active ? `p-2 rounded transition-colors cursor-pointer` : `p-2 rounded transition-colors cursor-pointer text-gray-700 hover:bg-gray-100`,
+  });
+
   return (
     <div>
-      <h3 className="text-xl font-bold text-gray-900 mb-4">
-        Reply to this thread
-      </h3>
-
       {error && (
-        <div className="mb-4 p-4 rounded-lg border-l-4" style={{ backgroundColor: 'rgba(239, 68, 68, 0.1)', borderColor: '#ef4444' }}>
+        <div className="mb-3 p-3 rounded-lg border-l-4" style={{ backgroundColor: "rgba(239,68,68,0.08)", borderColor: "#ef4444" }}>
           <p className="text-sm text-red-700 font-medium">{error}</p>
         </div>
       )}
 
-      {/* Toggle Preview */}
-      <div className="flex gap-2 mb-3">
-        <button
-          type="button"
-          onClick={() => setShowPreview(false)}
-          className={`px-4 py-2 text-sm font-medium rounded-lg transition cursor-pointer ${
-            !showPreview
-              ? "text-white"
-              : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-          }`}
-          style={!showPreview ? { backgroundColor: 'var(--color-ijf-accent)' } : {}}
-        >
-          Write
-        </button>
-        <button
-          type="button"
-          onClick={() => setShowPreview(true)}
-          className={`px-4 py-2 text-sm font-medium rounded-lg transition cursor-pointer ${
-            showPreview
-              ? "text-white"
-              : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-          }`}
-          style={showPreview ? { backgroundColor: 'var(--color-ijf-accent)' } : {}}
-        >
-          Preview
-        </button>
-      </div>
-
-      {showPreview ? (
-        <div className="border-2 border-gray-300 rounded-lg p-4 min-h-[200px] bg-gray-50">
-          <div
-            className="prose prose-sm max-w-none"
-            dangerouslySetInnerHTML={{ __html: editor?.getHTML() || "" }}
-          />
-        </div>
-      ) : (
-        <div className="border-2 border-gray-300 rounded-lg overflow-hidden bg-white shadow-sm">
-          {/* Toolbar */}
-          <div className="bg-gray-50 border-b-2 border-gray-200 px-3 py-2.5">
-            <div className="flex items-center gap-2 flex-wrap">
-              
-              {/* Text Formatting Group */}
-              <div className="flex items-center gap-1 bg-white rounded-md p-1 border border-gray-200">
-                <button
-                  type="button"
-                  onClick={() => editor?.chain().focus().toggleBold().run()}
-                  className={`p-2 rounded transition-colors cursor-pointer ${
-                    editor?.isActive("bold")
-                      ? "text-white"
-                      : "text-gray-700 hover:bg-gray-100"
-                  }`}
-                  style={editor?.isActive("bold") ? { backgroundColor: 'var(--color-ijf-accent)' } : {}}
-                  title="Bold"
-                >
-                  <Bold className="w-4 h-4" />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => editor?.chain().focus().toggleItalic().run()}
-                  className={`p-2 rounded transition-colors cursor-pointer ${
-                    editor?.isActive("italic")
-                      ? "text-white"
-                      : "text-gray-700 hover:bg-gray-100"
-                  }`}
-                  style={editor?.isActive("italic") ? { backgroundColor: 'var(--color-ijf-accent)' } : {}}
-                  title="Italic"
-                >
-                  <Italic className="w-4 h-4" />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => editor?.chain().focus().toggleStrike().run()}
-                  className={`p-2 rounded transition-colors cursor-pointer ${
-                    editor?.isActive("strike")
-                      ? "text-white"
-                      : "text-gray-700 hover:bg-gray-100"
-                  }`}
-                  style={editor?.isActive("strike") ? { backgroundColor: 'var(--color-ijf-accent)' } : {}}
-                  title="Strikethrough"
-                >
-                  <Strikethrough className="w-4 h-4" />
-                </button>
-              </div>
-
-              {/* Headings Group */}
-              <div className="flex items-center gap-1 bg-white rounded-md p-1 border border-gray-200">
-                <button
-                  type="button"
-                  onClick={() =>
-                    editor?.chain().focus().toggleHeading({ level: 2 }).run()
-                  }
-                  className={`p-2 rounded transition-colors cursor-pointer ${
-                    editor?.isActive("heading", { level: 2 })
-                      ? "text-white"
-                      : "text-gray-700 hover:bg-gray-100"
-                  }`}
-                  style={editor?.isActive("heading", { level: 2 }) ? { backgroundColor: 'var(--color-ijf-accent)' } : {}}
-                  title="Heading 2"
-                >
-                  <Heading2 className="w-4 h-4" />
-                </button>
-                <button
-                  type="button"
-                  onClick={() =>
-                    editor?.chain().focus().toggleHeading({ level: 3 }).run()
-                  }
-                  className={`p-2 rounded transition-colors cursor-pointer ${
-                    editor?.isActive("heading", { level: 3 })
-                      ? "text-white"
-                      : "text-gray-700 hover:bg-gray-100"
-                  }`}
-                  style={editor?.isActive("heading", { level: 3 }) ? { backgroundColor: 'var(--color-ijf-accent)' } : {}}
-                  title="Heading 3"
-                >
-                  <Heading3 className="w-4 h-4" />
-                </button>
-              </div>
-
-              {/* Lists Group */}
-              <div className="flex items-center gap-1 bg-white rounded-md p-1 border border-gray-200">
-                <button
-                  type="button"
-                  onClick={() => editor?.chain().focus().toggleBulletList().run()}
-                  className={`p-2 rounded transition-colors cursor-pointer ${
-                    editor?.isActive("bulletList")
-                      ? "text-white"
-                      : "text-gray-700 hover:bg-gray-100"
-                  }`}
-                  style={editor?.isActive("bulletList") ? { backgroundColor: 'var(--color-ijf-accent)' } : {}}
-                  title="Bullet List"
-                >
-                  <List className="w-4 h-4" />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => editor?.chain().focus().toggleOrderedList().run()}
-                  className={`p-2 rounded transition-colors cursor-pointer ${
-                    editor?.isActive("orderedList")
-                      ? "text-white"
-                      : "text-gray-700 hover:bg-gray-100"
-                  }`}
-                  style={editor?.isActive("orderedList") ? { backgroundColor: 'var(--color-ijf-accent)' } : {}}
-                  title="Numbered List"
-                >
-                  <ListOrdered className="w-4 h-4" />
-                </button>
-              </div>
-
-              {/* Link Button */}
-              <button
-                type="button"
-                onClick={() => {
-                  const url = window.prompt("Enter URL:");
-                  if (url) {
-                    editor?.chain().focus().setLink({ href: url }).run();
-                  }
-                }}
-                className={`p-2 rounded transition-colors border border-gray-200 cursor-pointer ${
-                  editor?.isActive("link")
-                    ? "text-white"
-                    : "bg-white text-gray-700 hover:bg-gray-100"
-                }`}
-                style={editor?.isActive("link") ? { backgroundColor: 'var(--color-ijf-accent)' } : {}}
-                title="Insert Link"
-              >
-                <LinkIcon className="w-4 h-4" />
-              </button>
-
-              {/* Spacer */}
-              <div className="flex-1"></div>
-
-              {/* Undo/Redo Group */}
-              <div className="flex items-center gap-1 bg-white rounded-md p-1 border border-gray-200">
-                <button
-                  type="button"
-                  onClick={() => editor?.chain().focus().undo().run()}
-                  disabled={!editor?.can().undo()}
-                  className="p-2 rounded text-gray-700 hover:bg-gray-100 disabled:opacity-40 disabled:hover:bg-transparent disabled:cursor-not-allowed transition-colors cursor-pointer"
-                  title="Undo"
-                >
-                  <Undo2 className="w-4 h-4" />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => editor?.chain().focus().redo().run()}
-                  disabled={!editor?.can().redo()}
-                  className="p-2 rounded text-gray-700 hover:bg-gray-100 disabled:opacity-40 disabled:hover:bg-transparent disabled:cursor-not-allowed transition-colors cursor-pointer"
-                  title="Redo"
-                >
-                  <Redo2 className="w-4 h-4" />
-                </button>
-              </div>
-            </div>
-          </div>
-
-          {/* Editor */}
-          <EditorContent
-            editor={editor}
-            className="bg-white text-gray-900"
-          />
+      {/* Draft banner */}
+      {hasDraft && (
+        <div className="mb-3 flex items-center justify-between px-3 py-2 rounded-lg text-sm" style={{ backgroundColor: "rgba(228,185,91,0.12)", border: "1px solid rgba(228,185,91,0.3)" }}>
+          <span style={{ color: "#92701a" }}>📝 Draft saved</span>
+          <button
+            type="button"
+            onClick={() => { editor?.commands.setContent(""); clearDraft(); setWordCount(0); }}
+            className="text-xs underline cursor-pointer"
+            style={{ color: "#92701a" }}
+          >
+            Discard draft
+          </button>
         </div>
       )}
 
-      {/* File Upload */}
-      <div className="mt-4">
-        <label className="block text-sm font-bold text-gray-900 mb-2">
-          Attachments <span className="text-gray-500 text-xs font-normal">(optional)</span>
-        </label>
-        <div>
-          <input
-            type="file"
-            multiple
-            onChange={handleFileUpload}
-            disabled={uploading}
-            id="reply-file-upload"
-            className="hidden"
-          />
-          <label
-            htmlFor="reply-file-upload"
-            className={`flex items-center justify-center gap-3 w-full px-6 py-6 border-2 border-dashed rounded-lg transition-all shadow-sm ${
-              uploading
-                ? "border-gray-300 bg-gray-50 cursor-wait"
-                : "border-gray-300 bg-gray-50 hover:bg-gray-100 cursor-pointer"
-            }`}
-          >
-            <Upload className="w-6 h-6 text-gray-400 flex-shrink-0" />
-            <div>
-              <p className="text-sm font-medium text-gray-700">
-                {uploading ? "Uploading files..." : "Click to upload files"}
-              </p>
+      <div className="border-2 border-gray-200 rounded-xl overflow-hidden bg-white shadow-sm">
+
+        {/* Toolbar */}
+        <div className="bg-gray-50 border-b border-gray-200 px-3 py-2">
+          <div className="flex items-center gap-1.5 flex-wrap">
+
+            {/* Core: Bold, Italic */}
+            <div className="flex items-center gap-0.5 bg-white rounded-lg p-1 border border-gray-200">
+              <button
+                type="button"
+                tabIndex={-1}
+                onClick={() => editor?.chain().focus().toggleBold().run()}
+                className={toolbarBtn(!!editor?.isActive("bold")).className}
+                style={toolbarBtn(!!editor?.isActive("bold")).style}
+                title="Bold"
+              >
+                <Bold className="w-4 h-4" />
+              </button>
+              <button
+                type="button"
+                tabIndex={-1}
+                onClick={() => editor?.chain().focus().toggleItalic().run()}
+                className={toolbarBtn(!!editor?.isActive("italic")).className}
+                style={toolbarBtn(!!editor?.isActive("italic")).style}
+                title="Italic"
+              >
+                <Italic className="w-4 h-4" />
+              </button>
             </div>
-          </label>
+
+            {/* Link */}
+            <button
+              type="button"
+              tabIndex={-1}
+              onClick={() => {
+                const url = window.prompt("Enter URL:");
+                if (url) editor?.chain().focus().setLink({ href: url }).run();
+              }}
+              className={`${toolbarBtn(!!editor?.isActive("link")).className} border border-gray-200 bg-white`}
+              style={toolbarBtn(!!editor?.isActive("link")).style}
+              title="Insert Link"
+            >
+              <LinkIcon className="w-4 h-4" />
+            </button>
+
+            {/* More tools dropdown */}
+            <div ref={moreToolsRef} style={{ position: "relative" }}>
+              <button
+                type="button"
+                tabIndex={-1}
+                onClick={() => setShowMoreTools(!showMoreTools)}
+                className="flex items-center gap-1 px-2 py-2 rounded-lg border border-gray-200 bg-white text-gray-700 hover:bg-gray-100 text-sm cursor-pointer transition-colors"
+                title="More formatting"
+              >
+                More <ChevronDown className="w-3 h-3" />
+              </button>
+
+              {showMoreTools && (
+                <div style={{
+                  position: "absolute",
+                  top: "calc(100% + 4px)",
+                  left: 0,
+                  zIndex: 20,
+                  backgroundColor: "white",
+                  border: "1px solid #e5e7eb",
+                  borderRadius: "0.5rem",
+                  boxShadow: "0 4px 16px rgba(0,0,0,0.1)",
+                  padding: "0.375rem",
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "0.25rem",
+                  minWidth: "9rem",
+                }}>
+                  {[
+                    { label: "Strikethrough", icon: <Strikethrough className="w-4 h-4" />, action: () => editor?.chain().focus().toggleStrike().run(), active: !!editor?.isActive("strike") },
+                    { label: "Heading 2", icon: <Heading2 className="w-4 h-4" />, action: () => editor?.chain().focus().toggleHeading({ level: 2 }).run(), active: !!editor?.isActive("heading", { level: 2 }) },
+                    { label: "Heading 3", icon: <Heading3 className="w-4 h-4" />, action: () => editor?.chain().focus().toggleHeading({ level: 3 }).run(), active: !!editor?.isActive("heading", { level: 3 }) },
+                    { label: "Bullet list", icon: <List className="w-4 h-4" />, action: () => editor?.chain().focus().toggleBulletList().run(), active: !!editor?.isActive("bulletList") },
+                    { label: "Numbered list", icon: <ListOrdered className="w-4 h-4" />, action: () => editor?.chain().focus().toggleOrderedList().run(), active: !!editor?.isActive("orderedList") },
+                  ].map((item) => (
+                    <button
+                      key={item.label}
+                      type="button"
+                      tabIndex={-1}
+                      onClick={() => { item.action(); setShowMoreTools(false); }}
+                      className="flex items-center gap-2 px-2 py-1.5 rounded text-sm cursor-pointer transition-colors text-left"
+                      style={{
+                        backgroundColor: item.active ? "var(--color-ijf-accent)" : "transparent",
+                        color: item.active ? "white" : "#374151",
+                      }}
+                      onMouseEnter={e => { if (!item.active) (e.currentTarget as HTMLElement).style.backgroundColor = "#f3f4f6"; }}
+                      onMouseLeave={e => { if (!item.active) (e.currentTarget as HTMLElement).style.backgroundColor = "transparent"; }}
+                    >
+                      {item.icon}
+                      {item.label}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Divider */}
+            <div className="w-px bg-gray-200 h-6 mx-0.5" />
+
+            {/* Paperclip upload */}
+            <input
+              ref={fileInputRef}
+              type="file"
+              multiple
+              onChange={handleFileUpload}
+              disabled={uploading}
+              className="hidden"
+              id="reply-file-upload"
+            />
+            <button
+              type="button"
+              tabIndex={-1}
+              onClick={() => fileInputRef.current?.click()}
+              disabled={uploading}
+              className="flex items-center gap-1.5 px-2 py-2 rounded-lg border border-gray-200 bg-white text-gray-700 hover:bg-gray-100 text-sm cursor-pointer transition-colors disabled:opacity-50"
+              title="Attach files"
+              style={attachments.length > 0 ? { borderColor: "var(--color-ijf-accent)", color: "var(--color-ijf-accent)" } : {}}
+            >
+              <Paperclip className="w-4 h-4" />
+              {attachments.length > 0 && <span className="text-xs font-semibold">{attachments.length}</span>}
+              {uploading && <span className="text-xs">Uploading...</span>}
+            </button>
+
+            {/* Spacer */}
+            <div className="flex-1" />
+
+            {/* Undo / Redo */}
+            <div className="flex items-center gap-0.5 bg-white rounded-lg p-1 border border-gray-200">
+              <button
+                type="button"
+                tabIndex={-1}
+                onClick={() => editor?.chain().focus().undo().run()}
+                disabled={!editor?.can().undo()}
+                className="p-2 rounded text-gray-700 hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
+                title="Undo"
+              >
+                <Undo2 className="w-4 h-4" />
+              </button>
+              <button
+                type="button"
+                tabIndex={-1}
+                onClick={() => editor?.chain().focus().redo().run()}
+                disabled={!editor?.can().redo()}
+                className="p-2 rounded text-gray-700 hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
+                title="Redo"
+              >
+                <Redo2 className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
         </div>
 
-        {/* Attachment List */}
+        {/* Editor */}
+        <EditorContent editor={editor} className="bg-white text-gray-900" />
+
+        {/* Attachment list (inside editor box) */}
         {attachments.length > 0 && (
-          <div className="mt-4 space-y-2">
-            <p className="text-xs font-semibold text-gray-700 uppercase tracking-wide">
-              Attached Files ({attachments.length})
-            </p>
+          <div className="px-4 pb-3 border-t border-gray-100 pt-3 flex flex-wrap gap-2">
             {attachments.map((file, idx) => (
               <div
                 key={idx}
-                className="flex items-center justify-between p-3 bg-white rounded-lg border-2 border-gray-200 shadow-sm"
+                className="flex items-center gap-2 px-3 py-1.5 bg-gray-50 border border-gray-200 rounded-lg text-sm"
               >
-                <div className="flex items-center gap-3">
-                  <FileText className="w-5 h-5 text-gray-400 flex-shrink-0" />
-                  <span className="text-sm font-medium text-gray-900">
-                    {file.filename}
-                  </span>
-                </div>
+                <FileText className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
+                <span className="text-gray-700 font-medium max-w-[12rem] truncate">{file.filename}</span>
                 <button
                   type="button"
                   onClick={() => removeAttachment(idx)}
-                  className="p-1 text-red-600 hover:text-red-700 hover:bg-red-50 rounded transition-colors cursor-pointer"
-                  title="Remove file"
+                  className="text-gray-400 hover:text-red-500 transition-colors cursor-pointer ml-1"
                 >
-                  <X className="w-4 h-4" />
+                  <X className="w-3.5 h-3.5" />
                 </button>
               </div>
             ))}
           </div>
         )}
-      </div>
 
-      {/* Submit Button */}
-      <div className="mt-6">
-        <button
-          onClick={handleSubmit}
-          disabled={submitting}
-          className="px-8 py-3 text-white text-base font-semibold rounded-lg hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg hover:shadow-xl transition-all cursor-pointer"
-          style={{ backgroundColor: 'var(--color-ijf-primary)' }}
-        >
-          {submitting ? "Posting..." : "Post Reply"}
-        </button>
+        {/* Footer bar: word count + submit */}
+        <div className="flex items-center justify-between px-4 py-2.5 bg-gray-50 border-t border-gray-200">
+          <span className="text-xs text-gray-400">
+            {wordCount > 0 ? `${wordCount} ${wordCount === 1 ? "word" : "words"}` : "Start typing..."}
+          </span>
+          <button
+            type="button"
+            onClick={handleSubmit}
+            disabled={submitting || wordCount === 0}
+            className="px-6 py-2 text-sm font-semibold rounded-lg transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+            style={{ backgroundColor: "var(--color-ijf-primary)", color: "white" }}
+          >
+            {submitting ? "Posting..." : "Post Reply"}
+          </button>
+        </div>
       </div>
     </div>
   );
