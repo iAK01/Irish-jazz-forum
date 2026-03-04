@@ -37,18 +37,13 @@ export async function GET(
     }
 
     if (thread.workingGroups && thread.workingGroups.length > 0) {
-
-      const groups = await WorkingGroupModel.find({
-        slug: { $in: thread.workingGroups }
-      }).lean() as any[];
-
-      const groupIds = groups.map(g => g._id.toString());
+      const groupIds = thread.workingGroups.map((g: any) => g.toString());
 
       const hasAccess =
         currentUser.role === "super_admin" ||
         currentUser.role === "admin" ||
         currentUser.role === "steering" ||
-        groupIds.some(id =>
+        groupIds.some((id: string) =>
           (currentUser.workingGroups || [])
             .map((g: any) => g.toString())
             .includes(id)
@@ -105,18 +100,13 @@ export async function PATCH(
     }
 
     if (thread.workingGroups && thread.workingGroups.length > 0) {
-
-      const groups = await WorkingGroupModel.find({
-        slug: { $in: thread.workingGroups }
-      }).lean() as any[];
-
-      const groupIds = groups.map(g => g._id.toString());
+      const groupIds = thread.workingGroups.map((g: any) => g.toString());
 
       const hasAccess =
         currentUser.role === "super_admin" ||
         currentUser.role === "admin" ||
         currentUser.role === "steering" ||
-        groupIds.some(id =>
+        groupIds.some((id: string) =>
           (currentUser.workingGroups || [])
             .map((g: any) => g.toString())
             .includes(id)
@@ -209,9 +199,9 @@ export async function DELETE(
     let workingGroupDriveFolderId: string | null = null;
 
     if (thread.workingGroups && thread.workingGroups.length > 0) {
-      const workingGroup = await WorkingGroupModel.findOne({
-        slug: thread.workingGroups[0]
-      }).lean() as any;
+      const workingGroup = await WorkingGroupModel.findById(
+        thread.workingGroups[0]
+      ).lean() as any;
 
       if (workingGroup && workingGroup.googleDriveFolderId) {
         workingGroupDriveFolderId = workingGroup.googleDriveFolderId;

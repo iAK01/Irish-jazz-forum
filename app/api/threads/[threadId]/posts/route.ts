@@ -4,7 +4,6 @@ import { NextResponse } from "next/server";
 import dbConnect from "@/lib/mongodb";
 import { DiscussionThreadModel } from "@/models/Discussionthread";
 import { DiscussionPostModel } from "@/models/Discussionpost";
-import { WorkingGroupModel } from "@/models/Workinggroup";
 import { requireAuth } from "@/lib/auth";
 
 export async function GET(
@@ -38,17 +37,13 @@ export async function GET(
     }
 
     if (thread.workingGroups && thread.workingGroups.length > 0) {
-      const groups = await WorkingGroupModel.find({
-        slug: { $in: thread.workingGroups }
-      }).lean() as any[];
-
-      const groupIds = groups.map(g => g._id.toString());
+      const groupIds = thread.workingGroups.map((g: any) => g.toString());
 
       const hasAccess =
         currentUser.role === "super_admin" ||
         currentUser.role === "admin" ||
         currentUser.role === "steering" ||
-        groupIds.some(id =>
+        groupIds.some((id: string) =>
           (currentUser.workingGroups || [])
             .map((g: any) => g.toString())
             .includes(id)
@@ -137,17 +132,13 @@ export async function POST(
 
     if (thread.workingGroups && thread.workingGroups.length > 0) {
 
-      const groups = await WorkingGroupModel.find({
-        slug: { $in: thread.workingGroups }
-      }).lean() as any[];
-
-      const groupIds = groups.map(g => g._id.toString());
+      const groupIds = thread.workingGroups.map((g: any) => g.toString());
 
       const hasAccess =
         currentUser.role === "super_admin" ||
         currentUser.role === "admin" ||
         currentUser.role === "steering" ||
-        groupIds.some(id =>
+        groupIds.some((id: string) =>
           (currentUser.workingGroups || [])
             .map((g: any) => g.toString())
             .includes(id)
