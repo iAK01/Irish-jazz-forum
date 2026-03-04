@@ -8,6 +8,7 @@ import DashboardLayout from "@/app/components/dashboard/DashboardLayout";
 import PostList from "@/app/components/PostList";
 import ReplyComposer from "@/app/components/ReplyComposer";
 import ConfirmDeleteDialog from "@/app/components/ConfirmDeleteDialog";
+import ThreadAdminMenu from "@/app/components/ThreadAdminMenu";
 
 interface Thread {
   _id: string;
@@ -74,7 +75,6 @@ export default function GeneralThreadView() {
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState("");
-  const [showAdminMenu, setShowAdminMenu] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
 
   useEffect(() => {
@@ -85,9 +85,7 @@ export default function GeneralThreadView() {
   }, []);
 
   useEffect(() => {
-    if (session?.user) {
-      fetchThread();
-    }
+    if (session?.user) fetchThread();
   }, [session, threadSlug]);
 
   const fetchThread = async () => {
@@ -103,7 +101,6 @@ export default function GeneralThreadView() {
       }
 
       const currentThread = threadData.data.find((t: Thread) => t.slug === threadSlug);
-
       if (!currentThread) {
         setError("Thread not found");
         setLoading(false);
@@ -128,20 +125,14 @@ export default function GeneralThreadView() {
   const fetchPosts = async (threadId: string, page: number) => {
     try {
       if (page > 1) setLoadingMore(true);
-
       const postsRes = await fetch(`/api/threads/${threadId}/posts?page=${page}`);
       const postsData = await postsRes.json();
-
-      if (!postsRes.ok || !postsData.success) {
-        throw new Error(postsData.error || "Failed to fetch posts");
-      }
-
+      if (!postsRes.ok || !postsData.success) throw new Error(postsData.error || "Failed to fetch posts");
       if (page === 1) {
         setPosts(postsData.data || []);
       } else {
         setPosts((prev) => [...prev, ...(postsData.data || [])]);
       }
-
       setPagination(postsData.pagination);
     } catch (err: any) {
       setError(err.message || "An error occurred");
@@ -151,9 +142,7 @@ export default function GeneralThreadView() {
   };
 
   const handleLoadMore = () => {
-    if (thread && pagination?.hasMore) {
-      fetchPosts(thread._id, pagination.page + 1);
-    }
+    if (thread && pagination?.hasMore) fetchPosts(thread._id, pagination.page + 1);
   };
 
   const handleReplyAdded = (newPost: Post) => {
@@ -163,9 +152,7 @@ export default function GeneralThreadView() {
 
   const handlePostEdited = (postId: string, newContent: string) => {
     setPosts((prev) =>
-      prev.map((p) =>
-        p._id === postId ? { ...p, content: newContent, editedAt: new Date().toISOString() } : p
-      )
+      prev.map((p) => p._id === postId ? { ...p, content: newContent, editedAt: new Date().toISOString() } : p)
     );
   };
 
@@ -174,19 +161,18 @@ export default function GeneralThreadView() {
     if (thread) setThread({ ...thread, replyCount: Math.max(0, thread.replyCount - 1) });
   };
 
+  const handleThreadUpdated = (updates: Partial<Thread>) => {
+    if (thread) setThread({ ...thread, ...updates });
+  };
+
   const handleDeleteThread = async () => {
     if (!thread) return;
     try {
       setDeleting(true);
       setDeleteError("");
-
       const response = await fetch(`/api/threads/${thread._id}`, { method: "DELETE" });
       const data = await response.json();
-
-      if (!response.ok || !data.success) {
-        throw new Error(data.error || "Failed to delete thread");
-      }
-
+      if (!response.ok || !data.success) throw new Error(data.error || "Failed to delete thread");
       router.push("/dashboard/forum/general");
     } catch (err: any) {
       setDeleteError(err.message || "Failed to delete thread");
@@ -218,7 +204,7 @@ export default function GeneralThreadView() {
       <DashboardLayout title="Error" userName={session?.user?.name || ""}>
         <div style={{ textAlign: "center", padding: "3rem 0" }}>
           <div style={{ width: "5rem", height: "5rem", backgroundColor: "#fee2e2", borderRadius: "9999px", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 1.5rem" }}>
-            <svg className="w-10 h-10" style={{ color: "#dc2626" }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg style={{ color: "#dc2626", width: "2.5rem", height: "2.5rem" }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
             </svg>
           </div>
@@ -256,15 +242,13 @@ export default function GeneralThreadView() {
         </div>
 
         {/* Header */}
-        <div
-          style={{
-            marginBottom: "2rem",
-            padding: isMobile ? "1.25rem" : "2rem",
-            borderRadius: "0.75rem",
-            background: "linear-gradient(135deg, var(--color-ijf-bg) 0%, #1a1f2e 100%)",
-          }}
-        >
-          {/* Title + admin menu */}
+        <div style={{
+          marginBottom: "2rem",
+          padding: isMobile ? "1.25rem" : "2rem",
+          borderRadius: "0.75rem",
+          background: "linear-gradient(135deg, var(--color-ijf-bg) 0%, #1a1f2e 100%)",
+        }}>
+          {/* Title row */}
           <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "1rem", marginBottom: "0.75rem" }}>
             <div style={{ display: "flex", alignItems: "flex-start", gap: "0.5rem", flex: 1 }}>
               {thread.pinned && <span style={{ fontSize: "1.5rem", flexShrink: 0 }}>📌</span>}
@@ -274,63 +258,30 @@ export default function GeneralThreadView() {
             </div>
 
             {isAdmin && (
-              <div style={{ position: "relative", flexShrink: 0 }}>
-                <button
-                  onClick={() => setShowAdminMenu(!showAdminMenu)}
-                  style={{ padding: "0.5rem", borderRadius: "0.5rem", backgroundColor: "rgba(255,255,255,0.1)", cursor: "pointer" }}
-                >
-                  <svg className="w-5 h-5" style={{ color: "white" }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" />
-                  </svg>
-                </button>
-
-                {showAdminMenu && (
-                  <div style={{ position: "absolute", right: 0, marginTop: "0.5rem", width: "14rem", backgroundColor: "white", borderRadius: "0.5rem", boxShadow: "0 10px 25px rgba(0,0,0,0.15)", border: "1px solid #e5e7eb", zIndex: 10 }}>
-                    <button
-                      onClick={() => { alert("Pin/Unpin not yet implemented"); setShowAdminMenu(false); }}
-                      style={{ width: "100%", textAlign: "left", padding: "0.75rem 1rem", fontSize: "0.875rem", color: "#374151", cursor: "pointer", display: "block" }}
-                    >
-                      {thread.pinned ? "📌 Unpin Thread" : "📌 Pin Thread"}
-                    </button>
-                    <button
-                      onClick={() => { alert("Status change not yet implemented"); setShowAdminMenu(false); }}
-                      style={{ width: "100%", textAlign: "left", padding: "0.75rem 1rem", fontSize: "0.875rem", color: "#374151", cursor: "pointer", borderTop: "1px solid #f3f4f6", display: "block" }}
-                    >
-                      Change Status
-                    </button>
-                    {isSuperAdmin && (
-                      <button
-                        onClick={() => { setShowDeleteDialog(true); setShowAdminMenu(false); }}
-                        style={{ width: "100%", textAlign: "left", padding: "0.75rem 1rem", fontSize: "0.875rem", color: "#dc2626", cursor: "pointer", borderTop: "1px solid #f3f4f6", display: "block" }}
-                      >
-                        🗑️ Delete Thread
-                      </button>
-                    )}
-                  </div>
-                )}
-              </div>
+              <ThreadAdminMenu
+                thread={thread}
+                isWorkingGroup={false}
+                isSuperAdmin={isSuperAdmin}
+                onThreadUpdated={handleThreadUpdated}
+                onDeleteRequested={() => setShowDeleteDialog(true)}
+              />
             )}
           </div>
 
           {/* Status + tags */}
           <div style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem", marginBottom: "1rem" }}>
-            <span
-              style={{
-                ...(statusStyles[thread.status] || statusStyles.archived),
-                padding: "0.2rem 0.75rem",
-                borderRadius: "9999px",
-                fontSize: "0.75rem",
-                fontWeight: 600,
-                border: "1px solid",
-              }}
-            >
+            <span style={{
+              ...(statusStyles[thread.status] || statusStyles.archived),
+              padding: "0.2rem 0.75rem",
+              borderRadius: "9999px",
+              fontSize: "0.75rem",
+              fontWeight: 600,
+              border: "1px solid",
+            }}>
               {thread.status}
             </span>
             {thread.tags && thread.tags.map((tag, idx) => (
-              <span
-                key={idx}
-                style={{ padding: "0.2rem 0.75rem", fontSize: "0.75rem", fontWeight: 500, borderRadius: "9999px", backgroundColor: "rgba(228,185,91,0.3)", color: "white" }}
-              >
+              <span key={idx} style={{ padding: "0.2rem 0.75rem", fontSize: "0.75rem", fontWeight: 500, borderRadius: "9999px", backgroundColor: "rgba(228,185,91,0.3)", color: "white" }}>
                 {tag}
               </span>
             ))}
@@ -347,22 +298,20 @@ export default function GeneralThreadView() {
             )}
             <span style={{ color: "white", fontWeight: 500 }}>{thread.createdBy.name}</span>
             <span style={{ color: "#6b7280" }}>•</span>
-            <span>
-              {new Date(thread.createdAt).toLocaleDateString("en-IE", { day: "numeric", month: isMobile ? "short" : "long", year: "numeric" })}
-            </span>
+            <span>{new Date(thread.createdAt).toLocaleDateString("en-IE", { day: "numeric", month: isMobile ? "short" : "long", year: "numeric" })}</span>
           </div>
 
           {/* Stats bar */}
           <div style={{ display: "flex", gap: "1.5rem", marginTop: "1.5rem", paddingTop: "1rem", borderTop: "1px solid rgba(255,255,255,0.2)" }}>
             <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-              <svg className="w-4 h-4" style={{ color: "#d1d5db" }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg style={{ color: "#d1d5db", width: "1rem", height: "1rem" }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
               </svg>
               <span style={{ fontSize: "0.875rem", fontWeight: 600, color: "white" }}>{thread.replyCount}</span>
               <span style={{ fontSize: "0.875rem", color: "#d1d5db" }}>replies</span>
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-              <svg className="w-4 h-4" style={{ color: "#d1d5db" }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg style={{ color: "#d1d5db", width: "1rem", height: "1rem" }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
               </svg>
@@ -371,19 +320,17 @@ export default function GeneralThreadView() {
             </div>
           </div>
 
-          {/* Status warning */}
+          {/* Non-active status warning */}
           {thread.status && thread.status !== "active" && thread.status !== "open" && (
-            <div
-              style={{
-                ...(statusStyles[thread.status] || statusStyles.archived),
-                marginTop: "1rem",
-                padding: "0.75rem 1rem",
-                borderRadius: "0.5rem",
-                border: "1px solid",
-                fontSize: "0.875rem",
-                fontWeight: 500,
-              }}
-            >
+            <div style={{
+              ...(statusStyles[thread.status] || statusStyles.archived),
+              marginTop: "1rem",
+              padding: "0.75rem 1rem",
+              borderRadius: "0.5rem",
+              border: "1px solid",
+              fontSize: "0.875rem",
+              fontWeight: 500,
+            }}>
               This thread is marked as: <strong>{thread.status}</strong>
             </div>
           )}
@@ -413,15 +360,7 @@ export default function GeneralThreadView() {
             <button
               onClick={handleLoadMore}
               disabled={loadingMore}
-              style={{
-                padding: "0.75rem 2rem",
-                borderRadius: "0.5rem",
-                fontWeight: 600,
-                backgroundColor: "var(--color-ijf-accent)",
-                color: "var(--color-ijf-bg)",
-                cursor: "pointer",
-                opacity: loadingMore ? 0.5 : 1,
-              }}
+              style={{ padding: "0.75rem 2rem", borderRadius: "0.5rem", fontWeight: 600, backgroundColor: "var(--color-ijf-accent)", color: "var(--color-ijf-bg)", cursor: "pointer", opacity: loadingMore ? 0.5 : 1 }}
             >
               {loadingMore ? "Loading..." : "Load More Replies"}
             </button>
@@ -430,12 +369,7 @@ export default function GeneralThreadView() {
 
         {/* Reply composer */}
         <div style={{ backgroundColor: "white", borderRadius: "0.75rem", boxShadow: "0 4px 6px -1px rgba(0,0,0,0.1)", border: "1px solid #f3f4f6", padding: isMobile ? "1rem" : "1.5rem" }}>
-          <h3 style={{ fontSize: isMobile ? "1rem" : "1.25rem", fontWeight: 700, color: "#111827", marginBottom: "1rem" }}>Add Your Reply</h3>
-          <ReplyComposer
-            threadId={thread._id}
-            onReplyAdded={handleReplyAdded}
-            workingGroup="general"
-          />
+          <ReplyComposer threadId={thread._id} onReplyAdded={handleReplyAdded} workingGroup="general" />
         </div>
       </div>
 

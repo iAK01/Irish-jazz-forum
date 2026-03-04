@@ -81,7 +81,8 @@ export async function PATCH(
     const { threadId } = await params;
 
     const body = await request.json();
-    const { pinned, status, action } = body;
+    const { pinned, status, publicToMembers, action } = body;
+
 
     const thread = await DiscussionThreadModel.findById(threadId).lean() as any;
 
@@ -137,9 +138,13 @@ export async function PATCH(
       );
     }
 
-    const updates: any = {};
-    if (typeof pinned === "boolean") updates.pinned = pinned;
-    if (status) updates.status = status;
+const updates: any = {};
+if (typeof pinned === "boolean") updates.pinned = pinned;
+if (action === "pin") updates.pinned = true;
+if (action === "unpin") updates.pinned = false;
+if (status) updates.status = status;
+if (action === "setStatus" && body.status) updates.status = body.status;
+if (typeof publicToMembers === "boolean") updates.publicToMembers = publicToMembers;
 
     const updatedThread = await DiscussionThreadModel.findByIdAndUpdate(
       threadId,
