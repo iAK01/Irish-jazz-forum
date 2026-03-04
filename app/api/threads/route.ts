@@ -137,19 +137,31 @@ export async function POST(request: Request) {
       counter++;
     }
 
-    const thread = await DiscussionThreadModel.create({
-      workingGroups,
-      title: title.trim(),
-      slug,
-      createdBy: currentUser._id,
-      lastActivityAt: new Date(),
-      status: "active",
-      pinned: false,
-      replyCount: 0,
-      viewCount: 0,
-      tags: tags || [],
-    });
+const groups = await WorkingGroupModel.find({
+  slug: { $in: workingGroups }
+}).lean() as any[];
 
+if (!groups.length) {
+  return NextResponse.json(
+    { success: false, error: "Working group not found" },
+    { status: 404 }
+  );
+}
+
+const groupIds = groups.map(g => g._id.toString());
+
+const thread = await DiscussionThreadModel.create({
+  workingGroups: groupIds,
+  title: title.trim(),
+  slug,
+  createdBy: currentUser._id,
+  lastActivityAt: new Date(),
+  status: "active",
+  pinned: false,
+  replyCount: 0,
+  viewCount: 0,
+  tags: tags || [],
+});
     const DiscussionPostModel = require("@/models/Discussionpost").DiscussionPostModel;
 
     await DiscussionPostModel.create({
