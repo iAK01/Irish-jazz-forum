@@ -14,6 +14,7 @@ interface Thread {
   title: string;
   slug: string;
   workingGroups: string[];
+  publicToMembers: boolean;
   createdBy: {
     _id: string;
     name: string;
@@ -122,33 +123,9 @@ export default function WorkingGroupThreadView() {
 
       setGroup(currentGroup);
 
-  const currentUser = session?.user as any;
+      const currentUser = session?.user as any;
 
-const hasAccess =
-  currentUser.role === "super_admin" ||
-  currentUser.role === "admin" ||
-  currentUser.role === "steering" ||
-  (currentUser.workingGroups &&
-    currentUser.workingGroups.includes(currentGroup._id));
-
-if (currentGroup.isPrivate) {
-  const hasPrivateAccess =
-    currentUser.role === "super_admin" ||
-    currentUser.role === "admin" ||
-    (currentUser.workingGroups &&
-      currentUser.workingGroups.includes(currentGroup._id));
-
-  if (!hasPrivateAccess) {
-    setError("You don't have access to this working group");
-    setLoading(false);
-    return;
-  }
-} else if (!hasAccess) {
-  setError("You don't have access to this working group");
-  setLoading(false);
-  return;
-}
-
+      // Fetch thread BEFORE access check so publicToMembers can override private group restriction
       const threadRes = await fetch(`/api/threads?workingGroup=${groupSlug}`);
       const threadData = await threadRes.json();
 
@@ -162,6 +139,21 @@ if (currentGroup.isPrivate) {
         setError("Thread not found");
         setLoading(false);
         return;
+      }
+
+      // Access check: private groups block non-members UNLESS the thread is publicToMembers
+      if (currentGroup.isPrivate && !currentThread.publicToMembers) {
+        const hasPrivateAccess =
+          currentUser.role === "super_admin" ||
+          currentUser.role === "admin" ||
+          (currentUser.workingGroups &&
+            currentUser.workingGroups.includes(currentGroup._id));
+
+        if (!hasPrivateAccess) {
+          setError("You don't have access to this working group");
+          setLoading(false);
+          return;
+        }
       }
 
       setThread(currentThread);

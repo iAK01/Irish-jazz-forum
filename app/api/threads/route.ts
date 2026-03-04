@@ -36,29 +36,39 @@ export async function GET(request: Request) {
 
       groupId = group._id.toString();
 
-      const hasAccess =
-        currentUser.role === "super_admin" ||
-        currentUser.role === "admin" ||
-        currentUser.role === "steering" ||
-        (currentUser.workingGroups || [])
-          .map((g: any) => g.toString())
-          .includes(groupId);
-
-      if (!hasAccess) {
-        return NextResponse.json(
-          { success: false, error: "Access denied to this working group" },
-          { status: 403 }
-        );
-      }
     }
 
-    let query;
+let query;
 
-    if (workingGroup === "general") {
-      query = { workingGroups: { $size: 0 }, deleted: { $ne: true } };
-    } else {
-      query = { workingGroups: groupId, deleted: { $ne: true } };
-    }
+if (workingGroup === "general") {
+  query = { workingGroups: { $size: 0 }, deleted: { $ne: true } };
+} else {
+
+  const isMember =
+    currentUser.role === "super_admin" ||
+    currentUser.role === "admin" ||
+    currentUser.role === "steering" ||
+    (currentUser.workingGroups || [])
+      .map((g: any) => g.toString())
+      .includes(groupId);
+
+  if (isMember) {
+
+    query = {
+      workingGroups: groupId,
+      deleted: { $ne: true },
+    };
+
+  } else {
+
+    query = {
+      workingGroups: groupId,
+      publicToMembers: true,
+      deleted: { $ne: true },
+    };
+
+  }
+}
 
     const threads = await DiscussionThreadModel.find(query)
       .sort({ pinned: -1, lastActivityAt: -1 })
@@ -80,7 +90,14 @@ export async function POST(request: Request) {
     await dbConnect();
 
     const body = await request.json();
-    const { workingGroups, title, tags, content, attachments } = body;
+    const {
+      workingGroups,
+      title,
+      tags,
+      content,
+      attachments,
+      publicToMembers,
+    } = body;
 
     if (!workingGroups || !Array.isArray(workingGroups)) {
       return NextResponse.json(
@@ -103,29 +120,37 @@ export async function POST(request: Request) {
       );
     }
 
-    if (workingGroups.length > 0) {
-      const groups = await WorkingGroupModel.find({
-        slug: { $in: workingGroups }
-      }).lean() as any[];
+    const groups = await WorkingGroupModel.find({
+      slug: { $in: workingGroups },
+    }).lean() as any[];
 
-      const groupIds = groups.map(g => g._id.toString());
-
-      const hasAccess = groupIds.some(
-        (gid: string) =>
-          currentUser.role === "super_admin" ||
-          currentUser.role === "admin" ||
-          currentUser.role === "steering" ||
-          (currentUser.workingGroups || [])
-            .map((g: any) => g.toString())
-            .includes(gid)
+    if (!groups.length) {
+      return NextResponse.json(
+        { success: false, error: "Working group not found" },
+        { status: 404 }
       );
+    }
 
-      if (!hasAccess) {
-        return NextResponse.json(
-          { success: false, error: "Access denied to create threads in these working groups" },
-          { status: 403 }
-        );
-      }
+    const groupIds = groups.map((g) => g._id.toString());
+
+    const hasAccess = groupIds.some(
+      (gid: string) =>
+        currentUser.role === "super_admin" ||
+        currentUser.role === "admin" ||
+        currentUser.role === "steering" ||
+        (currentUser.workingGroups || [])
+          .map((g: any) => g.toString())
+          .includes(gid)
+    );
+
+    if (!hasAccess) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Access denied to create threads in these working groups",
+        },
+        { status: 403 }
+      );
     }
 
     const baseSlug = slugify(title, { lower: true, strict: true });
@@ -137,32 +162,22 @@ export async function POST(request: Request) {
       counter++;
     }
 
-const groups = await WorkingGroupModel.find({
-  slug: { $in: workingGroups }
-}).lean() as any[];
+    const thread = await DiscussionThreadModel.create({
+      workingGroups: groupIds,
+      publicToMembers: publicToMembers === true,
+      title: title.trim(),
+      slug,
+      createdBy: currentUser._id,
+      lastActivityAt: new Date(),
+      status: "active",
+      pinned: false,
+      replyCount: 0,
+      viewCount: 0,
+      tags: tags || [],
+    });
 
-if (!groups.length) {
-  return NextResponse.json(
-    { success: false, error: "Working group not found" },
-    { status: 404 }
-  );
-}
-
-const groupIds = groups.map(g => g._id.toString());
-
-const thread = await DiscussionThreadModel.create({
-  workingGroups: groupIds,
-  title: title.trim(),
-  slug,
-  createdBy: currentUser._id,
-  lastActivityAt: new Date(),
-  status: "active",
-  pinned: false,
-  replyCount: 0,
-  viewCount: 0,
-  tags: tags || [],
-});
-    const DiscussionPostModel = require("@/models/Discussionpost").DiscussionPostModel;
+    const DiscussionPostModel =
+      require("@/models/Discussionpost").DiscussionPostModel;
 
     await DiscussionPostModel.create({
       threadId: thread._id,

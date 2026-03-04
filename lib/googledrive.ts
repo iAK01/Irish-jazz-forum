@@ -2,8 +2,6 @@
 // Google Drive helper functions for folder and file operations
 
 import { google } from 'googleapis';
-import fs from 'fs';
-import path from 'path';
 
 const SCOPES = ['https://www.googleapis.com/auth/drive.file'];
 
@@ -12,16 +10,20 @@ let driveClient: any = null;
 export function getDriveClient() {
   if (driveClient) return driveClient;
 
-  const credentialsPath = process.env.GOOGLE_DRIVE_CREDENTIALS_PATH;
-  if (!credentialsPath) {
-    throw new Error('GOOGLE_DRIVE_CREDENTIALS_PATH not set in .env.local');
+  const clientEmail = process.env.GOOGLE_DRIVE_CLIENT_EMAIL;
+  const privateKey = process.env.GOOGLE_DRIVE_PRIVATE_KEY?.replace(/\\n/g, '\n');
+  const projectId = process.env.GOOGLE_DRIVE_PROJECT_ID;
+
+  if (!clientEmail || !privateKey) {
+    throw new Error('GOOGLE_DRIVE_CLIENT_EMAIL or GOOGLE_DRIVE_PRIVATE_KEY not set');
   }
 
-  const fullPath = path.resolve(process.cwd(), credentialsPath);
-  const credentials = JSON.parse(fs.readFileSync(fullPath, 'utf-8'));
-
   const auth = new google.auth.GoogleAuth({
-    credentials,
+    credentials: {
+      client_email: clientEmail,
+      private_key: privateKey,
+      project_id: projectId,
+    },
     scopes: SCOPES,
   });
 

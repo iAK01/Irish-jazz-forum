@@ -190,7 +190,7 @@ export default function ForumHomePage() {
                         backgroundColor: "white",
                         borderRadius: "0.75rem",
                         boxShadow: "0 2px 4px rgba(0,0,0,0.06)",
-                        border: "1px solid #f3f4f6",
+                       border: "2px solid var(--color-ijf-accent)",
                         padding: isMobile ? "1rem" : "1.5rem",
                         cursor: "pointer",
                         transition: "box-shadow 0.3s",

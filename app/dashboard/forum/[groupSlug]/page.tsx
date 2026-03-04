@@ -89,22 +89,8 @@ const hasAccess =
   (currentUser.workingGroups &&
     currentUser.workingGroups.includes(currentGroup._id));
 
-if (currentGroup.isPrivate) {
-  const hasPrivateAccess =
-    currentUser.role === "super_admin" ||
-    currentUser.role === "admin" ||
-    (currentUser.workingGroups &&
-      currentUser.workingGroups.includes(currentGroup._id));
-
-  if (!hasPrivateAccess) {
-    setError("You don't have access to this working group");
-    setLoading(false);
-    return;
-  }
-} else if (!hasAccess) {
-  setError("You don't have access to this working group");
-  setLoading(false);
-  return;
+if (currentGroup.isPrivate && !hasAccess) {
+  // Allow page load — API will filter to public threads
 }
 
       const threadsRes = await fetch(`/api/threads?workingGroup=${groupSlug}`);

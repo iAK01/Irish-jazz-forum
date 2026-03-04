@@ -30,6 +30,7 @@ import {
 
 interface ThreadFormData {
   title: string;
+  publicToMembers?: boolean;
   tags: string;
 }
 
@@ -517,6 +518,7 @@ function NewThreadContent() {
                 )}
               </div>
             </div>
+            
 
             <div className="mt-8 pt-6 border-t border-gray-200 flex items-center justify-between">
               <button
@@ -527,6 +529,19 @@ function NewThreadContent() {
               >
                 Cancel
               </button>
+              <div className="mt-6 flex items-center gap-3">
+  <input
+    type="checkbox"
+    id="publicToMembers"
+    {...register("publicToMembers")}
+  />
+  <label
+    htmlFor="publicToMembers"
+    className="text-sm font-medium text-gray-800"
+  >
+    Allow all forum members to view and comment on this thread
+  </label>
+</div>
               <button
                 type="submit"
                 disabled={submitting}

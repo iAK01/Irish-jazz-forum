@@ -29,7 +29,7 @@ export default function Navbar() {
     { href: "/members", label: "Members" },
     { href: "/charter", label: "Charter" },
     { href: "/news", label: "News" },
-    { href: "/dashboard/forum", label: "Discuss" },
+    { href: "/dashboard/forum", label: "Forum" },
     { href: "/contact", label: "Contact" },
   ];
 

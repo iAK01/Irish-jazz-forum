@@ -36,7 +36,7 @@ export async function GET(
       );
     }
 
-    if (thread.workingGroups && thread.workingGroups.length > 0) {
+if (thread.workingGroups && thread.workingGroups.length > 0 && !thread.publicToMembers) {
       const groupIds = thread.workingGroups.map((g: any) => g.toString());
 
       const hasAccess =
@@ -130,7 +130,7 @@ export async function POST(
       );
     }
 
-    if (thread.workingGroups && thread.workingGroups.length > 0) {
+    if (thread.workingGroups && thread.workingGroups.length > 0 && !thread.publicToMembers) {
 
       const groupIds = thread.workingGroups.map((g: any) => g.toString());
 
