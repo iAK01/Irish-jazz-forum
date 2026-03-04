@@ -1,5 +1,4 @@
 // /app/api/threads/[threadId]/route.ts
-// API endpoint for managing individual threads (GET, PATCH, DELETE)
 
 import { NextResponse } from "next/server";
 import dbConnect from "@/lib/mongodb";
@@ -10,8 +9,6 @@ import { requireAuth } from "@/lib/auth";
 import { createDeletedAttachmentsFolder, moveFileToFolder } from "@/lib/googledrive";
 import { deleteMultipleFilesFromGCS } from "@/lib/gcs";
 
-// GET /api/threads/[threadId]
-// Get single thread details
 export async function GET(
   request: Request,
   { params }: { params: Promise<{ threadId: string }> }
@@ -32,7 +29,6 @@ export async function GET(
       );
     }
 
-    // Check if thread is deleted
     if (thread.deleted) {
       return NextResponse.json(
         { success: false, error: "Thread has been deleted" },
@@ -40,14 +36,15 @@ export async function GET(
       );
     }
 
-    // Check access - general threads (empty array) are accessible to everyone
     if (thread.workingGroups && thread.workingGroups.length > 0) {
       const hasAccess = thread.workingGroups.some(
         (wg: string) =>
           currentUser.role === "super_admin" ||
           currentUser.role === "admin" ||
           currentUser.role === "steering" ||
-          (currentUser.workingGroups && currentUser.workingGroups.includes(wg))
+          (currentUser.workingGroups || [])
+            .map((g: any) => g.toString())
+            .includes(wg)
       );
 
       if (!hasAccess) {
@@ -58,7 +55,6 @@ export async function GET(
       }
     }
 
-    // Increment view count
     await DiscussionThreadModel.findByIdAndUpdate(threadId, {
       $inc: { viewCount: 1 },
     });
@@ -72,8 +68,6 @@ export async function GET(
   }
 }
 
-// PATCH /api/threads/[threadId]
-// Update thread (pin, status, etc.) - Admin only
 export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ threadId: string }> }
@@ -95,7 +89,6 @@ export async function PATCH(
       );
     }
 
-    // Check if thread is deleted
     if (thread.deleted) {
       return NextResponse.json(
         { success: false, error: "Cannot modify deleted thread" },
@@ -103,14 +96,15 @@ export async function PATCH(
       );
     }
 
-    // Check access
     if (thread.workingGroups && thread.workingGroups.length > 0) {
       const hasAccess = thread.workingGroups.some(
         (wg: string) =>
           currentUser.role === "super_admin" ||
           currentUser.role === "admin" ||
           currentUser.role === "steering" ||
-          (currentUser.workingGroups && currentUser.workingGroups.includes(wg))
+          (currentUser.workingGroups || [])
+            .map((g: any) => g.toString())
+            .includes(wg)
       );
 
       if (!hasAccess) {
@@ -121,7 +115,6 @@ export async function PATCH(
       }
     }
 
-    // Handle different actions
     if (action === "incrementView") {
       await DiscussionThreadModel.findByIdAndUpdate(threadId, {
         $inc: { viewCount: 1 },
@@ -129,8 +122,9 @@ export async function PATCH(
       return NextResponse.json({ success: true });
     }
 
-    // Admin-only actions
-    const isAdmin = currentUser.role === "super_admin" || currentUser.role === "admin";
+    const isAdmin =
+      currentUser.role === "super_admin" || currentUser.role === "admin";
+
     if (!isAdmin) {
       return NextResponse.json(
         { success: false, error: "Admin access required" },
@@ -159,19 +153,15 @@ export async function PATCH(
   }
 }
 
-// DELETE /api/threads/[threadId]
-// Soft delete thread with cascading deletion and file handling
 export async function DELETE(
   request: Request,
   { params }: { params: Promise<{ threadId: string }> }
 ) {
   try {
-    // Only super admins can delete threads
     const currentUser = await requireAuth(["super_admin"]);
     await dbConnect();
     const { threadId } = await params;
 
-    // Find the thread
     const thread = await DiscussionThreadModel.findById(threadId).lean() as any;
 
     if (!thread) {
@@ -181,7 +171,6 @@ export async function DELETE(
       );
     }
 
-    // Check if already deleted
     if (thread.deleted) {
       return NextResponse.json(
         { success: false, error: "Thread already deleted" },
@@ -189,40 +178,35 @@ export async function DELETE(
       );
     }
 
-    // Find all posts in this thread
     const posts = await DiscussionPostModel.find({
       threadId: threadId,
       deleted: { $ne: true }
     }).lean() as any[];
 
-    // Count files to be processed
     let gcsFilesCount = 0;
     let driveFilesCount = 0;
     const gcsFilesToDelete: string[] = [];
     const driveFilesToMove: { fileId: string; filename: string }[] = [];
 
-    // Track which working group's Drive folder to use (if any)
     let workingGroupDriveFolderId: string | null = null;
-    
-    // If thread belongs to working groups, get the first one's Drive folder
+
     if (thread.workingGroups && thread.workingGroups.length > 0) {
       const workingGroup = await WorkingGroupModel.findOne({
         slug: thread.workingGroups[0]
       }).lean() as any;
-      
+
       if (workingGroup && workingGroup.googleDriveFolderId) {
         workingGroupDriveFolderId = workingGroup.googleDriveFolderId;
       }
     }
 
-    // Process attachments from all posts
     for (const post of posts) {
       if (post.attachments && post.attachments.length > 0) {
         for (const attachment of post.attachments) {
-          if (attachment.storage === 'gcs' && attachment.gcsFilename) {
+          if (attachment.storage === "gcs" && attachment.gcsFilename) {
             gcsFilesToDelete.push(attachment.gcsFilename);
             gcsFilesCount++;
-          } else if (attachment.storage === 'drive' && attachment.driveFileId) {
+          } else if (attachment.storage === "drive" && attachment.driveFileId) {
             driveFilesToMove.push({
               fileId: attachment.driveFileId,
               filename: attachment.filename
@@ -233,16 +217,14 @@ export async function DELETE(
       }
     }
 
-    // STEP 1: Soft delete the thread
-const updateResult = await DiscussionThreadModel.findByIdAndUpdate(threadId, {
-  deleted: true,
-  deletedAt: new Date(),
-  deletedBy: currentUser._id,
-});
+    await DiscussionThreadModel.findByIdAndUpdate(threadId, {
+      deleted: true,
+      deletedAt: new Date(),
+      deletedBy: currentUser._id,
+    });
 
-
-    // STEP 2: Cascade soft delete all posts
     const postIds = posts.map(p => p._id);
+
     if (postIds.length > 0) {
       await DiscussionPostModel.updateMany(
         { _id: { $in: postIds } },
@@ -254,38 +236,36 @@ const updateResult = await DiscussionThreadModel.findByIdAndUpdate(threadId, {
       );
     }
 
-    // STEP 3: Delete GCS files immediately
     if (gcsFilesToDelete.length > 0) {
       try {
         await deleteMultipleFilesFromGCS(gcsFilesToDelete);
       } catch (error) {
-        console.error('Failed to delete some GCS files:', error);
-        // Continue even if some deletions fail
+        console.error("Failed to delete some GCS files:", error);
       }
     }
 
-    // STEP 4: Move Drive files to "Deleted Attachments" subfolder
     if (driveFilesToMove.length > 0 && workingGroupDriveFolderId) {
       try {
-        const deletedAttachmentsFolderId = await createDeletedAttachmentsFolder(
-          workingGroupDriveFolderId
-        );
+        const deletedAttachmentsFolderId =
+          await createDeletedAttachmentsFolder(workingGroupDriveFolderId);
 
         for (const file of driveFilesToMove) {
           try {
             await moveFileToFolder(file.fileId, deletedAttachmentsFolderId);
           } catch (error) {
             console.error(`Failed to move file ${file.filename}:`, error);
-            // Continue with other files
           }
         }
       } catch (error) {
-        console.error('Failed to create/move to Deleted Attachments folder:', error);
+        console.error(
+          "Failed to create/move to Deleted Attachments folder:",
+          error
+        );
       }
     }
 
-    return NextResponse.json({ 
-      success: true, 
+    return NextResponse.json({
+      success: true,
       message: "Thread deleted successfully",
       counts: {
         threads: 1,

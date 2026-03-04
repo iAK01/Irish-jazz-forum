@@ -1,5 +1,4 @@
 // /app/api/threads/[threadId]/posts/route.ts
-// API endpoint for listing posts and creating replies in a thread
 
 import { NextResponse } from "next/server";
 import dbConnect from "@/lib/mongodb";
@@ -7,8 +6,6 @@ import { DiscussionThreadModel } from "@/models/Discussionthread";
 import { DiscussionPostModel } from "@/models/Discussionpost";
 import { requireAuth } from "@/lib/auth";
 
-// GET /api/threads/[threadId]/posts
-// Get all posts for a thread
 export async function GET(
   request: Request,
   { params }: { params: Promise<{ threadId: string }> }
@@ -23,7 +20,6 @@ export async function GET(
     const limit = parseInt(searchParams.get("limit") || "20");
     const skip = (page - 1) * limit;
 
-    // Verify thread exists and user has access
     const thread = await DiscussionThreadModel.findById(threadId).lean() as any;
 
     if (!thread) {
@@ -33,7 +29,6 @@ export async function GET(
       );
     }
 
-    // Check if thread is deleted
     if (thread.deleted) {
       return NextResponse.json(
         { success: false, error: "Thread has been deleted" },
@@ -41,14 +36,15 @@ export async function GET(
       );
     }
 
-    // Check access - empty workingGroups means general (everyone has access)
     if (thread.workingGroups && thread.workingGroups.length > 0) {
       const hasAccess = thread.workingGroups.some(
         (wg: string) =>
           currentUser.role === "super_admin" ||
           currentUser.role === "admin" ||
           currentUser.role === "steering" ||
-          (currentUser.workingGroups && currentUser.workingGroups.includes(wg))
+          (currentUser.workingGroups || [])
+            .map((g: any) => g.toString())
+            .includes(wg)
       );
 
       if (!hasAccess) {
@@ -59,12 +55,11 @@ export async function GET(
       }
     }
 
-    // Fetch posts (exclude soft-deleted posts)
     const posts = await DiscussionPostModel.find({
       threadId: threadId,
       deleted: { $ne: true },
     })
-      .sort({ createdAt: 1 }) // Chronological order
+      .sort({ createdAt: 1 })
       .skip(skip)
       .limit(limit)
       .populate("createdBy", "name image email")
@@ -76,15 +71,15 @@ export async function GET(
       deleted: { $ne: true },
     });
 
-    return NextResponse.json({ 
-      success: true, 
+    return NextResponse.json({
+      success: true,
       data: posts,
       pagination: {
         page,
         limit,
         total: totalPosts,
-        hasMore: skip + posts.length < totalPosts
-      }
+        hasMore: skip + posts.length < totalPosts,
+      },
     });
   } catch (error: any) {
     return NextResponse.json(
@@ -94,8 +89,6 @@ export async function GET(
   }
 }
 
-// POST /api/threads/[threadId]/posts
-// Create a reply to a thread
 export async function POST(
   request: Request,
   { params }: { params: Promise<{ threadId: string }> }
@@ -108,7 +101,6 @@ export async function POST(
     const body = await request.json();
     const { content, attachments } = body;
 
-    // Validate content
     if (!content || content.trim().length === 0) {
       return NextResponse.json(
         { success: false, error: "Content required" },
@@ -116,7 +108,6 @@ export async function POST(
       );
     }
 
-    // Verify thread exists and user has access
     const thread = await DiscussionThreadModel.findById(threadId).lean() as any;
 
     if (!thread) {
@@ -126,7 +117,6 @@ export async function POST(
       );
     }
 
-    // Check if thread is deleted
     if (thread.deleted) {
       return NextResponse.json(
         { success: false, error: "Cannot reply to deleted thread" },
@@ -134,14 +124,15 @@ export async function POST(
       );
     }
 
-    // Check access - empty workingGroups means general (everyone has access)
     if (thread.workingGroups && thread.workingGroups.length > 0) {
       const hasAccess = thread.workingGroups.some(
         (wg: string) =>
           currentUser.role === "super_admin" ||
           currentUser.role === "admin" ||
           currentUser.role === "steering" ||
-          (currentUser.workingGroups && currentUser.workingGroups.includes(wg))
+          (currentUser.workingGroups || [])
+            .map((g: any) => g.toString())
+            .includes(wg)
       );
 
       if (!hasAccess) {
@@ -152,7 +143,6 @@ export async function POST(
       }
     }
 
-    // Create post
     const post = await DiscussionPostModel.create({
       threadId: threadId,
       content: content.trim(),
@@ -161,7 +151,6 @@ export async function POST(
       deleted: false,
     });
 
-    // Update thread stats and lastActivityAt
     await DiscussionThreadModel.findByIdAndUpdate(threadId, {
       $inc: { replyCount: 1 },
       lastActivityAt: new Date(),
