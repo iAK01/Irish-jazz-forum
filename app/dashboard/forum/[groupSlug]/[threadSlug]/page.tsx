@@ -122,29 +122,32 @@ export default function WorkingGroupThreadView() {
 
       setGroup(currentGroup);
 
-      const currentUser = session?.user as any;
-      const hasAccess =
-        currentUser.role === "super_admin" ||
-        currentUser.role === "admin" ||
-        currentUser.role === "steering" ||
-        (currentUser.workingGroups && currentUser.workingGroups.includes(groupSlug));
+  const currentUser = session?.user as any;
 
-      if (currentGroup.isPrivate) {
-        const hasPrivateAccess =
-          currentUser.role === "super_admin" ||
-          currentUser.role === "admin" ||
-          (currentUser.workingGroups && currentUser.workingGroups.includes(groupSlug));
+const hasAccess =
+  currentUser.role === "super_admin" ||
+  currentUser.role === "admin" ||
+  currentUser.role === "steering" ||
+  (currentUser.workingGroups &&
+    currentUser.workingGroups.includes(currentGroup._id));
 
-        if (!hasPrivateAccess) {
-          setError("You don't have access to this working group");
-          setLoading(false);
-          return;
-        }
-      } else if (!hasAccess) {
-        setError("You don't have access to this working group");
-        setLoading(false);
-        return;
-      }
+if (currentGroup.isPrivate) {
+  const hasPrivateAccess =
+    currentUser.role === "super_admin" ||
+    currentUser.role === "admin" ||
+    (currentUser.workingGroups &&
+      currentUser.workingGroups.includes(currentGroup._id));
+
+  if (!hasPrivateAccess) {
+    setError("You don't have access to this working group");
+    setLoading(false);
+    return;
+  }
+} else if (!hasAccess) {
+  setError("You don't have access to this working group");
+  setLoading(false);
+  return;
+}
 
       const threadRes = await fetch(`/api/threads?workingGroup=${groupSlug}`);
       const threadData = await threadRes.json();

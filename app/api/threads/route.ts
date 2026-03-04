@@ -3,6 +3,7 @@
 import { NextResponse } from "next/server";
 import dbConnect from "@/lib/mongodb";
 import { DiscussionThreadModel } from "@/models/Discussionthread";
+import { WorkingGroupModel } from "@/models/Workinggroup";
 import { requireAuth } from "@/lib/auth";
 import slugify from "slugify";
 
@@ -21,12 +22,27 @@ export async function GET(request: Request) {
       );
     }
 
+    let groupId: string | null = null;
+
     if (workingGroup !== "general") {
+      const group = await WorkingGroupModel.findOne({ slug: workingGroup }).lean() as any;
+
+      if (!group) {
+        return NextResponse.json(
+          { success: false, error: "Working group not found" },
+          { status: 404 }
+        );
+      }
+
+      groupId = group._id.toString();
+
       const hasAccess =
         currentUser.role === "super_admin" ||
         currentUser.role === "admin" ||
         currentUser.role === "steering" ||
-        (currentUser.workingGroups || []).map((g: any) => g.toString()).includes(workingGroup);
+        (currentUser.workingGroups || [])
+          .map((g: any) => g.toString())
+          .includes(groupId);
 
       if (!hasAccess) {
         return NextResponse.json(
@@ -41,7 +57,7 @@ export async function GET(request: Request) {
     if (workingGroup === "general") {
       query = { workingGroups: { $size: 0 }, deleted: { $ne: true } };
     } else {
-      query = { workingGroups: workingGroup, deleted: { $ne: true } };
+      query = { workingGroups: groupId, deleted: { $ne: true } };
     }
 
     const threads = await DiscussionThreadModel.find(query)
@@ -88,12 +104,20 @@ export async function POST(request: Request) {
     }
 
     if (workingGroups.length > 0) {
-      const hasAccess = workingGroups.some(
-        (wg: string) =>
+      const groups = await WorkingGroupModel.find({
+        slug: { $in: workingGroups }
+      }).lean() as any[];
+
+      const groupIds = groups.map(g => g._id.toString());
+
+      const hasAccess = groupIds.some(
+        (gid: string) =>
           currentUser.role === "super_admin" ||
           currentUser.role === "admin" ||
           currentUser.role === "steering" ||
-          (currentUser.workingGroups || []).map((g: any) => g.toString()).includes(wg)
+          (currentUser.workingGroups || [])
+            .map((g: any) => g.toString())
+            .includes(gid)
       );
 
       if (!hasAccess) {

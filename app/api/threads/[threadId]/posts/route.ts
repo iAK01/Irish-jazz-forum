@@ -4,6 +4,7 @@ import { NextResponse } from "next/server";
 import dbConnect from "@/lib/mongodb";
 import { DiscussionThreadModel } from "@/models/Discussionthread";
 import { DiscussionPostModel } from "@/models/Discussionpost";
+import { WorkingGroupModel } from "@/models/Workinggroup";
 import { requireAuth } from "@/lib/auth";
 
 export async function GET(
@@ -37,15 +38,21 @@ export async function GET(
     }
 
     if (thread.workingGroups && thread.workingGroups.length > 0) {
-      const hasAccess = thread.workingGroups.some(
-        (wg: string) =>
-          currentUser.role === "super_admin" ||
-          currentUser.role === "admin" ||
-          currentUser.role === "steering" ||
+      const groups = await WorkingGroupModel.find({
+        slug: { $in: thread.workingGroups }
+      }).lean() as any[];
+
+      const groupIds = groups.map(g => g._id.toString());
+
+      const hasAccess =
+        currentUser.role === "super_admin" ||
+        currentUser.role === "admin" ||
+        currentUser.role === "steering" ||
+        groupIds.some(id =>
           (currentUser.workingGroups || [])
             .map((g: any) => g.toString())
-            .includes(wg)
-      );
+            .includes(id)
+        );
 
       if (!hasAccess) {
         return NextResponse.json(
@@ -81,11 +88,14 @@ export async function GET(
         hasMore: skip + posts.length < totalPosts,
       },
     });
+
   } catch (error: any) {
+
     return NextResponse.json(
       { success: false, error: error.message },
       { status: 500 }
     );
+
   }
 }
 
@@ -94,6 +104,7 @@ export async function POST(
   { params }: { params: Promise<{ threadId: string }> }
 ) {
   try {
+
     const currentUser = await requireAuth();
     await dbConnect();
     const { threadId } = await params;
@@ -125,15 +136,22 @@ export async function POST(
     }
 
     if (thread.workingGroups && thread.workingGroups.length > 0) {
-      const hasAccess = thread.workingGroups.some(
-        (wg: string) =>
-          currentUser.role === "super_admin" ||
-          currentUser.role === "admin" ||
-          currentUser.role === "steering" ||
+
+      const groups = await WorkingGroupModel.find({
+        slug: { $in: thread.workingGroups }
+      }).lean() as any[];
+
+      const groupIds = groups.map(g => g._id.toString());
+
+      const hasAccess =
+        currentUser.role === "super_admin" ||
+        currentUser.role === "admin" ||
+        currentUser.role === "steering" ||
+        groupIds.some(id =>
           (currentUser.workingGroups || [])
             .map((g: any) => g.toString())
-            .includes(wg)
-      );
+            .includes(id)
+        );
 
       if (!hasAccess) {
         return NextResponse.json(
@@ -161,10 +179,13 @@ export async function POST(
       .lean();
 
     return NextResponse.json({ success: true, data: populatedPost });
+
   } catch (error: any) {
+
     return NextResponse.json(
       { success: false, error: error.message },
       { status: 500 }
     );
+
   }
 }

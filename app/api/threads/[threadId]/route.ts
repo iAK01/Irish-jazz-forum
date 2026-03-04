@@ -37,15 +37,22 @@ export async function GET(
     }
 
     if (thread.workingGroups && thread.workingGroups.length > 0) {
-      const hasAccess = thread.workingGroups.some(
-        (wg: string) =>
-          currentUser.role === "super_admin" ||
-          currentUser.role === "admin" ||
-          currentUser.role === "steering" ||
+
+      const groups = await WorkingGroupModel.find({
+        slug: { $in: thread.workingGroups }
+      }).lean() as any[];
+
+      const groupIds = groups.map(g => g._id.toString());
+
+      const hasAccess =
+        currentUser.role === "super_admin" ||
+        currentUser.role === "admin" ||
+        currentUser.role === "steering" ||
+        groupIds.some(id =>
           (currentUser.workingGroups || [])
             .map((g: any) => g.toString())
-            .includes(wg)
-      );
+            .includes(id)
+        );
 
       if (!hasAccess) {
         return NextResponse.json(
@@ -60,6 +67,7 @@ export async function GET(
     });
 
     return NextResponse.json({ success: true, data: thread });
+
   } catch (error: any) {
     return NextResponse.json(
       { success: false, error: error.message },
@@ -97,15 +105,22 @@ export async function PATCH(
     }
 
     if (thread.workingGroups && thread.workingGroups.length > 0) {
-      const hasAccess = thread.workingGroups.some(
-        (wg: string) =>
-          currentUser.role === "super_admin" ||
-          currentUser.role === "admin" ||
-          currentUser.role === "steering" ||
+
+      const groups = await WorkingGroupModel.find({
+        slug: { $in: thread.workingGroups }
+      }).lean() as any[];
+
+      const groupIds = groups.map(g => g._id.toString());
+
+      const hasAccess =
+        currentUser.role === "super_admin" ||
+        currentUser.role === "admin" ||
+        currentUser.role === "steering" ||
+        groupIds.some(id =>
           (currentUser.workingGroups || [])
             .map((g: any) => g.toString())
-            .includes(wg)
-      );
+            .includes(id)
+        );
 
       if (!hasAccess) {
         return NextResponse.json(
@@ -145,6 +160,7 @@ export async function PATCH(
       .lean();
 
     return NextResponse.json({ success: true, data: updatedThread });
+
   } catch (error: any) {
     return NextResponse.json(
       { success: false, error: error.message },
@@ -158,6 +174,7 @@ export async function DELETE(
   { params }: { params: Promise<{ threadId: string }> }
 ) {
   try {
+
     const currentUser = await requireAuth(["super_admin"]);
     await dbConnect();
     const { threadId } = await params;
@@ -185,6 +202,7 @@ export async function DELETE(
 
     let gcsFilesCount = 0;
     let driveFilesCount = 0;
+
     const gcsFilesToDelete: string[] = [];
     const driveFilesToMove: { fileId: string; filename: string }[] = [];
 
@@ -203,10 +221,13 @@ export async function DELETE(
     for (const post of posts) {
       if (post.attachments && post.attachments.length > 0) {
         for (const attachment of post.attachments) {
+
           if (attachment.storage === "gcs" && attachment.gcsFilename) {
             gcsFilesToDelete.push(attachment.gcsFilename);
             gcsFilesCount++;
-          } else if (attachment.storage === "drive" && attachment.driveFileId) {
+          }
+
+          else if (attachment.storage === "drive" && attachment.driveFileId) {
             driveFilesToMove.push({
               fileId: attachment.driveFileId,
               filename: attachment.filename
@@ -246,16 +267,21 @@ export async function DELETE(
 
     if (driveFilesToMove.length > 0 && workingGroupDriveFolderId) {
       try {
+
         const deletedAttachmentsFolderId =
           await createDeletedAttachmentsFolder(workingGroupDriveFolderId);
 
         for (const file of driveFilesToMove) {
+
           try {
             await moveFileToFolder(file.fileId, deletedAttachmentsFolderId);
-          } catch (error) {
+          }
+
+          catch (error) {
             console.error(`Failed to move file ${file.filename}:`, error);
           }
         }
+
       } catch (error) {
         console.error(
           "Failed to create/move to Deleted Attachments folder:",
@@ -274,7 +300,9 @@ export async function DELETE(
         driveFiles: driveFilesCount,
       }
     });
+
   } catch (error: any) {
+
     return NextResponse.json(
       { success: false, error: error.message },
       { status: 500 }
