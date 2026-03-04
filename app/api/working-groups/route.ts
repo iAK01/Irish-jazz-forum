@@ -4,6 +4,7 @@ import { WorkingGroupModel } from "@/models/Workinggroup";
 import { requireAuth } from "@/lib/auth";
 import slugify from "slugify";
 import { createWorkingGroupFolder } from "@/lib/googledrive";
+import mongoose from "mongoose";
 
 // GET /api/working-groups
 // List all working groups (filtered by user access)
@@ -12,13 +13,21 @@ export async function GET(request: Request) {
     const currentUser = await requireAuth();
     await dbConnect();
 
-let query: any = { isActive: true, deleted: { $ne: true } };
+    let query: any = { isActive: true, deleted: { $ne: true } };
 
-    // Non-admin users only see groups they have access to
-    if (currentUser.role !== "super_admin" && currentUser.role !== "admin" && currentUser.role !== "steering") {
+    if (
+      currentUser.role !== "super_admin" &&
+      currentUser.role !== "admin" &&
+      currentUser.role !== "steering"
+    ) {
+      const groupIds = (currentUser.workingGroups || []).map(
+        (id: string) => new mongoose.Types.ObjectId(id)
+      );
+
       query.$or = [
-        { isPrivate: false }, // Public groups
-        { members: currentUser._id }, // Groups they're a member of
+        { isPrivate: false },
+        { members: currentUser._id },
+        { _id: { $in: groupIds } },
       ];
     }
 
@@ -48,7 +57,6 @@ export async function POST(request: Request) {
     const body = await request.json();
     const { name, description, coordinatorId, isPrivate } = body;
 
-    // Validate required fields
     if (!name || name.trim().length === 0) {
       return NextResponse.json(
         { success: false, error: "Name required" },
@@ -70,7 +78,6 @@ export async function POST(request: Request) {
       );
     }
 
-    // Generate unique slug
     const baseSlug = slugify(name, { lower: true, strict: true });
     let slug = baseSlug;
     let counter = 1;
@@ -80,22 +87,20 @@ export async function POST(request: Request) {
       counter++;
     }
 
-    // Create Google Drive folder for this working group
     let driveFolderId: string | undefined;
+
     try {
       driveFolderId = await createWorkingGroupFolder(name.trim());
     } catch (driveError) {
       console.error("Failed to create Drive folder:", driveError);
-      // Continue without Drive folder - can be added later manually
     }
 
-    // Create working group
     const group = await WorkingGroupModel.create({
       name: name.trim(),
       slug,
       description: description.trim(),
       coordinator: coordinatorId,
-      members: [coordinatorId], // Coordinator is automatically a member
+      members: [coordinatorId],
       isPrivate: isPrivate || false,
       googleDriveFolderId: driveFolderId,
       createdBy: currentUser._id,
