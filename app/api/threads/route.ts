@@ -6,8 +6,6 @@ import { DiscussionThreadModel } from "@/models/Discussionthread";
 import { requireAuth } from "@/lib/auth";
 import slugify from "slugify";
 
-// GET /api/threads?workingGroup=advocacy
-// List threads for a specific working group
 export async function GET(request: Request) {
   try {
     const currentUser = await requireAuth();
@@ -23,14 +21,12 @@ export async function GET(request: Request) {
       );
     }
 
-    // Check if user has access to this working group
-    // General discussion = everyone has access
     if (workingGroup !== "general") {
       const hasAccess =
         currentUser.role === "super_admin" ||
         currentUser.role === "admin" ||
         currentUser.role === "steering" ||
-        (currentUser.workingGroups && currentUser.workingGroups.includes(workingGroup));
+        (currentUser.workingGroups || []).map((g: any) => g.toString()).includes(workingGroup);
 
       if (!hasAccess) {
         return NextResponse.json(
@@ -40,16 +36,14 @@ export async function GET(request: Request) {
       }
     }
 
-    // Build query based on working group
-let query;
-if (workingGroup === "general") {
-  query = { workingGroups: { $size: 0 }, deleted: { $ne: true } };
-} else {
-  query = { workingGroups: workingGroup, deleted: { $ne: true } };
-}
+    let query;
 
-    // Fetch threads for this working group
-    // Sort by: pinned first, then by lastActivityAt descending
+    if (workingGroup === "general") {
+      query = { workingGroups: { $size: 0 }, deleted: { $ne: true } };
+    } else {
+      query = { workingGroups: workingGroup, deleted: { $ne: true } };
+    }
+
     const threads = await DiscussionThreadModel.find(query)
       .sort({ pinned: -1, lastActivityAt: -1 })
       .populate("createdBy", "name image email")
@@ -64,8 +58,6 @@ if (workingGroup === "general") {
   }
 }
 
-// POST /api/threads
-// Create a new thread
 export async function POST(request: Request) {
   try {
     const currentUser = await requireAuth();
@@ -74,7 +66,6 @@ export async function POST(request: Request) {
     const body = await request.json();
     const { workingGroups, title, tags, content, attachments } = body;
 
-    // Validate required fields
     if (!workingGroups || !Array.isArray(workingGroups)) {
       return NextResponse.json(
         { success: false, error: "workingGroups must be an array" },
@@ -96,14 +87,13 @@ export async function POST(request: Request) {
       );
     }
 
-    // Check access - empty array means general discussion (everyone can access)
     if (workingGroups.length > 0) {
       const hasAccess = workingGroups.some(
         (wg: string) =>
           currentUser.role === "super_admin" ||
           currentUser.role === "admin" ||
           currentUser.role === "steering" ||
-          (currentUser.workingGroups && currentUser.workingGroups.includes(wg))
+          (currentUser.workingGroups || []).map((g: any) => g.toString()).includes(wg)
       );
 
       if (!hasAccess) {
@@ -114,7 +104,6 @@ export async function POST(request: Request) {
       }
     }
 
-    // Generate unique slug
     const baseSlug = slugify(title, { lower: true, strict: true });
     let slug = baseSlug;
     let counter = 1;
@@ -124,7 +113,6 @@ export async function POST(request: Request) {
       counter++;
     }
 
-    // Create thread (with first post content)
     const thread = await DiscussionThreadModel.create({
       workingGroups,
       title: title.trim(),
@@ -138,8 +126,8 @@ export async function POST(request: Request) {
       tags: tags || [],
     });
 
-    // Create the first post in the thread
     const DiscussionPostModel = require("@/models/Discussionpost").DiscussionPostModel;
+
     await DiscussionPostModel.create({
       threadId: thread._id,
       content: content.trim(),
@@ -159,4 +147,4 @@ export async function POST(request: Request) {
       { status: 500 }
     );
   }
-}   
+}
