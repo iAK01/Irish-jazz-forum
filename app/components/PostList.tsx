@@ -3,6 +3,10 @@
 "use client";
 
 import { useState } from "react";
+import { useEditor, EditorContent } from "@tiptap/react";
+import StarterKit from "@tiptap/starter-kit";
+import Link from "@tiptap/extension-link";
+import Placeholder from "@tiptap/extension-placeholder";
 
 interface Post {
   _id: string;
@@ -65,6 +69,204 @@ export default function PostList({
   );
 }
 
+// ─── Standalone TipTap edit editor ───────────────────────────────────────────
+// Extracted into its own component so useEditor is never called conditionally.
+
+function PostEditEditor({
+  initialContent,
+  onSave,
+  onCancel,
+}: {
+  initialContent: string;
+  onSave: (html: string) => Promise<void>;
+  onCancel: () => void;
+}) {
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  const editor = useEditor({
+    immediatelyRender: false,
+    extensions: [
+      StarterKit,
+      Link.configure({ openOnClick: false }),
+      Placeholder.configure({ placeholder: "Edit your post..." }),
+    ],
+    content: initialContent,
+    editorProps: {
+      attributes: {
+        class: "prose prose-sm max-w-none focus:outline-none min-h-[200px] px-4 py-3",
+        style: "min-height: 200px; --tw-prose-links: var(--color-ijf-accent);",
+      },
+    },
+  });
+
+  const handleSave = async () => {
+    if (!editor) return;
+    const html = editor.getHTML();
+    if (!html || html === "<p></p>") {
+      setError("Content cannot be empty");
+      return;
+    }
+    setSaving(true);
+    setError("");
+    try {
+      await onSave(html);
+    } catch (err: any) {
+      setError(err.message || "Failed to save changes");
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="mb-4">
+      <div className="border border-gray-300 dark:border-gray-600 rounded-md overflow-hidden">
+        {/* Toolbar */}
+ <div className="bg-gray-50 dark:bg-gray-900 border-b border-gray-300 dark:border-gray-600 p-2 flex flex-wrap gap-1" style={{ position: "sticky", top: 0, zIndex: 10 }}>          <button
+            type="button"
+            onClick={() => editor?.chain().focus().toggleBold().run()}
+            className={`px-3 py-1 rounded text-sm ${
+              editor?.isActive("bold")
+                ? "bg-ijf-accent text-ijf-bg"
+                : "bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300"
+            }`}
+          >
+            Bold
+          </button>
+          <button
+            type="button"
+            onClick={() => editor?.chain().focus().toggleItalic().run()}
+            className={`px-3 py-1 rounded text-sm ${
+              editor?.isActive("italic")
+                ? "bg-ijf-accent text-ijf-bg"
+                : "bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300"
+            }`}
+          >
+            Italic
+          </button>
+          <button
+            type="button"
+            onClick={() => editor?.chain().focus().toggleStrike().run()}
+            className={`px-3 py-1 rounded text-sm ${
+              editor?.isActive("strike")
+                ? "bg-ijf-accent text-ijf-bg"
+                : "bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300"
+            }`}
+          >
+            Strike
+          </button>
+          <div className="w-px bg-gray-300 dark:bg-gray-600 mx-1" />
+          <button
+            type="button"
+            onClick={() => editor?.chain().focus().toggleHeading({ level: 2 }).run()}
+            className={`px-3 py-1 rounded text-sm ${
+              editor?.isActive("heading", { level: 2 })
+                ? "bg-ijf-accent text-ijf-bg"
+                : "bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300"
+            }`}
+          >
+            H2
+          </button>
+          <button
+            type="button"
+            onClick={() => editor?.chain().focus().toggleHeading({ level: 3 }).run()}
+            className={`px-3 py-1 rounded text-sm ${
+              editor?.isActive("heading", { level: 3 })
+                ? "bg-ijf-accent text-ijf-bg"
+                : "bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300"
+            }`}
+          >
+            H3
+          </button>
+          <div className="w-px bg-gray-300 dark:bg-gray-600 mx-1" />
+          <button
+            type="button"
+            onClick={() => editor?.chain().focus().toggleBulletList().run()}
+            className={`px-3 py-1 rounded text-sm ${
+              editor?.isActive("bulletList")
+                ? "bg-ijf-accent text-ijf-bg"
+                : "bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300"
+            }`}
+          >
+            Bullet List
+          </button>
+          <button
+            type="button"
+            onClick={() => editor?.chain().focus().toggleOrderedList().run()}
+            className={`px-3 py-1 rounded text-sm ${
+              editor?.isActive("orderedList")
+                ? "bg-ijf-accent text-ijf-bg"
+                : "bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300"
+            }`}
+          >
+            Numbered List
+          </button>
+          <div className="w-px bg-gray-300 dark:bg-gray-600 mx-1" />
+          <button
+            type="button"
+            onClick={() => {
+              const url = window.prompt("Enter URL:");
+              if (url) editor?.chain().focus().setLink({ href: url }).run();
+            }}
+            className={`px-3 py-1 rounded text-sm ${
+              editor?.isActive("link")
+                ? "bg-ijf-accent text-ijf-bg"
+                : "bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300"
+            }`}
+          >
+            Link
+          </button>
+          <div className="w-px bg-gray-300 dark:bg-gray-600 mx-1" />
+          <button
+            type="button"
+            onClick={() => editor?.chain().focus().undo().run()}
+            disabled={!editor?.can().undo()}
+            className="px-3 py-1 rounded text-sm bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 disabled:opacity-50"
+          >
+            Undo
+          </button>
+          <button
+            type="button"
+            onClick={() => editor?.chain().focus().redo().run()}
+            disabled={!editor?.can().redo()}
+            className="px-3 py-1 rounded text-sm bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 disabled:opacity-50"
+          >
+            Redo
+          </button>
+        </div>
+
+        {/* Editor content */}
+        <EditorContent
+          editor={editor}
+          className="bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+        />
+      </div>
+
+      {error && (
+        <p className="mt-2 text-sm text-red-600 dark:text-red-400">{error}</p>
+      )}
+
+      <div className="flex gap-2 mt-3">
+        <button
+          onClick={handleSave}
+          disabled={saving}
+          className="px-4 py-2 bg-ijf-accent text-ijf-bg rounded hover:bg-opacity-90 disabled:opacity-50"
+        >
+          {saving ? "Saving..." : "Save"}
+        </button>
+        <button
+          onClick={onCancel}
+          disabled={saving}
+          className="px-4 py-2 bg-gray-300 dark:bg-gray-600 text-gray-700 dark:text-gray-300 rounded hover:bg-opacity-90 disabled:opacity-50"
+        >
+          Cancel
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ─── PostCard ─────────────────────────────────────────────────────────────────
+
 function PostCard({
   post,
   isOriginalPost,
@@ -81,9 +283,6 @@ function PostCard({
   onPostDeleted: (postId: string) => void;
 }) {
   const [isEditing, setIsEditing] = useState(false);
-  const [editContent, setEditContent] = useState(post.content);
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState("");
 
   const isAuthor = currentUserId === post.createdBy._id;
   const canEdit =
@@ -93,53 +292,25 @@ function PostCard({
         24 * 60 * 60 * 1000);
   const canDelete = isAdmin;
 
-  const handleEdit = () => {
-    setIsEditing(true);
-    setEditContent(post.content);
-    setError("");
-  };
+  const handleSaveEdit = async (html: string) => {
+    const response = await fetch(`/api/posts/${post._id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ content: html }),
+    });
 
-  const handleCancelEdit = () => {
+    const data = await response.json();
+
+    if (!response.ok || !data.success) {
+      throw new Error(data.error || "Failed to update post");
+    }
+
+    onPostEdited(post._id, html);
     setIsEditing(false);
-    setEditContent(post.content);
-    setError("");
-  };
-
-  const handleSaveEdit = async () => {
-    if (!editContent || editContent.trim().length === 0) {
-      setError("Content cannot be empty");
-      return;
-    }
-
-    setSaving(true);
-    setError("");
-
-    try {
-      const response = await fetch(`/api/posts/${post._id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ content: editContent.trim() }),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok || !data.success) {
-        throw new Error(data.error || "Failed to update post");
-      }
-
-      onPostEdited(post._id, editContent.trim());
-      setIsEditing(false);
-    } catch (err: any) {
-      setError(err.message || "Failed to save changes");
-    } finally {
-      setSaving(false);
-    }
   };
 
   const handleDelete = async () => {
-    if (!confirm("Are you sure you want to delete this post?")) {
-      return;
-    }
+    if (!confirm("Are you sure you want to delete this post?")) return;
 
     try {
       const response = await fetch(`/api/posts/${post._id}`, {
@@ -195,8 +366,7 @@ function PostCard({
               })}
               {post.editedAt && (
                 <span className="ml-2 italic">
-                  (edited
-                  {post.editedBy ? ` by ${post.editedBy.name}` : ""})
+                  (edited{post.editedBy ? ` by ${post.editedBy.name}` : ""})
                 </span>
               )}
             </div>
@@ -207,7 +377,7 @@ function PostCard({
           <div className="flex gap-2">
             {canEdit && (
               <button
-                onClick={handleEdit}
+                onClick={() => setIsEditing(true)}
                 className="text-sm text-ijf-accent hover:underline"
               >
                 Edit
@@ -225,39 +395,16 @@ function PostCard({
         )}
       </div>
 
-      {/* Post Content */}
+      {/* Post Content / Edit Mode */}
       {isEditing ? (
-        <div className="mb-4">
-          <textarea
-            value={editContent}
-            onChange={(e) => setEditContent(e.target.value)}
-            className="w-full min-h-[200px] px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-ijf-accent focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-          />
-          {error && (
-            <p className="mt-2 text-sm text-red-600 dark:text-red-400">
-              {error}
-            </p>
-          )}
-          <div className="flex gap-2 mt-3">
-            <button
-              onClick={handleSaveEdit}
-              disabled={saving}
-              className="px-4 py-2 bg-ijf-accent text-ijf-bg rounded hover:bg-opacity-90 disabled:opacity-50"
-            >
-              {saving ? "Saving..." : "Save"}
-            </button>
-            <button
-              onClick={handleCancelEdit}
-              disabled={saving}
-              className="px-4 py-2 bg-gray-300 dark:bg-gray-600 text-gray-700 dark:text-gray-300 rounded hover:bg-opacity-90 disabled:opacity-50"
-            >
-              Cancel
-            </button>
-          </div>
-        </div>
+        <PostEditEditor
+          initialContent={post.content}
+          onSave={handleSaveEdit}
+          onCancel={() => setIsEditing(false)}
+        />
       ) : (
         <div
-          className="prose prose-sm max-w-none dark:prose-invert mb-4"
+          className="prose prose-sm max-w-none dark:prose-invert mb-4 [&_p:empty]:min-h-[1em]"
           dangerouslySetInnerHTML={{ __html: post.content }}
         />
       )}

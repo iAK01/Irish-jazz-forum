@@ -4,6 +4,8 @@ import { ReactNode, useState, useEffect } from "react";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
 import { usePathname } from "next/navigation";
+import { useHeartbeat } from "@/app/hooks/useHeartbeat";
+
 
 interface DashboardLayoutProps {
   children: ReactNode;
@@ -29,6 +31,8 @@ export default function DashboardLayout({ children, title, userName, role }: Das
   useEffect(() => {
     setSidebarOpen(false);
   }, [pathname]);
+
+  useHeartbeat();
 
   const isAdmin = session?.user?.role === "admin" || session?.user?.role === "super_admin";
   const isTeam = session?.user?.role === "team";

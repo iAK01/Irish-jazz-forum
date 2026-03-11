@@ -35,44 +35,39 @@ export async function GET(request: Request) {
       }
 
       groupId = group._id.toString();
-
     }
 
-let query;
+    let query;
 
-if (workingGroup === "general") {
-  query = { workingGroups: { $size: 0 }, deleted: { $ne: true } };
-} else {
+    if (workingGroup === "general") {
+      query = { workingGroups: { $size: 0 }, deleted: { $ne: true } };
+    } else {
+      const isMember =
+        currentUser.role === "super_admin" ||
+        currentUser.role === "admin" ||
+        currentUser.role === "steering" ||
+        (currentUser.workingGroups || [])
+          .map((g: any) => g.toString())
+          .includes(groupId);
 
-  const isMember =
-    currentUser.role === "super_admin" ||
-    currentUser.role === "admin" ||
-    currentUser.role === "steering" ||
-    (currentUser.workingGroups || [])
-      .map((g: any) => g.toString())
-      .includes(groupId);
-
-  if (isMember) {
-
-    query = {
-      workingGroups: groupId,
-      deleted: { $ne: true },
-    };
-
-  } else {
-
-    query = {
-      workingGroups: groupId,
-      publicToMembers: true,
-      deleted: { $ne: true },
-    };
-
-  }
-}
+      if (isMember) {
+        query = {
+          workingGroups: groupId,
+          deleted: { $ne: true },
+        };
+      } else {
+        query = {
+          workingGroups: groupId,
+          publicToMembers: true,
+          deleted: { $ne: true },
+        };
+      }
+    }
 
     const threads = await DiscussionThreadModel.find(query)
       .sort({ pinned: -1, lastActivityAt: -1 })
       .populate("createdBy", "name image email")
+      .populate("lastReplyBy", "name image email")
       .lean();
 
     return NextResponse.json({ success: true, data: threads });
@@ -168,6 +163,7 @@ export async function POST(request: Request) {
       title: title.trim(),
       slug,
       createdBy: currentUser._id,
+      lastReplyBy: currentUser._id,
       lastActivityAt: new Date(),
       status: "active",
       pinned: false,
@@ -189,6 +185,7 @@ export async function POST(request: Request) {
 
     const populatedThread = await DiscussionThreadModel.findById(thread._id)
       .populate("createdBy", "name image email")
+      .populate("lastReplyBy", "name image email")
       .lean();
 
     return NextResponse.json({ success: true, data: populatedThread });

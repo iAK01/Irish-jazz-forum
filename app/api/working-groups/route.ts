@@ -52,8 +52,8 @@ export async function GET(request: Request) {
     }
 
     const groups = await WorkingGroupModel.find(query)
-      .populate("coordinator", "name email image")
-      .populate("members", "name email image")
+      .populate("coordinator", "name email image lastSeenAt")
+      .populate("members", "name email image lastSeenAt")
       .populate("createdBy", "name email")
       .sort({ name: 1 })
       .lean();

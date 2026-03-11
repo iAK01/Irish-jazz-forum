@@ -6,10 +6,21 @@ import { useRouter } from "next/navigation";
 import DashboardLayout from "@/app/components/dashboard/DashboardLayout";
 
 interface WorkingGroupStats {
+  _id: string;
   slug: string;
   name: string;
+  description: string;
+  isPrivate: boolean;
   threadCount: number;
-  lastActivity?: Date;
+  lastActivityAt?: string;
+}
+
+interface OnlineMember {
+  _id: string;
+  name: string;
+  image?: string;
+  lastSeenAt?: string;
+  isOnline: boolean;
 }
 
 export default function ForumHomePage() {
@@ -17,6 +28,7 @@ export default function ForumHomePage() {
   const router = useRouter();
   const [generalThreadCount, setGeneralThreadCount] = useState(0);
   const [workingGroups, setWorkingGroups] = useState<WorkingGroupStats[]>([]);
+  const [allMembers, setAllMembers] = useState<OnlineMember[]>([]);
   const [loading, setLoading] = useState(true);
   const [isMobile, setIsMobile] = useState(false);
 
@@ -28,45 +40,48 @@ export default function ForumHomePage() {
   }, []);
 
   useEffect(() => {
-    if (session?.user) {
-      fetchForumData();
-    }
+    if (session?.user) fetchForumData();
   }, [session]);
+
+  const isOnline = (lastSeenAt?: string) => {
+    if (!lastSeenAt) return false;
+    return Date.now() - new Date(lastSeenAt).getTime() < 5 * 60 * 1000;
+  };
+
+  const formatLastSeen = (lastSeenAt?: string) => {
+    if (!lastSeenAt) return "Never active";
+    const diff = Date.now() - new Date(lastSeenAt).getTime();
+    const mins = Math.floor(diff / 60000);
+    const hours = Math.floor(diff / 3600000);
+    const days = Math.floor(diff / 86400000);
+    if (mins < 1) return "Just now";
+    if (mins < 60) return `${mins}m ago`;
+    if (hours < 24) return `${hours}h ago`;
+    return `${days}d ago`;
+  };
 
   const fetchForumData = async () => {
     try {
       setLoading(true);
+      const res = await fetch("/api/forum/summary");
+      if (!res.ok) return;
+      const { data } = await res.json();
 
-      const generalRes = await fetch("/api/threads?workingGroup=general");
-      if (generalRes.ok) {
-        const generalData = await generalRes.json();
-        setGeneralThreadCount(generalData.data?.length || 0);
-      }
+      setGeneralThreadCount(data.generalThreadCount || 0);
+      setWorkingGroups(data.workingGroups || []);
 
-      const groupsRes = await fetch("/api/working-groups");
-      if (groupsRes.ok) {
-        const groupsData = await groupsRes.json();
-        const groups = groupsData.data || [];
+      const members: OnlineMember[] = (data.members || [])
+        .map((m: any) => ({ ...m, isOnline: isOnline(m.lastSeenAt) }))
+        .sort((a: OnlineMember, b: OnlineMember) => {
+          if (a.isOnline && !b.isOnline) return -1;
+          if (!a.isOnline && b.isOnline) return 1;
+          if (!a.lastSeenAt && !b.lastSeenAt) return 0;
+          if (!a.lastSeenAt) return 1;
+          if (!b.lastSeenAt) return -1;
+          return new Date(b.lastSeenAt).getTime() - new Date(a.lastSeenAt).getTime();
+        });
 
-        const groupStats = await Promise.all(
-          groups.map(async (group: any) => {
-            const res = await fetch(`/api/threads?workingGroup=${group.slug}`);
-            if (res.ok) {
-              const data = await res.json();
-              const threads = data.data || [];
-              return {
-                slug: group.slug,
-                name: group.name,
-                threadCount: threads.length,
-                lastActivity: threads[0]?.lastActivityAt,
-              };
-            }
-            return { slug: group.slug, name: group.name, threadCount: 0 };
-          })
-        );
-
-        setWorkingGroups(groupStats);
-      }
+      setAllMembers(members);
     } catch (error) {
       console.error("Error fetching forum data:", error);
     } finally {
@@ -88,18 +103,65 @@ export default function ForumHomePage() {
     currentUser.role === "admin" ||
     currentUser.role === "super_admin";
 
+  const onlineMembers = allMembers.filter((m) => m.isOnline);
+  const offlineMembers = allMembers.filter((m) => !m.isOnline);
+
+  const MemberDot = ({ member }: { member: OnlineMember }) => (
+    <div
+      title={`${member.name} — ${member.isOnline ? "Online now" : formatLastSeen(member.lastSeenAt)}`}
+      style={{ position: "relative", flexShrink: 0 }}
+    >
+      {member.image ? (
+        <img
+          src={member.image}
+          alt={member.name}
+          style={{
+            width: isMobile ? "2rem" : "2.25rem",
+            height: isMobile ? "2rem" : "2.25rem",
+            borderRadius: "9999px",
+            border: `2px solid ${member.isOnline ? "#22c55e" : "#e5e7eb"}`,
+          }}
+        />
+      ) : (
+        <div style={{
+          width: isMobile ? "2rem" : "2.25rem",
+          height: isMobile ? "2rem" : "2.25rem",
+          borderRadius: "9999px",
+          backgroundColor: member.isOnline ? "var(--color-ijf-accent)" : "#e5e7eb",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          fontSize: "0.65rem",
+          fontWeight: 700,
+          color: member.isOnline ? "var(--color-ijf-bg)" : "#6b7280",
+          border: `2px solid ${member.isOnline ? "#22c55e" : "#e5e7eb"}`,
+        }}>
+          {member.name.charAt(0).toUpperCase()}
+        </div>
+      )}
+      <div style={{
+        position: "absolute",
+        bottom: 0,
+        right: 0,
+        width: "0.55rem",
+        height: "0.55rem",
+        borderRadius: "9999px",
+        backgroundColor: member.isOnline ? "#22c55e" : "#d1d5db",
+        border: "1.5px solid white",
+      }} />
+    </div>
+  );
+
   return (
     <DashboardLayout title="IJF Discussion Forum" userName={session.user.name}>
 
       {/* Hero */}
-      <div
-        style={{
-          marginBottom: "2rem",
-          padding: isMobile ? "1.25rem" : "3rem 2rem",
-          borderRadius: "0.75rem",
-          background: "linear-gradient(135deg, var(--color-ijf-bg) 0%, #1a1f2e 100%)",
-        }}
-      >
+      <div style={{
+        marginBottom: "1.5rem",
+        padding: isMobile ? "1.25rem" : "3rem 2rem",
+        borderRadius: "0.75rem",
+        background: "linear-gradient(135deg, var(--color-ijf-bg) 0%, #1a1f2e 100%)",
+      }}>
         <h1 style={{ fontSize: isMobile ? "1.5rem" : "2.25rem", fontWeight: 700, color: "white", marginBottom: "0.5rem" }}>
           Welcome back, {session.user.name?.split(" ")[0]}
         </h1>
@@ -115,12 +177,57 @@ export default function ForumHomePage() {
             <p style={{ color: "#6b7280", marginTop: "1rem" }}>Loading forum...</p>
           </div>
         ) : (
-          <div style={{ display: "flex", flexDirection: "column", gap: "2rem" }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
 
-            {/* General Discussion card */}
+            {/* Members strip */}
+            {allMembers.length > 0 && (
+              <div style={{
+                backgroundColor: "white",
+                borderRadius: "0.75rem",
+                border: "1px solid #e5e7eb",
+                padding: isMobile ? "0.875rem 1rem" : "1rem 1.5rem",
+              }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "1rem", flexWrap: "wrap" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", flexShrink: 0 }}>
+                    <div style={{ width: "0.5rem", height: "0.5rem", borderRadius: "9999px", backgroundColor: "#22c55e" }} />
+                    <span style={{ fontSize: "0.75rem", fontWeight: 700, color: "#111827" }}>
+                      {onlineMembers.length} online
+                    </span>
+                    <span style={{ color: "#d1d5db" }}>·</span>
+                    <span style={{ fontSize: "0.75rem", color: "#9ca3af" }}>
+                      {allMembers.length} members
+                    </span>
+                  </div>
+
+                  <div style={{ width: "1px", height: "1.5rem", backgroundColor: "#e5e7eb", flexShrink: 0 }} />
+
+                  <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", flexWrap: "wrap" }}>
+                    {onlineMembers.map((m) => (
+                      <div key={m._id} style={{ display: "flex", alignItems: "center", gap: "0.375rem" }}>
+                        <MemberDot member={m} />
+                        {!isMobile && (
+                          <span style={{ fontSize: "0.75rem", fontWeight: 600, color: "#111827" }}>
+                            {m.name.split(" ")[0]}
+                          </span>
+                        )}
+                      </div>
+                    ))}
+
+                    {onlineMembers.length > 0 && offlineMembers.length > 0 && (
+                      <div style={{ width: "1px", height: "1.5rem", backgroundColor: "#e5e7eb", flexShrink: 0 }} />
+                    )}
+
+                    {offlineMembers.map((m) => (
+                      <MemberDot key={m._id} member={m} />
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* General Discussion */}
             <div
               onClick={() => router.push("/dashboard/forum/general")}
-              className="group"
               style={{
                 backgroundColor: "white",
                 borderRadius: "1rem",
@@ -190,7 +297,7 @@ export default function ForumHomePage() {
                         backgroundColor: "white",
                         borderRadius: "0.75rem",
                         boxShadow: "0 2px 4px rgba(0,0,0,0.06)",
-                       border: "2px solid var(--color-ijf-accent)",
+                        border: "2px solid var(--color-ijf-accent)",
                         padding: isMobile ? "1rem" : "1.5rem",
                         cursor: "pointer",
                         transition: "box-shadow 0.3s",
@@ -204,9 +311,9 @@ export default function ForumHomePage() {
                               {group.name}
                             </h3>
                           </div>
-                          {group.lastActivity && (
+                          {group.lastActivityAt && (
                             <p style={{ fontSize: "0.75rem", color: "#6b7280" }}>
-                              Last activity: {new Date(group.lastActivity).toLocaleDateString("en-IE", { day: "numeric", month: "short", year: "numeric" })}
+                              Last activity: {new Date(group.lastActivityAt).toLocaleDateString("en-IE", { day: "numeric", month: "short", year: "numeric" })}
                             </p>
                           )}
                         </div>

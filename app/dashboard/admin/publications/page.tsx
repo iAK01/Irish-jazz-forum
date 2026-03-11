@@ -89,8 +89,9 @@ export default function PublicationsAdminPage() {
 
   return (
     <DashboardLayout title="Publications" userName={session.user.name}>
-      <div className="max-w-7xl mx-auto">
-        <div className="mb-6 flex items-center justify-between">
+      <div className="max-w-7xl mx-auto px-4 sm:px-0">
+        {/* Header row */}
+        <div className="mb-6 flex flex-col sm:flex-row sm:items-center gap-3 sm:justify-between">
           <div className="flex gap-2">
             {["all", "news", "resource"].map((f) => (
               <button
@@ -108,7 +109,7 @@ export default function PublicationsAdminPage() {
           </div>
           <Link
             href="/dashboard/admin/publications/new"
-            className="px-4 py-2 rounded-lg font-medium text-white flex items-center gap-2"
+            className="px-4 py-2 rounded-lg font-medium text-white flex items-center gap-2 self-start sm:self-auto"
             style={{ backgroundColor: "var(--color-ijf-accent)" }}
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -123,57 +124,96 @@ export default function PublicationsAdminPage() {
         ) : filtered.length === 0 ? (
           <div className="bg-zinc-50 rounded-lg p-12 text-center text-zinc-500">No publications yet.</div>
         ) : (
-          <div className="bg-white dark:bg-zinc-800 rounded-lg border border-zinc-200 dark:border-zinc-700 overflow-hidden">
-            <table className="w-full">
-              <thead className="bg-zinc-50 dark:bg-zinc-900 border-b border-zinc-200 dark:border-zinc-700">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-zinc-500 uppercase tracking-wider">Title</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-zinc-500 uppercase tracking-wider">Category</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-zinc-500 uppercase tracking-wider">Status</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-zinc-500 uppercase tracking-wider">Date</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-zinc-500 uppercase tracking-wider">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-zinc-200 dark:divide-zinc-700">
-                {filtered.map((pub) => (
-                  <tr key={pub._id} className="hover:bg-zinc-50 dark:hover:bg-zinc-700/50 transition">
-                    <td className="px-6 py-4">
-                      <div className="text-sm font-medium text-zinc-900 dark:text-zinc-100">{pub.title}</div>
-                      <div className="text-xs text-zinc-500">/{pub.slug}</div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <span className="px-2 py-0.5 text-xs font-medium rounded bg-blue-100 text-blue-800 capitalize">
-                        {pub.category}
-                        {pub.resourceType && ` · ${pub.resourceType}`}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4">{statusBadge(pub.status)}</td>
-                    <td className="px-6 py-4 text-sm text-zinc-500">
+          <>
+            {/* Desktop Table */}
+            <div className="hidden md:block bg-white dark:bg-zinc-800 rounded-lg border border-zinc-200 dark:border-zinc-700 overflow-hidden">
+              <table className="w-full">
+                <thead className="bg-zinc-50 dark:bg-zinc-900 border-b border-zinc-200 dark:border-zinc-700">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-zinc-500 uppercase tracking-wider">Title</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-zinc-500 uppercase tracking-wider">Category</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-zinc-500 uppercase tracking-wider">Status</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-zinc-500 uppercase tracking-wider">Date</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-zinc-500 uppercase tracking-wider">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-zinc-200 dark:divide-zinc-700">
+                  {filtered.map((pub) => (
+                    <tr key={pub._id} className="hover:bg-zinc-50 dark:hover:bg-zinc-700/50 transition">
+                      <td className="px-6 py-4">
+                        <div className="text-sm font-medium text-zinc-900 dark:text-zinc-100">{pub.title}</div>
+                        <div className="text-xs text-zinc-500">/{pub.slug}</div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className="px-2 py-0.5 text-xs font-medium rounded bg-blue-100 text-blue-800 capitalize">
+                          {pub.category}
+                          {pub.resourceType && ` · ${pub.resourceType}`}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4">{statusBadge(pub.status)}</td>
+                      <td className="px-6 py-4 text-sm text-zinc-500">
+                        {pub.publishedAt
+                          ? new Date(pub.publishedAt).toLocaleDateString("en-IE")
+                          : new Date(pub.createdAt).toLocaleDateString("en-IE")}
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="flex gap-2">
+                          <Link
+                            href={`/dashboard/admin/publications/${pub.slug}/edit`}
+                            className="px-3 py-1 bg-blue-500 hover:bg-blue-600 text-white rounded text-xs font-medium transition"
+                          >
+                            Edit
+                          </Link>
+                          <button
+                            onClick={() => setDeleteTarget(pub)}
+                            className="px-3 py-1 bg-red-500 hover:bg-red-600 text-white rounded text-xs font-medium transition"
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Mobile Cards */}
+            <div className="md:hidden space-y-3">
+              {filtered.map((pub) => (
+                <div key={pub._id} className="bg-white dark:bg-zinc-800 rounded-lg border border-zinc-200 dark:border-zinc-700 p-4">
+                  <p className="text-sm font-semibold text-zinc-900 dark:text-zinc-100 mb-1">{pub.title}</p>
+                  <p className="text-xs text-zinc-500 mb-3">/{pub.slug}</p>
+                  <div className="flex flex-wrap items-center gap-2 mb-3">
+                    <span className="px-2 py-0.5 text-xs font-medium rounded bg-blue-100 text-blue-800 capitalize">
+                      {pub.category}
+                      {pub.resourceType && ` · ${pub.resourceType}`}
+                    </span>
+                    {statusBadge(pub.status)}
+                    <span className="text-xs text-zinc-500">
                       {pub.publishedAt
                         ? new Date(pub.publishedAt).toLocaleDateString("en-IE")
                         : new Date(pub.createdAt).toLocaleDateString("en-IE")}
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="flex gap-2">
-                        <Link
-                          href={`/dashboard/admin/publications/${pub.slug}/edit`}
-                          className="px-3 py-1 bg-blue-500 hover:bg-blue-600 text-white rounded text-xs font-medium transition"
-                        >
-                          Edit
-                        </Link>
-                        <button
-                          onClick={() => setDeleteTarget(pub)}
-                          className="px-3 py-1 bg-red-500 hover:bg-red-600 text-white rounded text-xs font-medium transition"
-                        >
-                          Delete
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                    </span>
+                  </div>
+                  <div className="flex gap-2">
+                    <Link
+                      href={`/dashboard/admin/publications/${pub.slug}/edit`}
+                      className="flex-1 text-center px-3 py-1.5 bg-blue-500 hover:bg-blue-600 text-white rounded text-xs font-medium transition"
+                    >
+                      Edit
+                    </Link>
+                    <button
+                      onClick={() => setDeleteTarget(pub)}
+                      className="flex-1 px-3 py-1.5 bg-red-500 hover:bg-red-600 text-white rounded text-xs font-medium transition"
+                    >
+                      Delete
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </>
         )}
       </div>
 

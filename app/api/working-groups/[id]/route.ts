@@ -1,5 +1,4 @@
 // /app/api/working-groups/[id]/route.ts
-// API endpoint for managing individual working groups (PATCH, DELETE)
 
 import { NextResponse } from "next/server";
 import dbConnect from "@/lib/mongodb";
@@ -12,7 +11,6 @@ import { renameFolder, createDeletedAttachmentsFolder, moveFileToFolder } from "
 import { deleteMultipleFilesFromGCS } from "@/lib/gcs";
 
 // PATCH /api/working-groups/[id]
-// Update working group details
 export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
@@ -25,7 +23,6 @@ export async function PATCH(
     const body = await request.json();
     const { name, description, coordinatorId, members, isPrivate, isActive } = body;
 
-    // Find the working group
     const group = await WorkingGroupModel.findById(id).lean() as any;
 
     if (!group) {
@@ -35,13 +32,11 @@ export async function PATCH(
       );
     }
 
-    // Build update object
     const updateData: any = {};
 
     if (name !== undefined && name.trim().length > 0) {
       updateData.name = name.trim();
-      
-      // Regenerate slug if name changed
+
       if (name.trim() !== group.name) {
         const baseSlug = slugify(name, { lower: true, strict: true });
         let slug = baseSlug;
@@ -59,17 +54,22 @@ export async function PATCH(
       updateData.description = description.trim();
     }
 
+    // Handle coordinator — accept null/empty string as "clear coordinator"
     if (coordinatorId !== undefined) {
-      updateData.coordinator = coordinatorId;
-      
-      // Ensure coordinator is in members list
-      if (members && !members.includes(coordinatorId)) {
-        members.push(coordinatorId);
-      }
+      updateData.coordinator = coordinatorId || null;
     }
 
+    // Handle members — deduplicate and ensure coordinator is included if set
     if (members !== undefined) {
-      updateData.members = members;
+      let memberList: string[] = [...new Set(members as string[])];
+
+      // If a new coordinator is being set, ensure they're in the members list
+      const effectiveCoordinator = coordinatorId !== undefined ? coordinatorId : group.coordinator?.toString();
+      if (effectiveCoordinator && !memberList.includes(effectiveCoordinator)) {
+        memberList.push(effectiveCoordinator);
+      }
+
+      updateData.members = memberList;
     }
 
     if (isPrivate !== undefined) {
@@ -80,14 +80,13 @@ export async function PATCH(
       updateData.isActive = isActive;
     }
 
-    // Update the working group
     const updatedGroup = await WorkingGroupModel.findByIdAndUpdate(
       id,
       updateData,
       { new: true }
     )
-      .populate("coordinator", "name email image")
-      .populate("members", "name email image")
+      .populate("coordinator", "name email image lastSeenAt")
+      .populate("members", "name email image lastSeenAt")
       .populate("createdBy", "name email")
       .lean();
 
@@ -101,18 +100,15 @@ export async function PATCH(
 }
 
 // DELETE /api/working-groups/[id]
-// Soft delete working group with cascading deletion and file handling
 export async function DELETE(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    // Only super admins can delete working groups
     const currentUser = await requireAuth(["super_admin"]);
     await dbConnect();
     const { id } = await params;
 
-    // Find the working group
     const group = await WorkingGroupModel.findById(id).lean() as any;
 
     if (!group) {
@@ -122,7 +118,6 @@ export async function DELETE(
       );
     }
 
-    // Check if already deleted
     if (group.deleted) {
       return NextResponse.json(
         { success: false, error: "Working group already deleted" },
@@ -130,7 +125,6 @@ export async function DELETE(
       );
     }
 
-    // Find all threads in this working group
     const threads = await DiscussionThreadModel.find({
       workingGroups: group.slug,
       deleted: { $ne: true }
@@ -138,19 +132,16 @@ export async function DELETE(
 
     const threadIds = threads.map(t => t._id);
 
-    // Find all posts in these threads
     const posts = await DiscussionPostModel.find({
       threadId: { $in: threadIds },
       deleted: { $ne: true }
     }).lean() as any[];
 
-    // Count files to be processed
     let gcsFilesCount = 0;
     let driveFilesCount = 0;
     const gcsFilesToDelete: string[] = [];
     const driveFilesToMove: { fileId: string; filename: string }[] = [];
 
-    // Process attachments from all posts
     for (const post of posts) {
       if (post.attachments && post.attachments.length > 0) {
         for (const attachment of post.attachments) {
@@ -168,71 +159,53 @@ export async function DELETE(
       }
     }
 
-    // STEP 1: Soft delete the working group
     await WorkingGroupModel.findByIdAndUpdate(id, {
       deleted: true,
       deletedAt: new Date(),
       deletedBy: currentUser._id,
     });
 
-    // STEP 2: Rename Drive folder to "[DELETED] Group Name"
     if (group.googleDriveFolderId) {
       try {
         await renameFolder(group.googleDriveFolderId, `[DELETED] ${group.name}`);
       } catch (error) {
         console.error('Failed to rename Drive folder:', error);
-        // Continue even if rename fails
       }
     }
 
-    // STEP 3: Cascade soft delete all threads
     if (threadIds.length > 0) {
       await DiscussionThreadModel.updateMany(
         { _id: { $in: threadIds } },
-        {
-          deleted: true,
-          deletedAt: new Date(),
-          deletedBy: currentUser._id,
-        }
+        { deleted: true, deletedAt: new Date(), deletedBy: currentUser._id }
       );
     }
 
-    // STEP 4: Cascade soft delete all posts
     const postIds = posts.map(p => p._id);
     if (postIds.length > 0) {
       await DiscussionPostModel.updateMany(
         { _id: { $in: postIds } },
-        {
-          deleted: true,
-          deletedAt: new Date(),
-          deletedBy: currentUser._id,
-        }
+        { deleted: true, deletedAt: new Date(), deletedBy: currentUser._id }
       );
     }
 
-    // STEP 5: Delete GCS files immediately
     if (gcsFilesToDelete.length > 0) {
       try {
         await deleteMultipleFilesFromGCS(gcsFilesToDelete);
       } catch (error) {
         console.error('Failed to delete some GCS files:', error);
-        // Continue even if some deletions fail
       }
     }
 
-    // STEP 6: Move Drive files to "Deleted Attachments" subfolder
     if (driveFilesToMove.length > 0 && group.googleDriveFolderId) {
       try {
         const deletedAttachmentsFolderId = await createDeletedAttachmentsFolder(
           group.googleDriveFolderId
         );
-
         for (const file of driveFilesToMove) {
           try {
             await moveFileToFolder(file.fileId, deletedAttachmentsFolderId);
           } catch (error) {
             console.error(`Failed to move file ${file.filename}:`, error);
-            // Continue with other files
           }
         }
       } catch (error) {
@@ -240,8 +213,8 @@ export async function DELETE(
       }
     }
 
-    return NextResponse.json({ 
-      success: true, 
+    return NextResponse.json({
+      success: true,
       message: "Working group deleted successfully",
       counts: {
         threads: threadIds.length,

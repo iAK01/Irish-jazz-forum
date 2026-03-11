@@ -36,7 +36,7 @@ export async function GET(
       );
     }
 
-if (thread.workingGroups && thread.workingGroups.length > 0 && !thread.publicToMembers) {
+    if (thread.workingGroups && thread.workingGroups.length > 0 && !thread.publicToMembers) {
       const groupIds = thread.workingGroups.map((g: any) => g.toString());
 
       const hasAccess =
@@ -163,6 +163,7 @@ export async function POST(
     await DiscussionThreadModel.findByIdAndUpdate(threadId, {
       $inc: { replyCount: 1 },
       lastActivityAt: new Date(),
+      lastReplyBy: currentUser._id,
     });
 
     const populatedPost = await DiscussionPostModel.findById(post._id)

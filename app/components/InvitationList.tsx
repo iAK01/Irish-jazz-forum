@@ -126,7 +126,7 @@ export default function InvitationList({
   return (
     <div>
       {/* Filter Tabs */}
-      <div className="flex gap-2 mb-6 border-b border-gray-200">
+      <div className="flex gap-2 mb-6 border-b border-gray-200 overflow-x-auto">
         {[
           { value: "all", label: "All" },
           { value: "pending", label: "Pending" },
@@ -137,7 +137,7 @@ export default function InvitationList({
           <button
             key={tab.value}
             onClick={() => setFilter(tab.value as any)}
-            className={`px-4 py-2 font-medium text-sm border-b-2 transition-colors ${
+            className={`px-4 py-2 font-medium text-sm border-b-2 transition-colors whitespace-nowrap flex-shrink-0 ${
               filter === tab.value
                 ? "border-ijf-accent text-gray-900"
                 : "border-transparent text-gray-600 hover:text-gray-900"
@@ -160,60 +160,57 @@ export default function InvitationList({
               key={invitation._id}
               className="bg-white rounded-lg border border-gray-200 p-4 hover:border-gray-300 transition-colors"
             >
-              <div className="flex items-start justify-between">
-                <div className="flex-1">
-                  <div className="flex items-center gap-3 mb-2">
-                    <span className="font-semibold text-gray-900">{invitation.email}</span>
-                    <span className={`px-2 py-1 rounded text-xs font-medium border ${getStatusColor(invitation.status)}`}>
-                      {invitation.status}
-                    </span>
-                  </div>
+              {/* Email + Status row */}
+              <div className="flex flex-wrap items-center gap-3 mb-2">
+                <span className="font-semibold text-gray-900 break-all">{invitation.email}</span>
+                <span className={`px-2 py-1 rounded text-xs font-medium border flex-shrink-0 ${getStatusColor(invitation.status)}`}>
+                  {invitation.status}
+                </span>
+              </div>
 
-                  <div className="text-sm text-gray-600 space-y-1">
-                    <p>
-                      Invited by: <span className="font-medium">{invitation.invitedBy.name}</span>
-                    </p>
-                    <p>Sent: {formatDate(invitation.createdAt)}</p>
-                    <p>Expires: {formatDate(invitation.expiresAt)}</p>
-                    {invitation.memberCreated && (
-                      <p className="text-green-700 font-medium">
-                        ✓ Member created: {invitation.memberCreated.name}
-                      </p>
-                    )}
-                  </div>
-                </div>
+              {/* Meta */}
+              <div className="text-sm text-gray-600 space-y-1 mb-3">
+                <p>
+                  Invited by: <span className="font-medium">{invitation.invitedBy.name}</span>
+                </p>
+                <p>Sent: {formatDate(invitation.createdAt)}</p>
+                <p>Expires: {formatDate(invitation.expiresAt)}</p>
+                {invitation.memberCreated && (
+                  <p className="text-green-700 font-medium">
+                    ✓ Member created: {invitation.memberCreated.name}
+                  </p>
+                )}
+              </div>
 
-                {/* Actions */}
-                <div className="flex gap-2 ml-4">
-                  {["pending", "expired"].includes(invitation.status) && (
-                    <button
-                      onClick={() => handleResend(invitation._id)}
-                      disabled={actionLoading === invitation._id}
-                      className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      {actionLoading === invitation._id ? "..." : "Resend"}
-                    </button>
-                  )}
-                  {invitation.status === "pending" && (
-                    <button
-                      onClick={() => handleRevoke(invitation._id)}
-                      disabled={actionLoading === invitation._id}
-                      className="px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white text-sm rounded font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      {actionLoading === invitation._id ? "..." : "Revoke"}
-                    </button>
-                  )}
-                  {/* Delete button - only for revoked/expired invitations */}
-                 {["revoked", "expired", "accepted", "completed"].includes(invitation.status) && (
-                    <button
-                      onClick={() => handleDelete(invitation._id, invitation.email)}
-                      disabled={actionLoading === invitation._id}
-                      className="px-3 py-1.5 bg-gray-700 hover:bg-gray-800 text-white text-sm rounded font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      {actionLoading === invitation._id ? "..." : "Delete"}
-                    </button>
-                  )}
-                </div>
+              {/* Actions */}
+              <div className="flex flex-wrap gap-2">
+                {["pending", "expired"].includes(invitation.status) && (
+                  <button
+                    onClick={() => handleResend(invitation._id)}
+                    disabled={actionLoading === invitation._id}
+                    className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {actionLoading === invitation._id ? "..." : "Resend"}
+                  </button>
+                )}
+                {invitation.status === "pending" && (
+                  <button
+                    onClick={() => handleRevoke(invitation._id)}
+                    disabled={actionLoading === invitation._id}
+                    className="px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white text-sm rounded font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {actionLoading === invitation._id ? "..." : "Revoke"}
+                  </button>
+                )}
+                {["revoked", "expired", "accepted", "completed"].includes(invitation.status) && (
+                  <button
+                    onClick={() => handleDelete(invitation._id, invitation.email)}
+                    disabled={actionLoading === invitation._id}
+                    className="px-3 py-1.5 bg-gray-700 hover:bg-gray-800 text-white text-sm rounded font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {actionLoading === invitation._id ? "..." : "Delete"}
+                  </button>
+                )}
               </div>
             </div>
           ))}

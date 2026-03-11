@@ -62,7 +62,7 @@ export default function ReplyComposer({
     editorProps: {
       attributes: {
         class: "prose prose-sm max-w-none focus:outline-none px-4 py-3",
-style: "min-height: 200px;",
+        style: "min-height: 200px; --tw-prose-links: var(--color-ijf-accent);",
       },
     },
     onUpdate({ editor }) {
@@ -219,7 +219,7 @@ style: "min-height: 200px;",
       <div className="border-2 border-gray-200 rounded-xl overflow-hidden bg-white shadow-sm">
 
         {/* Toolbar */}
-        <div className="bg-gray-50 border-b border-gray-200 px-3 py-2">
+               <div className="bg-gray-50 border-b border-gray-200 px-3 py-2" style={{ position: "sticky", top: 0, zIndex: 10 }}>
           <div className="flex items-center gap-1.5 flex-wrap">
 
             {/* Core: Bold, Italic */}

@@ -16,6 +16,11 @@ interface Thread {
     email: string;
     image?: string;
   };
+  lastReplyBy?: {
+    name: string;
+    email: string;
+    image?: string;
+  } | null;
   status: string;
   pinned: boolean;
   replyCount: number;
@@ -291,8 +296,21 @@ export default function WorkingGroupThreadList() {
     </div>
   );
 
+  const UserAvatar = ({ user, size = "1.125rem" }: { user: { name: string; image?: string }; size?: string }) => (
+    user.image ? (
+      <img src={user.image} alt={user.name} style={{ width: size, height: size, borderRadius: "9999px", flexShrink: 0 }} />
+    ) : (
+      <div style={{ width: size, height: size, borderRadius: "9999px", backgroundColor: "var(--color-ijf-accent)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--color-ijf-bg)", fontSize: "0.5rem", fontWeight: 700, flexShrink: 0 }}>
+        {user.name.charAt(0)}
+      </div>
+    )
+  );
+
   const ThreadRow = ({ thread }: { thread: Thread }) => {
     const isNonActive = thread.status && thread.status !== "active" && thread.status !== "open";
+
+    // Determine who to show: lastReplyBy if different from createdBy, otherwise just createdBy
+    const showLastReply = thread.lastReplyBy && thread.lastReplyBy.name !== thread.createdBy.name;
 
     return (
       <Link href={`/dashboard/forum/${groupSlug}/${thread.slug}`} style={{ textDecoration: "none" }}>
@@ -335,17 +353,12 @@ export default function WorkingGroupThreadList() {
               </h3>
             </div>
 
-            <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: "0.375rem" }}>
-              {thread.createdBy.image ? (
-                <img src={thread.createdBy.image} alt={thread.createdBy.name} style={{ width: "1.125rem", height: "1.125rem", borderRadius: "9999px", flexShrink: 0 }} />
-              ) : (
-                <div style={{ width: "1.125rem", height: "1.125rem", borderRadius: "9999px", backgroundColor: "var(--color-ijf-accent)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--color-ijf-bg)", fontSize: "0.5rem", fontWeight: 700, flexShrink: 0 }}>
-                  {thread.createdBy.name.charAt(0)}
-                </div>
-              )}
+            {/* Created by row */}
+            <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: "0.375rem", marginBottom: showLastReply ? "0.375rem" : 0 }}>
+              <UserAvatar user={thread.createdBy} />
               <span style={{ fontSize: "0.8125rem", color: "#4b5563", fontWeight: 500 }}>{thread.createdBy.name}</span>
               <span style={{ color: "#d1d5db", fontSize: "0.75rem" }}>·</span>
-              <span style={{ fontSize: "0.8125rem", color: "#9ca3af" }}>{formatDate(thread.lastActivityAt || thread.createdAt)}</span>
+              <span style={{ fontSize: "0.8125rem", color: "#9ca3af" }}>{formatDate(thread.createdAt)}</span>
 
               {!isMobile && thread.tags.slice(0, 3).map((tag, idx) => (
                 <span key={idx} style={{ padding: "0.1rem 0.45rem", backgroundColor: "#f3f4f6", borderRadius: "0.25rem", fontSize: "0.7rem", fontWeight: 500, color: "#6b7280" }}>
@@ -365,6 +378,20 @@ export default function WorkingGroupThreadList() {
                 </span>
               )}
             </div>
+
+            {/* Last reply row */}
+            {showLastReply && (
+              <div style={{ display: "flex", alignItems: "center", gap: "0.375rem" }}>
+                <svg width="11" height="11" fill="none" stroke="#9ca3af" strokeWidth={2} viewBox="0 0 24 24" style={{ flexShrink: 0 }}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
+                </svg>
+                <UserAvatar user={thread.lastReplyBy!} size="0.9rem" />
+                <span style={{ fontSize: "0.75rem", color: "#9ca3af" }}>
+                  Last reply by <span style={{ color: "#6b7280", fontWeight: 500 }}>{thread.lastReplyBy!.name}</span>
+                  {" · "}{formatDate(thread.lastActivityAt)}
+                </span>
+              </div>
+            )}
           </div>
 
           <div style={{

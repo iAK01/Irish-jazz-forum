@@ -43,7 +43,7 @@ export default function AdminInvitationsPage() {
 
   if (loading) {
     return (
-      <div className="max-w-7xl mx-auto px-6 py-8">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8">
         <div className="flex items-center justify-center py-20">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900"></div>
         </div>
@@ -53,62 +53,62 @@ export default function AdminInvitationsPage() {
 
   return (
     <DashboardLayout title="Member Invitations" userName={session?.user?.name || "Admin"}>
-    <div className="max-w-7xl mx-auto px-6 py-8">
-      {/* Header */}
-      <div className="mb-8">
-        <div className="flex items-center justify-between mb-4">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900">Member Invitations</h1>
-            <p className="text-gray-600 mt-2">
-              Manage invitations to join the Irish Jazz Forum
-            </p>
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
+        {/* Header */}
+        <div className="mb-6 sm:mb-8">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
+            <div>
+              <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Member Invitations</h1>
+              <p className="text-gray-600 mt-1 sm:mt-2 text-sm sm:text-base">
+                Manage invitations to join the Irish Jazz Forum
+              </p>
+            </div>
+            <Link
+              href="/dashboard/admin/invitations/new"
+              className="px-5 py-3 rounded-lg font-semibold text-white transition-all shadow-md hover:shadow-lg text-sm sm:text-base text-center whitespace-nowrap self-start sm:self-auto"
+              style={{ backgroundColor: 'var(--color-ijf-accent)' }}
+            >
+              + Invite New Member
+            </Link>
           </div>
-          <Link
-            href="/dashboard/admin/invitations/new"
-            className="px-6 py-3 rounded-lg font-semibold text-white transition-all shadow-md hover:shadow-lg"
-            style={{ backgroundColor: 'var(--color-ijf-accent)' }}
-          >
-            + Invite New Member
-          </Link>
+
+          {/* Stats */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 mt-4 sm:mt-6">
+            <div className="bg-white rounded-lg border-2 border-gray-200 p-3 sm:p-4">
+              <p className="text-xs sm:text-sm text-gray-600 font-medium">Total</p>
+              <p className="text-2xl sm:text-3xl font-bold text-gray-900 mt-1">{invitations.length}</p>
+            </div>
+            <div className="bg-yellow-50 rounded-lg border-2 border-yellow-200 p-3 sm:p-4">
+              <p className="text-xs sm:text-sm text-yellow-800 font-medium">Pending</p>
+              <p className="text-2xl sm:text-3xl font-bold text-yellow-900 mt-1">{pendingCount}</p>
+            </div>
+            <div className="bg-green-50 rounded-lg border-2 border-green-200 p-3 sm:p-4">
+              <p className="text-xs sm:text-sm text-green-800 font-medium">Accepted</p>
+              <p className="text-2xl sm:text-3xl font-bold text-green-900 mt-1">
+                {invitations.filter((inv) => inv.status === "accepted" || inv.status === "completed").length}
+              </p>
+            </div>
+            <div className="bg-gray-50 rounded-lg border-2 border-gray-200 p-3 sm:p-4">
+              <p className="text-xs sm:text-sm text-gray-600 font-medium">Expired</p>
+              <p className="text-2xl sm:text-3xl font-bold text-gray-900 mt-1">
+                {invitations.filter((inv) => inv.status === "expired").length}
+              </p>
+            </div>
+          </div>
         </div>
 
-        {/* Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mt-6">
-          <div className="bg-white rounded-lg border-2 border-gray-200 p-4">
-            <p className="text-sm text-gray-600 font-medium">Total Invitations</p>
-            <p className="text-3xl font-bold text-gray-900 mt-1">{invitations.length}</p>
+        {/* Error */}
+        {error && (
+          <div className="mb-6 p-4 bg-red-50 border-2 border-red-200 rounded-lg">
+            <p className="text-red-800 font-medium">{error}</p>
           </div>
-          <div className="bg-yellow-50 rounded-lg border-2 border-yellow-200 p-4">
-            <p className="text-sm text-yellow-800 font-medium">Pending</p>
-            <p className="text-3xl font-bold text-yellow-900 mt-1">{pendingCount}</p>
-          </div>
-          <div className="bg-green-50 rounded-lg border-2 border-green-200 p-4">
-            <p className="text-sm text-green-800 font-medium">Accepted</p>
-            <p className="text-3xl font-bold text-green-900 mt-1">
-              {invitations.filter((inv) => inv.status === "accepted" || inv.status === "completed").length}
-            </p>
-          </div>
-          <div className="bg-gray-50 rounded-lg border-2 border-gray-200 p-4">
-            <p className="text-sm text-gray-600 font-medium">Expired</p>
-            <p className="text-3xl font-bold text-gray-900 mt-1">
-              {invitations.filter((inv) => inv.status === "expired").length}
-            </p>
-          </div>
+        )}
+
+        {/* Invitations List */}
+        <div className="bg-white rounded-xl border-2 border-gray-200 p-4 sm:p-6">
+          <InvitationList invitations={invitations} onUpdate={fetchInvitations} />
         </div>
       </div>
-
-      {/* Error */}
-      {error && (
-        <div className="mb-6 p-4 bg-red-50 border-2 border-red-200 rounded-lg">
-          <p className="text-red-800 font-medium">{error}</p>
-        </div>
-      )}
-
-      {/* Invitations List */}
-      <div className="bg-white rounded-xl border-2 border-gray-200 p-6">
-        <InvitationList invitations={invitations} onUpdate={fetchInvitations} />
-      </div>
-    </div>
     </DashboardLayout>
   );
 }

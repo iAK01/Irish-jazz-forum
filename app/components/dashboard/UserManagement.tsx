@@ -44,6 +44,7 @@ export default function UserManagement() {
   const [users, setUsers] = useState<User[]>([]);
   const [members, setMembers] = useState<Member[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isMobile, setIsMobile] = useState(false);
   const [deleteModal, setDeleteModal] = useState<DeleteModalState>({
     open: false,
     user: null,
@@ -62,6 +63,13 @@ export default function UserManagement() {
   useEffect(() => {
     fetchUsers();
     fetchMembers();
+  }, []);
+
+  useEffect(() => {
+    const check = () => setIsMobile(window.innerWidth < 768);
+    check();
+    window.addEventListener("resize", check);
+    return () => window.removeEventListener("resize", check);
   }, []);
 
   const fetchUsers = async () => {
@@ -191,7 +199,8 @@ export default function UserManagement() {
         </button>
       </div>
 
-      <div className="bg-white dark:bg-zinc-800 rounded-lg border border-zinc-200 dark:border-zinc-700 overflow-hidden">
+      {/* Desktop Table */}
+      <div style={{ display: isMobile ? "none" : "block" }} className="bg-white dark:bg-zinc-800 rounded-lg border border-zinc-200 dark:border-zinc-700 overflow-hidden">
         <table className="w-full">
           <thead className="bg-zinc-50 dark:bg-zinc-900 border-b border-zinc-200 dark:border-zinc-700">
             <tr>
@@ -277,6 +286,78 @@ export default function UserManagement() {
             ))}
           </tbody>
         </table>
+      </div>
+
+      {/* Mobile Cards */}
+      <div style={{ display: isMobile ? "block" : "none" }} className="space-y-3">
+        {users.map((user) => (
+          <div key={user._id} className="bg-white dark:bg-zinc-800 rounded-lg border border-zinc-200 dark:border-zinc-700 p-4">
+            <div className="flex items-center gap-3 mb-3">
+              {user.image ? (
+                <img src={user.image} alt={user.name} className="h-10 w-10 rounded-full flex-shrink-0" />
+              ) : (
+                <div className="h-10 w-10 rounded-full flex-shrink-0 bg-zinc-200 dark:bg-zinc-600 flex items-center justify-center text-sm font-medium text-zinc-600 dark:text-zinc-300">
+                  {(user.name || user.email)?.[0]?.toUpperCase()}
+                </div>
+              )}
+              <div className="min-w-0">
+                <p className="text-sm font-semibold text-zinc-900 dark:text-zinc-100 truncate">{user.name || "—"}</p>
+                <p className="text-xs text-zinc-500 truncate">{user.email}</p>
+              </div>
+            </div>
+
+            {user.memberOrgs && user.memberOrgs.length > 0 && (
+              <div className="flex flex-wrap gap-1 mb-3">
+                {user.memberOrgs.map((org) => (
+                  <span
+                    key={org.slug}
+                    className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-full bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300"
+                  >
+                    {org.name}
+                    {org.isPrimary && (
+                      <span className="text-amber-600 dark:text-amber-400" title="Primary contact">★</span>
+                    )}
+                  </span>
+                ))}
+              </div>
+            )}
+
+            <div className="mb-3">
+              <label className="text-xs text-zinc-500 uppercase font-medium block mb-1">Role</label>
+              <select
+                value={user.role}
+                onChange={(e) => handleRoleChange(user._id, e.target.value)}
+                disabled={user.role === "super_admin"}
+                className="w-full text-sm border border-zinc-300 dark:border-zinc-600 rounded px-2 py-1.5 bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <option value="public">Public</option>
+                <option value="member">Member</option>
+                <option value="working_group">Working Group</option>
+                <option value="steering">Steering</option>
+                <option value="team">Team</option>
+                <option value="admin">Admin</option>
+                <option value="super_admin">Super Admin</option>
+              </select>
+            </div>
+
+            <div className="flex gap-2">
+              <Link
+                href={`/dashboard/admin/users/${user._id}/working-groups`}
+                className="flex-1 text-center px-3 py-1.5 bg-blue-500 text-white rounded hover:bg-blue-600 transition text-xs font-medium"
+              >
+                Manage Groups
+              </Link>
+              {user.role !== "super_admin" && (
+                <button
+                  onClick={() => openDeleteModal(user)}
+                  className="flex-1 px-3 py-1.5 bg-red-500 text-white rounded hover:bg-red-600 transition text-xs font-medium"
+                >
+                  Delete
+                </button>
+              )}
+            </div>
+          </div>
+        ))}
       </div>
 
       {/* Invite User Modal */}
@@ -379,7 +460,7 @@ export default function UserManagement() {
               </div>
               <div>
                 <span className="text-xs text-zinc-500 uppercase font-medium">Email</span>
-                <p className="text-sm text-zinc-700 dark:text-zinc-300">{deleteModal.user.email}</p>
+                <p className="text-sm text-zinc-700 dark:text-zinc-300 break-all">{deleteModal.user.email}</p>
               </div>
               <div>
                 <span className="text-xs text-zinc-500 uppercase font-medium">Role</span>

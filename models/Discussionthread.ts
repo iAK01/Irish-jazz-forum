@@ -13,6 +13,7 @@ export interface DiscussionThread extends Document {
   createdAt: Date;
   updatedAt: Date;
   lastActivityAt: Date;
+  lastReplyBy: Types.ObjectId | null;
 
   status: string;
 
@@ -61,6 +62,12 @@ const DiscussionThreadSchema = new Schema<DiscussionThread>(
       type: Schema.Types.ObjectId,
       ref: "User",
       required: true,
+    },
+
+     lastReplyBy: {
+      type: Schema.Types.ObjectId,
+      ref: "User",
+      default: null,
     },
 
     lastActivityAt: {
