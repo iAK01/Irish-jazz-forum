@@ -12,12 +12,17 @@ import type { InvitationListItem } from "@/types/invitation";
 export default function AdminInvitationsPage() {
   const { data: session } = useSession();
   const [invitations, setInvitations] = useState<InvitationListItem[]>([]);
+  const [pendingApprovalsCount, setPendingApprovalsCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
   useEffect(() => {
-    fetchInvitations();
+    fetchInitialData();
   }, []);
+
+  const fetchInitialData = async () => {
+    await Promise.all([fetchInvitations(), fetchPendingApprovalsCount()]);
+  };
 
   const fetchInvitations = async () => {
     try {
@@ -36,6 +41,19 @@ export default function AdminInvitationsPage() {
       setError(err.message || "An error occurred");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchPendingApprovalsCount = async () => {
+    try {
+      const response = await fetch("/api/members?status=prospective");
+      const data = await response.json();
+
+      if (response.ok) {
+        setPendingApprovalsCount(data.data?.length || 0);
+      }
+    } catch (err) {
+      console.error("Error fetching pending approvals count:", err);
     }
   };
 
@@ -63,17 +81,33 @@ export default function AdminInvitationsPage() {
                 Manage invitations to join the Irish Jazz Forum
               </p>
             </div>
-            <Link
-              href="/dashboard/admin/invitations/new"
-              className="px-5 py-3 rounded-lg font-semibold text-white transition-all shadow-md hover:shadow-lg text-sm sm:text-base text-center whitespace-nowrap self-start sm:self-auto"
-              style={{ backgroundColor: 'var(--color-ijf-accent)' }}
-            >
-              + Invite New Member
-            </Link>
+            <div className="flex flex-col sm:flex-row gap-3 self-start sm:self-auto">
+              {pendingApprovalsCount > 0 && (
+                <Link
+                  href="/dashboard/admin/members/pending"
+                  className="px-5 py-3 bg-yellow-500 hover:bg-yellow-600 rounded-lg font-semibold text-white transition-all shadow-md hover:shadow-lg text-sm sm:text-base text-center whitespace-nowrap flex items-center justify-center gap-2"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+                  </svg>
+                  Pending Approvals
+                  <span className="px-2 py-0.5 bg-white text-yellow-700 rounded-full text-xs font-bold">
+                    {pendingApprovalsCount}
+                  </span>
+                </Link>
+              )}
+              <Link
+                href="/dashboard/admin/invitations/new"
+                className="px-5 py-3 rounded-lg font-semibold text-white transition-all shadow-md hover:shadow-lg text-sm sm:text-base text-center whitespace-nowrap self-start sm:self-auto"
+                style={{ backgroundColor: "var(--color-ijf-accent)" }}
+              >
+                + Invite New Member
+              </Link>
+            </div>
           </div>
 
           {/* Stats */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 mt-4 sm:mt-6">
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 sm:gap-4 mt-4 sm:mt-6">
             <div className="bg-white rounded-lg border-2 border-gray-200 p-3 sm:p-4">
               <p className="text-xs sm:text-sm text-gray-600 font-medium">Total</p>
               <p className="text-2xl sm:text-3xl font-bold text-gray-900 mt-1">{invitations.length}</p>
@@ -81,6 +115,10 @@ export default function AdminInvitationsPage() {
             <div className="bg-yellow-50 rounded-lg border-2 border-yellow-200 p-3 sm:p-4">
               <p className="text-xs sm:text-sm text-yellow-800 font-medium">Pending</p>
               <p className="text-2xl sm:text-3xl font-bold text-yellow-900 mt-1">{pendingCount}</p>
+            </div>
+            <div className="bg-amber-50 rounded-lg border-2 border-amber-200 p-3 sm:p-4">
+              <p className="text-xs sm:text-sm text-amber-800 font-medium">Pending Approvals</p>
+              <p className="text-2xl sm:text-3xl font-bold text-amber-900 mt-1">{pendingApprovalsCount}</p>
             </div>
             <div className="bg-green-50 rounded-lg border-2 border-green-200 p-3 sm:p-4">
               <p className="text-xs sm:text-sm text-green-800 font-medium">Accepted</p>
@@ -106,7 +144,7 @@ export default function AdminInvitationsPage() {
 
         {/* Invitations List */}
         <div className="bg-white rounded-xl border-2 border-gray-200 p-4 sm:p-6">
-          <InvitationList invitations={invitations} onUpdate={fetchInvitations} />
+          <InvitationList invitations={invitations} onUpdate={fetchInitialData} />
         </div>
       </div>
     </DashboardLayout>
