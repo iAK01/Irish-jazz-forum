@@ -94,12 +94,12 @@ export async function POST(request: Request) {
       publicToMembers,
     } = body;
 
-    if (!workingGroups || !Array.isArray(workingGroups)) {
-      return NextResponse.json(
-        { success: false, error: "workingGroups must be an array" },
-        { status: 400 }
-      );
-    }
+   if (!Array.isArray(workingGroups)) {
+  return NextResponse.json(
+    { success: false, error: "workingGroups must be an array" },
+    { status: 400 }
+  );
+}
 
     if (!title || title.trim().length === 0) {
       return NextResponse.json(
@@ -115,38 +115,42 @@ export async function POST(request: Request) {
       );
     }
 
-    const groups = await WorkingGroupModel.find({
-      slug: { $in: workingGroups },
-    }).lean() as any[];
+let groupIds: string[] = [];
 
-    if (!groups.length) {
-      return NextResponse.json(
-        { success: false, error: "Working group not found" },
-        { status: 404 }
-      );
-    }
+if (workingGroups.length > 0) {
+  const groups = await WorkingGroupModel.find({
+    slug: { $in: workingGroups },
+  }).lean() as any[];
 
-    const groupIds = groups.map((g) => g._id.toString());
-
-    const hasAccess = groupIds.some(
-      (gid: string) =>
-        currentUser.role === "super_admin" ||
-        currentUser.role === "admin" ||
-        currentUser.role === "steering" ||
-        (currentUser.workingGroups || [])
-          .map((g: any) => g.toString())
-          .includes(gid)
+  if (!groups.length) {
+    return NextResponse.json(
+      { success: false, error: "Working group not found" },
+      { status: 404 }
     );
+  }
 
-    if (!hasAccess) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: "Access denied to create threads in these working groups",
-        },
-        { status: 403 }
-      );
-    }
+  groupIds = groups.map((g) => g._id.toString());
+
+  const hasAccess = groupIds.some(
+    (gid: string) =>
+      currentUser.role === "super_admin" ||
+      currentUser.role === "admin" ||
+      currentUser.role === "steering" ||
+      (currentUser.workingGroups || [])
+        .map((g: any) => g.toString())
+        .includes(gid)
+  );
+
+  if (!hasAccess) {
+    return NextResponse.json(
+      {
+        success: false,
+        error: "Access denied to create threads in these working groups",
+      },
+      { status: 403 }
+    );
+  }
+}
 
     const baseSlug = slugify(title, { lower: true, strict: true });
     let slug = baseSlug;
