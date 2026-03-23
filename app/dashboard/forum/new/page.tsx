@@ -281,41 +281,40 @@ function NewThreadContent() {
                         ))}
                       </div>
 
-                      {/* Link */}
-                      <button type="button" tabIndex={-1}
-                        onClick={() => { const url = window.prompt("Enter URL:"); if (url) editor?.chain().focus().setLink({ href: url }).run(); }}
-                        style={{ padding: "0.375rem", borderRadius: "0.375rem", cursor: "pointer", backgroundColor: editor?.isActive("link") ? "var(--color-ijf-accent)" : "white", color: editor?.isActive("link") ? "var(--color-ijf-bg)" : "#374151", border: "1px solid #e5e7eb" }}
-                        title="Insert Link"
-                      ><LinkIcon className="w-4 h-4" /></button>
+                   <button type="button" tabIndex={-1}
+  onClick={() => { const url = window.prompt("Enter URL:"); if (url) editor?.chain().focus().setLink({ href: url }).run(); }}
+  style={{ padding: "0.375rem", borderRadius: "0.375rem", cursor: "pointer", backgroundColor: editor?.isActive("link") ? "#ea580c" : "#fff7ed", color: editor?.isActive("link") ? "white" : "#ea580c", border: "1px solid #fed7aa" }}
+  title="Insert Link"
+><LinkIcon className="w-4 h-4" /></button>
 
                       {/* Divider */}
                       <div style={{ width: "1px", height: "1.5rem", backgroundColor: "#e5e7eb", margin: "0 0.125rem" }} />
 
-                      {/* Paperclip */}
-                      <input ref={fileInputRef} type="file" multiple onChange={handleFileUpload} disabled={uploading} style={{ display: "none" }} />
-                      <button
-                        type="button"
-                        tabIndex={-1}
-                        onClick={() => fileInputRef.current?.click()}
-                        disabled={uploading}
-                        title={uploading ? "Uploading..." : "Attach files"}
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: "0.25rem",
-                          padding: "0.375rem 0.5rem",
-                          borderRadius: "0.375rem",
-                          cursor: uploading ? "wait" : "pointer",
-                          backgroundColor: attachments.length > 0 ? "rgba(228,185,91,0.12)" : "white",
-                          color: attachments.length > 0 ? "var(--color-ijf-accent)" : "#374151",
-                          border: `1px solid ${attachments.length > 0 ? "rgba(228,185,91,0.4)" : "#e5e7eb"}`,
-                          opacity: uploading ? 0.6 : 1,
-                        }}
-                      >
-                        <Paperclip className="w-4 h-4" />
-                        {attachments.length > 0 && <span style={{ fontSize: "0.75rem", fontWeight: 600 }}>{attachments.length}</span>}
-                        {uploading && <span style={{ fontSize: "0.75rem" }}>Uploading...</span>}
-                      </button>
+                 {/* Paperclip */}
+<input ref={fileInputRef} type="file" multiple onChange={handleFileUpload} disabled={uploading} style={{ display: "none" }} />
+<button
+  type="button"
+  tabIndex={-1}
+  onClick={() => fileInputRef.current?.click()}
+  disabled={uploading}
+  title={uploading ? "Uploading..." : "Attach files"}
+  style={{
+    display: "flex",
+    alignItems: "center",
+    gap: "0.25rem",
+    padding: "0.375rem 0.5rem",
+    borderRadius: "0.375rem",
+    cursor: uploading ? "wait" : "pointer",
+    backgroundColor: attachments.length > 0 ? "#dbeafe" : "#eff6ff",
+    color: attachments.length > 0 ? "#1d4ed8" : "#2563eb",
+    border: `1px solid ${attachments.length > 0 ? "#3b82f6" : "#93c5fd"}`,
+    opacity: uploading ? 0.6 : 1,
+  }}
+>
+  <Paperclip className="w-4 h-4" />
+  {attachments.length > 0 && <span style={{ fontSize: "0.75rem", fontWeight: 600 }}>{attachments.length}</span>}
+  {uploading && <span style={{ fontSize: "0.75rem" }}>Uploading...</span>}
+</button>
 
                       <div style={{ flex: 1 }} />
 
@@ -374,7 +373,8 @@ function NewThreadContent() {
 
             </div>
 
-            {/* Public toggle */}
+            {/* Public toggle — working group threads only */}
+            {workingGroup && workingGroup !== "general" && (
             <div
               onClick={() => setValue("publicToMembers", !isPublic)}
               style={{
@@ -404,6 +404,7 @@ function NewThreadContent() {
               </svg>
               <input type="checkbox" {...register("publicToMembers")} style={{ display: "none" }} />
             </div>
+            )}
 
             {/* Footer */}
             <div style={{ marginTop: "1.75rem", paddingTop: "1.25rem", borderTop: "1px solid #f0f0f0", display: "flex", alignItems: "center", justifyContent: "space-between" }}>

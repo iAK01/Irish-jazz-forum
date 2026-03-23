@@ -34,7 +34,7 @@ const editor = useEditor({
   editorProps: {
     attributes: {
       class:
-        "prose prose-sm max-w-none focus:outline-none px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-md",
+       "focus:outline-none px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-md",
       style: `min-height: ${minHeight};`,
     },
   },

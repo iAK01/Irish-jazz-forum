@@ -61,7 +61,7 @@ export default function ReplyComposer({
     content: "",
     editorProps: {
       attributes: {
-        class: "prose prose-sm max-w-none focus:outline-none px-4 py-3",
+        class: "focus:outline-none px-4 py-3",
         style: "min-height: 200px; --tw-prose-links: var(--color-ijf-accent);",
       },
     },
@@ -246,20 +246,19 @@ export default function ReplyComposer({
               </button>
             </div>
 
-            {/* Link */}
-            <button
-              type="button"
-              tabIndex={-1}
-              onClick={() => {
-                const url = window.prompt("Enter URL:");
-                if (url) editor?.chain().focus().setLink({ href: url }).run();
-              }}
-              className={`${toolbarBtn(!!editor?.isActive("link")).className} border border-gray-200 bg-white`}
-              style={toolbarBtn(!!editor?.isActive("link")).style}
-              title="Insert Link"
-            >
-              <LinkIcon className="w-4 h-4" />
-            </button>
+           {/* Link */}
+<button
+  type="button"
+  tabIndex={-1}
+  onClick={() => {
+    const url = window.prompt("Enter URL:");
+    if (url) editor?.chain().focus().setLink({ href: url }).run();
+  }}
+  style={{ padding: "0.5rem", borderRadius: "0.375rem", cursor: "pointer", backgroundColor: editor?.isActive("link") ? "#ea580c" : "#fff7ed", color: editor?.isActive("link") ? "white" : "#ea580c", border: "1px solid #fed7aa" }}
+  title="Insert Link"
+>
+  <LinkIcon className="w-4 h-4" />
+</button>
 
             {/* More tools dropdown */}
             <div ref={moreToolsRef} style={{ position: "relative" }}>
@@ -330,19 +329,21 @@ export default function ReplyComposer({
               className="hidden"
               id="reply-file-upload"
             />
-            <button
-              type="button"
-              tabIndex={-1}
-              onClick={() => fileInputRef.current?.click()}
-              disabled={uploading}
-              className="flex items-center gap-1.5 px-2 py-2 rounded-lg border border-gray-200 bg-white text-gray-700 hover:bg-gray-100 text-sm cursor-pointer transition-colors disabled:opacity-50"
-              title="Attach files"
-              style={attachments.length > 0 ? { borderColor: "var(--color-ijf-accent)", color: "var(--color-ijf-accent)" } : {}}
-            >
-              <Paperclip className="w-4 h-4" />
-              {attachments.length > 0 && <span className="text-xs font-semibold">{attachments.length}</span>}
-              {uploading && <span className="text-xs">Uploading...</span>}
-            </button>
+           <button
+  type="button"
+  tabIndex={-1}
+  onClick={() => fileInputRef.current?.click()}
+  disabled={uploading}
+  className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm cursor-pointer transition-colors disabled:opacity-50"
+  title="Attach files"
+  style={attachments.length > 0
+    ? { backgroundColor: "#dbeafe", borderColor: "#3b82f6", color: "#1d4ed8", border: "1px solid #3b82f6" }
+    : { backgroundColor: "#eff6ff", borderColor: "#93c5fd", color: "#2563eb", border: "1px solid #93c5fd" }}
+>
+  <Paperclip className="w-4 h-4" />
+  {attachments.length > 0 && <span className="text-xs font-semibold">{attachments.length}</span>}
+  {uploading && <span className="text-xs">Uploading...</span>}
+</button>
 
             {/* Spacer */}
             <div className="flex-1" />
