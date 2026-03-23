@@ -3,21 +3,18 @@ import { headers } from "next/headers";
 import dbConnect from "@/lib/mongodb";
 import { ContactSubmissionModel } from "@/models/ContactSubmission";
 import { sendEmail } from "@/lib/email";
+import { requireAuth } from "@/lib/auth";
 
-// Simple in-memory rate limiter — max 3 submissions per IP per hour
 const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
 
 function isRateLimited(ip: string): boolean {
   const now = Date.now();
   const entry = rateLimitMap.get(ip);
-
   if (!entry || now > entry.resetAt) {
     rateLimitMap.set(ip, { count: 1, resetAt: now + 60 * 60 * 1000 });
     return false;
   }
-
   if (entry.count >= 3) return true;
-
   entry.count++;
   return false;
 }
@@ -44,7 +41,6 @@ export async function POST(request: Request) {
       headersList.get("x-real-ip") ||
       "unknown";
 
-    // Rate limiting
     if (isRateLimited(ip)) {
       return NextResponse.json(
         { success: false, error: "Too many submissions. Please try again later." },
@@ -55,13 +51,10 @@ export async function POST(request: Request) {
     const body = await request.json();
     const { name, email, organization, inquiryType, message, honeypot, turnstileToken } = body;
 
-    // Honeypot — bots fill hidden fields, humans don't
     if (honeypot) {
-      // Return success so bots don't know they've been caught
       return NextResponse.json({ success: true, data: { message: "Submitted" } });
     }
 
-    // Turnstile verification
     if (!turnstileToken) {
       return NextResponse.json(
         { success: false, error: "Security check failed. Please try again." },
@@ -77,7 +70,6 @@ export async function POST(request: Request) {
       );
     }
 
-    // Validate required fields
     if (!name || !email || !inquiryType || !message) {
       return NextResponse.json(
         { success: false, error: "Missing required fields" },
@@ -96,7 +88,6 @@ export async function POST(request: Request) {
       status: "new",
     });
 
-    // Admin notification email
     try {
       await sendEmail({
         to: process.env.CONTACT_NOTIFICATION_EMAIL || "hello@irishjazzforum.com",
@@ -119,7 +110,6 @@ export async function POST(request: Request) {
       console.error("Failed to send admin notification email:", emailError);
     }
 
-    // Auto-reply to submitter
     try {
       await sendEmail({
         to: email,
@@ -153,20 +143,34 @@ export async function POST(request: Request) {
   }
 }
 
-// GET /api/contact — admin only, list all submissions
 export async function GET(request: Request) {
   try {
+    await requireAuth(["admin", "super_admin"]);
     await dbConnect();
 
     const { searchParams } = new URL(request.url);
-    const status = searchParams.get("status");
+    const statusParam = searchParams.get("status");
     const inquiryType = searchParams.get("inquiryType");
     const page = parseInt(searchParams.get("page") || "1");
-    const limit = parseInt(searchParams.get("limit") || "20");
+    const limit = parseInt(searchParams.get("limit") || "50");
     const skip = (page - 1) * limit;
 
-    const query: any = {};
-    if (status) query.status = status;
+    const query: Record<string, any> = {};
+
+    if (statusParam === "archived") {
+      query.archived = true;
+    } else if (statusParam === "resolved") {
+      query.status = "resolved";
+      query.archived = { $ne: true };
+    } else if (statusParam === "new" || statusParam === "in-progress") {
+      query.status = statusParam;
+      query.archived = { $ne: true };
+    } else {
+      // Default: active = new + in-progress, non-archived
+      query.status = { $in: ["new", "in-progress"] };
+      query.archived = { $ne: true };
+    }
+
     if (inquiryType) query.inquiryType = inquiryType;
 
     const submissions = await ContactSubmissionModel.find(query)

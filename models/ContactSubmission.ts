@@ -1,5 +1,3 @@
-// /models/ContactSubmission.ts
-
 import { Schema, model, models, Document, Types } from "mongoose";
 
 export interface ContactAttachment {
@@ -19,20 +17,18 @@ export interface ContactSubmission extends Document {
   name: string;
   email: string;
   organization?: string;
-
   inquiryType: string;
   message: string;
   attachment?: ContactAttachment;
-
-  status: 'new' | 'in-progress' | 'resolved';
+  status: "new" | "in-progress" | "resolved";
   assignedTo?: Types.ObjectId;
-
   response?: string;
   respondedAt?: Date;
   respondedBy?: Types.ObjectId;
-
   replies: ContactReply[];
-
+  archived: boolean;
+  archivedAt?: Date;
+  archivedBy?: Types.ObjectId;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -61,54 +57,42 @@ const ContactSubmissionSchema = new Schema<ContactSubmission>(
     name: { type: String, required: true, trim: true },
     email: { type: String, required: true, trim: true, lowercase: true },
     organization: { type: String, trim: true },
-
     inquiryType: {
       type: String,
       required: true,
       enum: [
-        'I want to join the Irish Jazz Forum',
-        'Media inquiry',
-        'Partnership opportunity',
-        'Event/Festival collaboration',
-        'General question',
-        'Technical issue',
-        'Other',
+        "I want to join the Irish Jazz Forum",
+        "Media inquiry",
+        "Partnership opportunity",
+        "Event/Festival collaboration",
+        "General question",
+        "Technical issue",
+        "Other",
       ],
     },
-
     message: { type: String, required: true },
-    attachment: { type: ContactAttachmentSchema },
-
+    attachment: ContactAttachmentSchema,
     status: {
       type: String,
-      enum: ['new', 'in-progress', 'resolved'],
-      default: 'new',
+      enum: ["new", "in-progress", "resolved"],
+      default: "new",
       index: true,
     },
-
-    assignedTo: {
-      type: Schema.Types.ObjectId,
-      ref: 'User',
-    },
-
+    assignedTo: { type: Schema.Types.ObjectId, ref: "User" },
     response: { type: String },
     respondedAt: { type: Date },
-    respondedBy: {
-      type: Schema.Types.ObjectId,
-      ref: 'User',
-    },
-
-    replies: {
-      type: [ContactReplySchema],
-      default: [],
-    },
+    respondedBy: { type: Schema.Types.ObjectId, ref: "User" },
+    replies: { type: [ContactReplySchema], default: [] },
+    archived: { type: Boolean, default: false, index: true },
+    archivedAt: { type: Date },
+    archivedBy: { type: Schema.Types.ObjectId, ref: "User" },
   },
   { timestamps: true }
 );
 
-ContactSubmissionSchema.index({ status: 1, createdAt: -1 });
+ContactSubmissionSchema.index({ archived: 1, status: 1, createdAt: -1 });
 ContactSubmissionSchema.index({ inquiryType: 1, createdAt: -1 });
 
 export const ContactSubmissionModel =
   models.ContactSubmission ||
-  model<ContactSubmission>('ContactSubmission', ContactSubmissionSchema);
+  model<ContactSubmission>("ContactSubmission", ContactSubmissionSchema);

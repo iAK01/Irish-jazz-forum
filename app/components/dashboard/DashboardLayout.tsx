@@ -95,7 +95,7 @@ export default function DashboardLayout({ children, title, userName, role }: Das
     },
     {
       href: "/dashboard/admin/contact",
-      label: "Queries",
+      label: "Enquiries",
       match: "/dashboard/admin/contact",
       roles: ["admin", "super_admin"],
       icon: (

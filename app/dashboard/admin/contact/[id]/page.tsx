@@ -16,7 +16,15 @@ interface ContactSubmission {
   response?: string;
   respondedAt?: string;
   respondedBy?: { name: string; email: string };
+  archived?: boolean;
+  archivedAt?: string;
+  archivedBy?: { name: string; email: string };
   createdAt: string;
+  replies?: {
+    body: string;
+    from: string;
+    createdAt: string;
+  }[];
 }
 
 export default function ContactSubmissionPage() {
@@ -32,6 +40,8 @@ export default function ContactSubmissionPage() {
   const [sendingReply, setSendingReply] = useState(false);
   const [replyError, setReplyError] = useState("");
   const [updatingStatus, setUpdatingStatus] = useState(false);
+  const [archiving, setArchiving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     if (session?.user) {
@@ -77,6 +87,41 @@ export default function ContactSubmissionPage() {
     }
   };
 
+  const handleArchive = async (archive: boolean) => {
+    setArchiving(true);
+    try {
+      const res = await fetch(`/api/contact/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ archive }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) throw new Error(data.error || "Failed to update");
+      setSubmission(data.data);
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setArchiving(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    const ok = window.confirm(
+      "Permanently delete this submission? This cannot be undone."
+    );
+    if (!ok) return;
+    setDeleting(true);
+    try {
+      const res = await fetch(`/api/contact/${id}`, { method: "DELETE" });
+      const data = await res.json();
+      if (!res.ok || !data.success) throw new Error(data.error || "Failed to delete");
+      router.push("/dashboard/admin/contact");
+    } catch (err: any) {
+      setError(err.message);
+      setDeleting(false);
+    }
+  };
+
   const handleSendReply = async () => {
     if (!reply.trim()) {
       setReplyError("Please write a reply before sending.");
@@ -111,7 +156,10 @@ export default function ContactSubmissionPage() {
     return (
       <DashboardLayout title="Contact Submission" userName={session?.user?.name || ""}>
         <div className="text-center py-12">
-          <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2" style={{ borderColor: "var(--color-ijf-accent)" }} />
+          <div
+            className="inline-block animate-spin rounded-full h-12 w-12 border-b-2"
+            style={{ borderColor: "var(--color-ijf-accent)" }}
+          />
           <p className="text-gray-500 mt-4">Loading submission...</p>
         </div>
       </DashboardLayout>
@@ -142,6 +190,31 @@ export default function ContactSubmissionPage() {
           Back to submissions
         </button>
 
+        {/* Archived banner */}
+        {submission.archived && (
+          <div className="flex items-center gap-3 px-5 py-4 bg-amber-50 border border-amber-200 rounded-xl">
+            <svg className="w-5 h-5 text-amber-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8l1 12a2 2 0 002 2h8a2 2 0 002-2l1-12M10 12v4m4-4v4" />
+            </svg>
+            <p className="flex-1 text-sm font-medium text-amber-800">
+              Archived
+              {submission.archivedAt && (
+                <span className="font-normal text-amber-700 ml-1">
+                  — {new Date(submission.archivedAt).toLocaleDateString("en-IE")}
+                  {submission.archivedBy && ` by ${submission.archivedBy.name}`}
+                </span>
+              )}
+            </p>
+            <button
+              onClick={() => handleArchive(false)}
+              disabled={archiving}
+              className="text-sm font-medium text-amber-800 hover:text-amber-900 underline disabled:opacity-50"
+            >
+              {archiving ? "Restoring..." : "Restore"}
+            </button>
+          </div>
+        )}
+
         {/* Submission detail */}
         <div className="bg-white dark:bg-zinc-800 rounded-xl border border-zinc-200 dark:border-zinc-700 overflow-hidden">
           <div className="px-6 py-5 border-b border-zinc-200 dark:border-zinc-700 flex items-start justify-between gap-4">
@@ -167,17 +240,22 @@ export default function ContactSubmissionPage() {
             </div>
             <div className="text-right text-sm text-zinc-500 flex-shrink-0">
               {new Date(submission.createdAt).toLocaleDateString("en-IE", {
-                day: "numeric", month: "long", year: "numeric",
+                day: "numeric",
+                month: "long",
+                year: "numeric",
               })}
               <br />
               {new Date(submission.createdAt).toLocaleTimeString("en-IE", {
-                hour: "2-digit", minute: "2-digit",
+                hour: "2-digit",
+                minute: "2-digit",
               })}
             </div>
           </div>
           <div className="px-6 py-5">
             <h3 className="text-xs font-semibold text-zinc-500 uppercase tracking-wider mb-3">Message</h3>
-            <p className="text-zinc-800 dark:text-zinc-200 leading-relaxed whitespace-pre-wrap">{submission.message}</p>
+            <p className="text-zinc-800 dark:text-zinc-200 leading-relaxed whitespace-pre-wrap">
+              {submission.message}
+            </p>
           </div>
         </div>
 
@@ -195,11 +273,56 @@ export default function ContactSubmissionPage() {
                     ? "text-white shadow"
                     : "bg-zinc-100 dark:bg-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-zinc-600"
                 }`}
-                style={submission.status === s ? { backgroundColor: "var(--color-ijf-accent)", color: "var(--color-ijf-bg)" } : {}}
+                style={
+                  submission.status === s
+                    ? { backgroundColor: "var(--color-ijf-accent)", color: "var(--color-ijf-bg)" }
+                    : {}
+                }
               >
                 {s.charAt(0).toUpperCase() + s.slice(1).replace("-", " ")}
               </button>
             ))}
+          </div>
+        </div>
+
+        {/* Archive / Delete */}
+        <div className="bg-white dark:bg-zinc-800 rounded-xl border border-zinc-200 dark:border-zinc-700 px-6 py-5">
+          <h3 className="text-sm font-semibold text-zinc-700 dark:text-zinc-300 mb-3">Actions</h3>
+          <div className="flex gap-3">
+            {!submission.archived ? (
+              <button
+                onClick={() => handleArchive(true)}
+                disabled={archiving}
+                className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-zinc-100 dark:bg-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-zinc-600 transition disabled:opacity-50"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8l1 12a2 2 0 002 2h8a2 2 0 002-2l1-12M10 12v4m4-4v4" />
+                </svg>
+                {archiving ? "Archiving..." : "Archive"}
+              </button>
+            ) : (
+              <button
+                onClick={() => handleArchive(false)}
+                disabled={archiving}
+                className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-amber-50 text-amber-700 hover:bg-amber-100 border border-amber-200 transition disabled:opacity-50"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
+                </svg>
+                {archiving ? "Restoring..." : "Restore from archive"}
+              </button>
+            )}
+
+            <button
+              onClick={handleDelete}
+              disabled={deleting}
+              className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-red-50 text-red-700 hover:bg-red-100 border border-red-200 transition disabled:opacity-50"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+              </svg>
+              {deleting ? "Deleting..." : "Delete permanently"}
+            </button>
           </div>
         </div>
 
@@ -218,7 +341,25 @@ export default function ContactSubmissionPage() {
                 </span>
               )}
             </div>
-            <p className="text-sm text-green-900 dark:text-green-200 whitespace-pre-wrap">{submission.response}</p>
+            <p className="text-sm text-green-900 dark:text-green-200 whitespace-pre-wrap">
+              {submission.response}
+            </p>
+          </div>
+        )}
+
+        {submission.replies && submission.replies.length > 0 && (
+          <div className="bg-white dark:bg-zinc-800 rounded-xl border border-zinc-200 dark:border-zinc-700 px-6 py-5">
+            <h3 className="text-sm font-semibold text-zinc-700 dark:text-zinc-300 mb-3">Email Replies</h3>
+            <div className="space-y-4">
+              {submission.replies.map((r, i) => (
+                <div key={i} className="border border-zinc-200 dark:border-zinc-700 rounded-lg p-4">
+                  <div className="text-xs text-zinc-500 mb-2">
+                    {r.from} — {new Date(r.createdAt).toLocaleString("en-IE")}
+                  </div>
+                  <p className="text-sm whitespace-pre-wrap text-zinc-800 dark:text-zinc-200">{r.body}</p>
+                </div>
+              ))}
+            </div>
           </div>
         )}
 
@@ -228,11 +369,14 @@ export default function ContactSubmissionPage() {
             {submission.response ? "Send Another Reply" : `Reply to ${submission.name}`}
           </h3>
           <p className="text-xs text-zinc-500 mb-3">
-            Will be sent to <span className="font-medium">{submission.email}</span> and status will be set to resolved.
+            Will be sent to <span className="font-medium">{submission.email}</span> and status will be set to in-progress.
           </p>
           <textarea
             value={reply}
-            onChange={(e) => { setReply(e.target.value); setReplyError(""); }}
+            onChange={(e) => {
+              setReply(e.target.value);
+              setReplyError("");
+            }}
             rows={6}
             placeholder={`Hi ${submission.name},\n\nThank you for getting in touch...`}
             className="w-full px-4 py-3 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 text-sm resize-none"

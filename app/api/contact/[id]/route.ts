@@ -16,6 +16,7 @@ export async function GET(
     const submission = await ContactSubmissionModel.findById(id)
       .populate("respondedBy", "name email")
       .populate("assignedTo", "name email")
+      .populate("archivedBy", "name email")
       .lean();
 
     if (!submission) {
@@ -27,10 +28,7 @@ export async function GET(
 
     return NextResponse.json({ success: true, data: submission });
   } catch (error: any) {
-    return NextResponse.json(
-      { success: false, error: error.message },
-      { status: 403 }
-    );
+    return NextResponse.json({ success: false, error: error.message }, { status: 403 });
   }
 }
 
@@ -44,7 +42,7 @@ export async function PATCH(
 
     const { id } = await params;
     const body = await request.json();
-    const { status, reply } = body;
+    const { status, reply, archive } = body;
 
     const submission = await ContactSubmissionModel.findById(id);
     if (!submission) {
@@ -54,6 +52,31 @@ export async function PATCH(
       );
     }
 
+    // Archive / unarchive
+    if (typeof archive === "boolean") {
+      if (archive) {
+        await ContactSubmissionModel.findByIdAndUpdate(id, {
+          $set: {
+            archived: true,
+            archivedAt: new Date(),
+            archivedBy: (authUser as any)._id,
+          },
+        });
+      } else {
+        await ContactSubmissionModel.findByIdAndUpdate(id, {
+          $set: { archived: false },
+          $unset: { archivedAt: 1, archivedBy: 1 },
+        });
+      }
+
+      const populated = await ContactSubmissionModel.findById(id)
+        .populate("respondedBy", "name email")
+        .populate("archivedBy", "name email")
+        .lean();
+
+      return NextResponse.json({ success: true, data: populated });
+    }
+
     // Status update only
     if (status && !reply) {
       submission.status = status;
@@ -61,7 +84,7 @@ export async function PATCH(
       return NextResponse.json({ success: true, data: submission });
     }
 
-    // Reply — send email, log it, mark resolved
+    // Reply — send email, log it, mark in-progress
     if (reply) {
       await sendEmail({
         to: submission.email,
@@ -98,9 +121,30 @@ export async function PATCH(
       { status: 400 }
     );
   } catch (error: any) {
-    return NextResponse.json(
-      { success: false, error: error.message },
-      { status: 403 }
-    );
+    return NextResponse.json({ success: false, error: error.message }, { status: 403 });
+  }
+}
+
+export async function DELETE(
+  request: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    await requireAuth(["admin", "super_admin"]);
+    await dbConnect();
+
+    const { id } = await params;
+    const submission = await ContactSubmissionModel.findByIdAndDelete(id);
+
+    if (!submission) {
+      return NextResponse.json(
+        { success: false, error: "Submission not found" },
+        { status: 404 }
+      );
+    }
+
+    return NextResponse.json({ success: true, data: { message: "Submission deleted" } });
+  } catch (error: any) {
+    return NextResponse.json({ success: false, error: error.message }, { status: 403 });
   }
 }
