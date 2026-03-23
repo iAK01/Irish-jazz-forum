@@ -27,7 +27,7 @@ export async function sendEmail({ to, subject, html, from, replyTo }: EmailOptio
  const info = await transporter.sendMail({
   from: from || process.env.SMTP_FROM || 'Irish Jazz Forum <hello@irishjazzforum.com>',
   to: Array.isArray(to) ? to.join(', ') : to,
-  replyTo: replyTo,
+  replyTo: 'hello@irishjazzforum.com',
   subject,
   html,
 });
