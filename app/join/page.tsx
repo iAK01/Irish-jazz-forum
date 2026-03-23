@@ -92,8 +92,8 @@ function JoinContent() {
           <p className="text-gray-600 mb-6">{error}</p>
           <p className="text-sm text-gray-500">
             Contact{" "}
-            <a href="mailto:info@irishjazzforum.ie" style={{ color: "#4CBB5A" }} className="font-medium">
-              info@irishjazzforum.ie
+            <a href="mailto:hello@irishjazzforum.com" style={{ color: "#4CBB5A" }} className="font-medium">
+              hello[at]irishjazzforum[dot]com
             </a>
           </p>
         </div>

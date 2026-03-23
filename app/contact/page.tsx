@@ -319,8 +319,8 @@ export default function ContactPage() {
               <div className="text-gray-300">
                 <p>
                   <span className="font-semibold text-white">Email:</span>{" "}
-                  <a href="mailto:info@irishjazzforum.ie" className="hover:underline" style={{ color: "var(--color-ijf-accent)" }}>
-                    info@irishjazzforum.ie
+                  <a href="mailto:hello@irishjazzforum.com" className="hover:underline" style={{ color: "var(--color-ijf-accent)" }}>
+                    hello[at]irishjazzforum[dot]com
                   </a>
                 </p>
               </div>

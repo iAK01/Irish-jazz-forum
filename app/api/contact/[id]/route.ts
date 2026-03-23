@@ -66,7 +66,7 @@ export async function PATCH(
       await sendEmail({
         to: submission.email,
         subject: `Re: Your message to the Irish Jazz Forum`,
-        replyTo: process.env.CONTACT_NOTIFICATION_EMAIL || "info@irishjazzforum.ie",
+        replyTo: process.env.CONTACT_NOTIFICATION_EMAIL || "hello@irishjazzforum.com",
         html: `
           <p>Hi ${submission.name},</p>
           <p>${reply.replace(/\n/g, "<br>")}</p>

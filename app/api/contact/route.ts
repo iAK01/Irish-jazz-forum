@@ -99,7 +99,7 @@ export async function POST(request: Request) {
     // Admin notification email
     try {
       await sendEmail({
-        to: process.env.CONTACT_NOTIFICATION_EMAIL || "info@irishjazzforum.ie",
+        to: process.env.CONTACT_NOTIFICATION_EMAIL || "hello@irishjazzforum.com",
         subject: `New Contact Form Submission: ${inquiryType}`,
         html: `
           <h2>New Contact Form Submission</h2>
