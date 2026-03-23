@@ -65,7 +65,7 @@ export async function PATCH(
     if (reply) {
       await sendEmail({
         to: submission.email,
-        subject: `Re: Your message to the Irish Jazz Forum`,
+        subject: `[SUB-${submission._id}] Re: Your message to the Irish Jazz Forum`,
         replyTo: process.env.CONTACT_NOTIFICATION_EMAIL || "hello@irishjazzforum.com",
         html: `
           <p>Hi ${submission.name},</p>

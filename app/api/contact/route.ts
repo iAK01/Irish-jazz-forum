@@ -100,7 +100,8 @@ export async function POST(request: Request) {
     try {
       await sendEmail({
         to: process.env.CONTACT_NOTIFICATION_EMAIL || "hello@irishjazzforum.com",
-        subject: `New Contact Form Submission: ${inquiryType}`,
+        replyTo: 'hello@irishjazzforum.com',
+        subject: `[SUB-${submission._id}] New Contact Form Submission: ${inquiryType}`,
         html: `
           <h2>New Contact Form Submission</h2>
           <p><strong>Name:</strong> ${name}</p>
@@ -122,7 +123,8 @@ export async function POST(request: Request) {
     try {
       await sendEmail({
         to: email,
-        subject: "Thank you for contacting the Irish Jazz Forum",
+        replyTo: 'hello@irishjazzforum.com',
+        subject: `[SUB-${submission._id}] Thank you for contacting the Irish Jazz Forum`,
         html: `
           <h2>Thank you for your message</h2>
           <p>Hi ${name},</p>
