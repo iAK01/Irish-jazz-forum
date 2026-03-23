@@ -83,7 +83,7 @@ export async function PATCH(
       submission.response = reply;
       submission.respondedAt = new Date();
       submission.respondedBy = (authUser as any)._id;
-      submission.status = "resolved";
+      submission.status = "in-progress";
       await submission.save();
 
       const populated = await ContactSubmissionModel.findById(id)
