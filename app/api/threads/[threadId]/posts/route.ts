@@ -4,7 +4,11 @@ import { NextResponse } from "next/server";
 import dbConnect from "@/lib/mongodb";
 import { DiscussionThreadModel } from "@/models/Discussionthread";
 import { DiscussionPostModel } from "@/models/Discussionpost";
+import { UserModel } from "@/models/User";
+import { WorkingGroupModel } from "@/models/Workinggroup";
 import { requireAuth } from "@/lib/auth";
+import { parseMentionIds } from "@/lib/parseMentions";
+import { sendMentionNotificationEmail } from "@/lib/email";
 
 export async function GET(
   request: Request,
@@ -85,12 +89,10 @@ export async function GET(
     });
 
   } catch (error: any) {
-
     return NextResponse.json(
       { success: false, error: error.message },
       { status: 500 }
     );
-
   }
 }
 
@@ -99,7 +101,6 @@ export async function POST(
   { params }: { params: Promise<{ threadId: string }> }
 ) {
   try {
-
     const currentUser = await requireAuth();
     await dbConnect();
     const { threadId } = await params;
@@ -131,7 +132,6 @@ export async function POST(
     }
 
     if (thread.workingGroups && thread.workingGroups.length > 0 && !thread.publicToMembers) {
-
       const groupIds = thread.workingGroups.map((g: any) => g.toString());
 
       const hasAccess =
@@ -152,11 +152,15 @@ export async function POST(
       }
     }
 
+    // Parse mention IDs from the HTML content
+    const mentionIds = parseMentionIds(content);
+
     const post = await DiscussionPostModel.create({
       threadId: threadId,
       content: content.trim(),
       createdBy: currentUser._id,
       attachments: attachments || [],
+      mentions: mentionIds,
       deleted: false,
     });
 
@@ -170,14 +174,55 @@ export async function POST(
       .populate("createdBy", "name image email")
       .lean();
 
+    // Fire mention emails — non-blocking, never breaks the response
+    if (mentionIds.length > 0) {
+      (async () => {
+        try {
+          // Resolve working group slug for the thread URL
+          let forumPath = "general";
+          if (thread.workingGroups && thread.workingGroups.length > 0) {
+            const wg = await WorkingGroupModel.findById(
+              thread.workingGroups[0]
+            )
+              .select("slug")
+              .lean() as any;
+            if (wg?.slug) forumPath = wg.slug;
+          }
+
+          const threadUrl = `${process.env.NEXT_PUBLIC_BASE_URL}/dashboard/forum/${forumPath}/${thread.slug}`;
+
+          const mentionedUsers = await UserModel.find({
+            _id: { $in: mentionIds },
+          })
+            .select("name email")
+            .lean() as any[];
+
+          for (const user of mentionedUsers) {
+            if (!user.email) continue;
+            try {
+              await sendMentionNotificationEmail({
+                to: user.email,
+                mentionedName: user.name,
+                mentionerName: currentUser.name,
+                threadTitle: thread.title,
+                threadUrl,
+              });
+            } catch (err) {
+              console.error(`Failed to send mention email to ${user.email}:`, err);
+            }
+          }
+        } catch (err) {
+          console.error("Mention notification block failed:", err);
+        }
+      })();
+    }
+
     return NextResponse.json({ success: true, data: populatedPost });
 
   } catch (error: any) {
-
     return NextResponse.json(
       { success: false, error: error.message },
       { status: 500 }
     );
-
   }
 }

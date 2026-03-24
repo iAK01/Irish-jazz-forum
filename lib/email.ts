@@ -1,5 +1,4 @@
-// MODIFICATION FOR: /lib/email.ts
-// CHANGE: Add helper functions for invitation email templates
+// /lib/email.ts
 
 import nodemailer from 'nodemailer';
 
@@ -32,7 +31,6 @@ export async function sendEmail({ to, subject, html, from }: EmailOptions) {
   return info;
 }
 
-// ADDED: Helper functions for invitation emails
 export async function sendInvitationEmail(params: {
   to: string;
   inviterName: string;
@@ -117,4 +115,36 @@ export async function sendMemberRejectedEmail(params: {
   const subject = generateMemberRejectedSubject();
 
   return sendEmail({ to: params.to, subject, html });
+}
+
+export async function sendMentionNotificationEmail(params: {
+  to: string;
+  mentionedName: string;
+  mentionerName: string;
+  threadTitle: string;
+  threadUrl: string;
+}) {
+  const {
+    generateMentionNotificationEmail,
+    generateMentionNotificationSubject,
+  } = await import('@/lib/email-templates/mention-notification');
+
+  const html = generateMentionNotificationEmail({
+    mentionedName: params.mentionedName,
+    mentionerName: params.mentionerName,
+    threadTitle: params.threadTitle,
+    threadUrl: params.threadUrl,
+  });
+
+  const subject = generateMentionNotificationSubject(
+    params.mentionerName,
+    params.threadTitle
+  );
+
+  return sendEmail({
+    to: params.to,
+    subject,
+    html,
+    from: 'Irish Jazz Forum <hello@irishjazzforum.com>',
+  });
 }

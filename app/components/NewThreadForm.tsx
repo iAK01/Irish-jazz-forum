@@ -9,6 +9,8 @@ import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Link from "@tiptap/extension-link";
 import Placeholder from "@tiptap/extension-placeholder";
+import Mention from "@tiptap/extension-mention";
+import { mentionSuggestion } from "@/lib/mentionSuggestion";
 import DashboardLayout from "@/app/components/dashboard/DashboardLayout";
 
 interface ThreadFormData {
@@ -34,20 +36,26 @@ function NewThreadFormContent() {
   const [uploading, setUploading] = useState(false);
 
   const editor = useEditor({
+    immediatelyRender: false,
     extensions: [
       StarterKit,
-      Link.configure({
-        openOnClick: false,
-      }),
+      Link.configure({ openOnClick: false }),
       Placeholder.configure({
-        placeholder: "Write your post...",
+        placeholder: "Write your post — type @ to mention someone",
+      }),
+      Mention.configure({
+        HTMLAttributes: {
+          class: "mention",
+          style:
+            "background: rgba(228,185,91,0.15); color: #92701a; border-radius: 4px; padding: 1px 4px; font-weight: 600;",
+        },
+        suggestion: mentionSuggestion,
       }),
     ],
     content: "",
     editorProps: {
       attributes: {
-        class:
-          "focus:outline-none px-4 py-4",
+        class: "focus:outline-none px-4 py-4",
       },
     },
   });
@@ -162,10 +170,7 @@ function NewThreadFormContent() {
   };
 
   return (
-    <DashboardLayout
-      title="New Thread"
-      userName={session?.user?.name || ""}
-    >
+    <DashboardLayout title="New Thread" userName={session?.user?.name || ""}>
       <div className="max-w-4xl mx-auto">
         <div className="mb-6">
           <button
@@ -257,7 +262,9 @@ function NewThreadFormContent() {
                   </button>
                   <button
                     type="button"
-                    onClick={() => editor?.chain().focus().toggleItalic().run()}
+                    onClick={() =>
+                      editor?.chain().focus().toggleItalic().run()
+                    }
                     className={`px-3 py-1 rounded text-sm ${
                       editor?.isActive("italic")
                         ? "bg-ijf-accent text-ijf-bg"
@@ -268,7 +275,9 @@ function NewThreadFormContent() {
                   </button>
                   <button
                     type="button"
-                    onClick={() => editor?.chain().focus().toggleStrike().run()}
+                    onClick={() =>
+                      editor?.chain().focus().toggleStrike().run()
+                    }
                     className={`px-3 py-1 rounded text-sm ${
                       editor?.isActive("strike")
                         ? "bg-ijf-accent text-ijf-bg"
@@ -281,7 +290,11 @@ function NewThreadFormContent() {
                   <button
                     type="button"
                     onClick={() =>
-                      editor?.chain().focus().toggleHeading({ level: 2 }).run()
+                      editor
+                        ?.chain()
+                        .focus()
+                        .toggleHeading({ level: 2 })
+                        .run()
                     }
                     className={`px-3 py-1 rounded text-sm ${
                       editor?.isActive("heading", { level: 2 })
@@ -294,7 +307,11 @@ function NewThreadFormContent() {
                   <button
                     type="button"
                     onClick={() =>
-                      editor?.chain().focus().toggleHeading({ level: 3 }).run()
+                      editor
+                        ?.chain()
+                        .focus()
+                        .toggleHeading({ level: 3 })
+                        .run()
                     }
                     className={`px-3 py-1 rounded text-sm ${
                       editor?.isActive("heading", { level: 3 })
@@ -337,11 +354,7 @@ function NewThreadFormContent() {
                     onClick={() => {
                       const url = window.prompt("Enter URL:");
                       if (url) {
-                        editor
-                          ?.chain()
-                          .focus()
-                          .setLink({ href: url })
-                          .run();
+                        editor?.chain().focus().setLink({ href: url }).run();
                       }
                     }}
                     className={`px-3 py-1 rounded text-sm ${
@@ -374,7 +387,11 @@ function NewThreadFormContent() {
                 <EditorContent
                   editor={editor}
                   className="bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                  style={{ minHeight: "200px" }}
                 />
+                <p className="px-4 py-2 text-xs text-gray-400 bg-gray-50 dark:bg-gray-900 border-t border-gray-200 dark:border-gray-600">
+                  Type @ to mention a member
+                </p>
               </div>
             </div>
 
@@ -450,11 +467,13 @@ function NewThreadFormContent() {
 
 export default function NewThreadPage() {
   return (
-    <Suspense fallback={
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900"></div>
-      </div>
-    }>
+    <Suspense
+      fallback={
+        <div className="min-h-screen flex items-center justify-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900"></div>
+        </div>
+      }
+    >
       <NewThreadFormContent />
     </Suspense>
   );

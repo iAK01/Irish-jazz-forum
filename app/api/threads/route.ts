@@ -4,7 +4,10 @@ import { NextResponse } from "next/server";
 import dbConnect from "@/lib/mongodb";
 import { DiscussionThreadModel } from "@/models/Discussionthread";
 import { WorkingGroupModel } from "@/models/Workinggroup";
+import { UserModel } from "@/models/User";
 import { requireAuth } from "@/lib/auth";
+import { parseMentionIds } from "@/lib/parseMentions";
+import { sendMentionNotificationEmail } from "@/lib/email";
 import slugify from "slugify";
 
 export async function GET(request: Request) {
@@ -51,10 +54,7 @@ export async function GET(request: Request) {
           .includes(groupId);
 
       if (isMember) {
-        query = {
-          workingGroups: groupId,
-          deleted: { $ne: true },
-        };
+        query = { workingGroups: groupId, deleted: { $ne: true } };
       } else {
         query = {
           workingGroups: groupId,
@@ -85,21 +85,14 @@ export async function POST(request: Request) {
     await dbConnect();
 
     const body = await request.json();
-    const {
-      workingGroups,
-      title,
-      tags,
-      content,
-      attachments,
-      publicToMembers,
-    } = body;
+    const { workingGroups, title, tags, content, attachments, publicToMembers } = body;
 
-   if (!Array.isArray(workingGroups)) {
-  return NextResponse.json(
-    { success: false, error: "workingGroups must be an array" },
-    { status: 400 }
-  );
-}
+    if (!Array.isArray(workingGroups)) {
+      return NextResponse.json(
+        { success: false, error: "workingGroups must be an array" },
+        { status: 400 }
+      );
+    }
 
     if (!title || title.trim().length === 0) {
       return NextResponse.json(
@@ -115,42 +108,43 @@ export async function POST(request: Request) {
       );
     }
 
-let groupIds: string[] = [];
+    let groupIds: string[] = [];
+    let resolvedGroups: any[] = [];
 
-if (workingGroups.length > 0) {
-  const groups = await WorkingGroupModel.find({
-    slug: { $in: workingGroups },
-  }).lean() as any[];
+    if (workingGroups.length > 0) {
+      resolvedGroups = await WorkingGroupModel.find({
+        slug: { $in: workingGroups },
+      }).lean() as any[];
 
-  if (!groups.length) {
-    return NextResponse.json(
-      { success: false, error: "Working group not found" },
-      { status: 404 }
-    );
-  }
+      if (!resolvedGroups.length) {
+        return NextResponse.json(
+          { success: false, error: "Working group not found" },
+          { status: 404 }
+        );
+      }
 
-  groupIds = groups.map((g) => g._id.toString());
+      groupIds = resolvedGroups.map((g) => g._id.toString());
 
-  const hasAccess = groupIds.some(
-    (gid: string) =>
-      currentUser.role === "super_admin" ||
-      currentUser.role === "admin" ||
-      currentUser.role === "steering" ||
-      (currentUser.workingGroups || [])
-        .map((g: any) => g.toString())
-        .includes(gid)
-  );
+      const hasAccess = groupIds.some(
+        (gid: string) =>
+          currentUser.role === "super_admin" ||
+          currentUser.role === "admin" ||
+          currentUser.role === "steering" ||
+          (currentUser.workingGroups || [])
+            .map((g: any) => g.toString())
+            .includes(gid)
+      );
 
-  if (!hasAccess) {
-    return NextResponse.json(
-      {
-        success: false,
-        error: "Access denied to create threads in these working groups",
-      },
-      { status: 403 }
-    );
-  }
-}
+      if (!hasAccess) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: "Access denied to create threads in these working groups",
+          },
+          { status: 403 }
+        );
+      }
+    }
 
     const baseSlug = slugify(title, { lower: true, strict: true });
     let slug = baseSlug;
@@ -179,11 +173,15 @@ if (workingGroups.length > 0) {
     const DiscussionPostModel =
       require("@/models/Discussionpost").DiscussionPostModel;
 
+    // Parse mention IDs from the initial post content
+    const mentionIds = parseMentionIds(content);
+
     await DiscussionPostModel.create({
       threadId: thread._id,
       content: content.trim(),
       createdBy: currentUser._id,
       attachments: attachments || [],
+      mentions: mentionIds,
       deleted: false,
     });
 
@@ -191,6 +189,40 @@ if (workingGroups.length > 0) {
       .populate("createdBy", "name image email")
       .populate("lastReplyBy", "name image email")
       .lean();
+
+    // Fire mention emails — non-blocking, never breaks the response
+    if (mentionIds.length > 0) {
+      (async () => {
+        try {
+          const forumPath =
+            resolvedGroups.length > 0 ? resolvedGroups[0].slug : "general";
+          const threadUrl = `${process.env.NEXT_PUBLIC_BASE_URL}/dashboard/forum/${forumPath}/${slug}`;
+
+          const mentionedUsers = await UserModel.find({
+            _id: { $in: mentionIds },
+          })
+            .select("name email")
+            .lean() as any[];
+
+          for (const user of mentionedUsers) {
+            if (!user.email) continue;
+            try {
+              await sendMentionNotificationEmail({
+                to: user.email,
+                mentionedName: user.name,
+                mentionerName: currentUser.name,
+                threadTitle: title.trim(),
+                threadUrl,
+              });
+            } catch (err) {
+              console.error(`Failed to send mention email to ${user.email}:`, err);
+            }
+          }
+        } catch (err) {
+          console.error("Mention notification block failed:", err);
+        }
+      })();
+    }
 
     return NextResponse.json({ success: true, data: populatedThread });
   } catch (error: any) {

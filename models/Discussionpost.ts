@@ -1,36 +1,28 @@
+// /models/Discussionpost.ts
+
 import { Schema, model, models, Document, Types } from "mongoose";
 
 export interface FileAttachment {
   filename: string;
-  url: string; // Google Cloud Storage URL
+  url: string;
   mimetype: string;
-  size: number; // in bytes
+  size: number;
   uploadedAt: Date;
-  storage: 'gcs' | 'drive';  // ADD THIS
-  gcsFilename?: string;      // ADD THIS
-  driveFileId?: string;      // ADD THIS
+  storage: "gcs" | "drive";
+  gcsFilename?: string;
+  driveFileId?: string;
 }
 
 export interface DiscussionPost extends Document {
-  // Thread reference
-  threadId: Types.ObjectId; // Reference to DiscussionThread
-  
-  // Content
-  content: string; // Rich text HTML from react-quill
-  
-  // Author
-  createdBy: Types.ObjectId; // Reference to User
+  threadId: Types.ObjectId;
+  content: string;
+  createdBy: Types.ObjectId;
   createdAt: Date;
   updatedAt: Date;
-  
-  // Edit tracking
   editedAt?: Date;
-  editedBy?: Types.ObjectId; // Reference to User who edited
-  
-  // File attachments (stored in Google Cloud Storage)
+  editedBy?: Types.ObjectId;
   attachments: FileAttachment[];
-  
-  // Soft deletion
+  mentions: Types.ObjectId[];
   deleted: boolean;
   deletedAt: Date | null;
   deletedBy: Types.ObjectId | null;
@@ -38,38 +30,16 @@ export interface DiscussionPost extends Document {
 
 const FileAttachmentSchema = new Schema<FileAttachment>(
   {
-    filename: {
-      type: String,
-      required: true,
-    },
-    url: {
-      type: String,
-      required: true,
-    },
-    mimetype: {
-      type: String,
-      required: true,
-    },
-    size: {
-      type: Number,
-      required: true,
-    },
-    uploadedAt: {
-      type: Date,
-      default: Date.now,
-    },
-    storage: {
-  type: String,
-  enum: ['gcs', 'drive'],
-},
-gcsFilename: {
-  type: String,
-},
-driveFileId: {
-  type: String,
-},
+    filename: { type: String, required: true },
+    url: { type: String, required: true },
+    mimetype: { type: String, required: true },
+    size: { type: Number, required: true },
+    uploadedAt: { type: Date, default: Date.now },
+    storage: { type: String, enum: ["gcs", "drive"] },
+    gcsFilename: { type: String },
+    driveFileId: { type: String },
   },
-  { _id: false } // Don't create _id for subdocuments
+  { _id: false }
 );
 
 const DiscussionPostSchema = new Schema<DiscussionPost>(
@@ -78,54 +48,32 @@ const DiscussionPostSchema = new Schema<DiscussionPost>(
       type: Schema.Types.ObjectId,
       ref: "DiscussionThread",
       required: true,
-      index: true, // Index for querying posts by thread
+      index: true,
     },
-    content: {
-      type: String,
-      required: true,
-    },
+    content: { type: String, required: true },
     createdBy: {
       type: Schema.Types.ObjectId,
       ref: "User",
       required: true,
-      index: true, // Index for querying posts by author
+      index: true,
     },
-    editedAt: {
-      type: Date,
-    },
-    editedBy: {
-      type: Schema.Types.ObjectId,
-      ref: "User",
-    },
-    attachments: {
-      type: [FileAttachmentSchema],
+    editedAt: { type: Date },
+    editedBy: { type: Schema.Types.ObjectId, ref: "User" },
+    attachments: { type: [FileAttachmentSchema], default: [] },
+    mentions: {
+      type: [{ type: Schema.Types.ObjectId, ref: "User" }],
       default: [],
     },
-deleted: {
-  type: Boolean,
-  default: false,
-  index: true,
-},
-deletedAt: {
-  type: Date,
-  default: null,
-},
-deletedBy: {
-  type: Schema.Types.ObjectId,
-  ref: 'User',
-  default: null,
-},
+    deleted: { type: Boolean, default: false, index: true },
+    deletedAt: { type: Date, default: null },
+    deletedBy: { type: Schema.Types.ObjectId, ref: "User", default: null },
   },
-  {
-    timestamps: true, // Automatically adds createdAt and updatedAt
-  }
+  { timestamps: true }
 );
 
-// Compound index for querying posts within a thread, chronologically
 DiscussionPostSchema.index({ threadId: 1, createdAt: 1 });
-
-// Compound index for filtering out deleted posts efficiently
 DiscussionPostSchema.index({ threadId: 1, deleted: 1, createdAt: 1 });
 
 export const DiscussionPostModel =
-  models.DiscussionPost || model<DiscussionPost>("DiscussionPost", DiscussionPostSchema);
+  models.DiscussionPost ||
+  model<DiscussionPost>("DiscussionPost", DiscussionPostSchema);
