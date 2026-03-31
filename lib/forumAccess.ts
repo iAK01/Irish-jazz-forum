@@ -25,7 +25,7 @@ export async function requireThreadAccess(thread: ThreadAccessShape) {
     currentUser.role === "steering" ||
     groupIds.some((groupId) =>
       (currentUser.workingGroups || [])
-        .map((group) => group.toString())
+        .map((group: string | { toString(): string }) => group.toString())
         .includes(groupId)
     );
 
