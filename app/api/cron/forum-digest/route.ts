@@ -34,6 +34,15 @@ function getErrorMessage(error: unknown) {
   return error instanceof Error ? error.message : "Forum digest run failed";
 }
 
+interface DigestRecipient {
+  _id: { toString(): string } | string;
+  name: string;
+  email: string;
+  role: UserRole;
+  workingGroups?: string[];
+  forumDigest?: ForumDigestPreference;
+}
+
 export async function GET(request: Request) {
   try {
     if (!isAuthorizedRequest(request)) {
@@ -62,14 +71,7 @@ export async function GET(request: Request) {
       ],
     })
       .select("name email role workingGroups forumDigest")
-      .lean()) as Array<{
-      _id: { toString(): string };
-      name: string;
-      email: string;
-      role: UserRole;
-      workingGroups?: string[];
-      forumDigest?: ForumDigestPreference;
-    }>;
+      .lean()) as unknown as DigestRecipient[];
 
     const results = {
       eligibleUsers: recipients.length,

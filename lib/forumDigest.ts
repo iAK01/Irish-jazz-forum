@@ -51,6 +51,23 @@ export interface ForumDigestPayload {
   manageSettingsUrl: string;
 }
 
+interface DigestThreadDocument {
+  _id: { toString(): string } | string;
+  title: string;
+  slug: string;
+  status: string;
+  replyCount: number;
+  lastActivityAt: Date;
+  publicToMembers?: boolean;
+  workingGroups?: string[];
+}
+
+interface DigestGroupDocument {
+  _id: { toString(): string } | string;
+  name: string;
+  slug: string;
+}
+
 function normalizeGroupIds(workingGroups?: string[]) {
   return (workingGroups || []).map((groupId) => groupId.toString());
 }
@@ -116,16 +133,7 @@ export async function buildForumDigestForUser(
       "title slug status replyCount lastActivityAt publicToMembers workingGroups"
     )
     .sort({ lastActivityAt: -1 })
-    .lean()) as Array<{
-    _id: { toString(): string };
-    title: string;
-    slug: string;
-    status: string;
-    replyCount: number;
-    lastActivityAt: Date;
-    publicToMembers?: boolean;
-    workingGroups?: string[];
-  }>;
+    .lean()) as unknown as DigestThreadDocument[];
 
   const groupIds = [
     ...new Set(
@@ -138,11 +146,7 @@ export async function buildForumDigestForUser(
   const groups = groupIds.length
     ? ((await WorkingGroupModel.find({ _id: { $in: groupIds } })
         .select("name slug")
-        .lean()) as Array<{
-        _id: { toString(): string };
-        name: string;
-        slug: string;
-      }>)
+        .lean()) as unknown as DigestGroupDocument[])
     : [];
 
   const groupMap = new Map(
