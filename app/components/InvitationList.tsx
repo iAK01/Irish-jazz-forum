@@ -5,20 +5,47 @@
 import { useState } from "react";
 import type { InvitationListItem } from "@/types/invitation";
 
+export type InvitationFilter =
+  | "all"
+  | "pending"
+  | "accepted"
+  | "expired"
+  | "revoked";
+
 interface InvitationListProps {
   invitations: InvitationListItem[];
+  filter?: InvitationFilter;
+  onFilterChange?: (filter: InvitationFilter) => void;
   onUpdate?: () => void;
 }
 
 export default function InvitationList({
   invitations,
+  filter: controlledFilter,
+  onFilterChange,
   onUpdate,
 }: InvitationListProps) {
-  const [filter, setFilter] = useState<"all" | "pending" | "accepted" | "expired" | "revoked">("all");
+  const [internalFilter, setInternalFilter] = useState<InvitationFilter>("all");
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const filter = controlledFilter ?? internalFilter;
+
+  const setFilter = (nextFilter: InvitationFilter) => {
+    if (onFilterChange) {
+      onFilterChange(nextFilter);
+      return;
+    }
+
+    setInternalFilter(nextFilter);
+  };
+
+  const getErrorMessage = (error: unknown) =>
+    error instanceof Error ? error.message : "An error occurred";
 
   const filteredInvitations = invitations.filter((inv) => {
     if (filter === "all") return true;
+    if (filter === "accepted") {
+      return inv.status === "accepted" || inv.status === "completed";
+    }
     return inv.status === filter;
   });
 
@@ -66,8 +93,8 @@ export default function InvitationList({
 
       alert("Invitation resent successfully!");
       if (onUpdate) onUpdate();
-    } catch (error: any) {
-      alert(error.message || "An error occurred");
+    } catch (error: unknown) {
+      alert(getErrorMessage(error));
     } finally {
       setActionLoading(null);
     }
@@ -92,8 +119,8 @@ export default function InvitationList({
 
       alert("Invitation revoked successfully!");
       if (onUpdate) onUpdate();
-    } catch (error: any) {
-      alert(error.message || "An error occurred");
+    } catch (error: unknown) {
+      alert(getErrorMessage(error));
     } finally {
       setActionLoading(null);
     }
@@ -116,8 +143,8 @@ export default function InvitationList({
 
       alert("Invitation deleted successfully!");
       if (onUpdate) onUpdate();
-    } catch (error: any) {
-      alert(error.message || "An error occurred");
+    } catch (error: unknown) {
+      alert(getErrorMessage(error));
     } finally {
       setActionLoading(null);
     }
@@ -136,7 +163,7 @@ export default function InvitationList({
         ].map((tab) => (
           <button
             key={tab.value}
-            onClick={() => setFilter(tab.value as any)}
+            onClick={() => setFilter(tab.value as InvitationFilter)}
             className={`px-4 py-2 font-medium text-sm border-b-2 transition-colors whitespace-nowrap flex-shrink-0 ${
               filter === tab.value
                 ? "border-ijf-accent text-gray-900"

@@ -5,6 +5,16 @@ import { useSession } from "next-auth/react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import DashboardLayout from "@/app/components/dashboard/DashboardLayout";
+import { ReactionSummaryInline } from "@/app/components/ReactionBar";
+
+interface ReactionSummary {
+  counts: {
+    like: number;
+    agree: number;
+    thanks: number;
+  };
+  total: number;
+}
 
 interface Thread {
   _id: string;
@@ -26,6 +36,7 @@ interface Thread {
   replyCount: number;
   viewCount: number;
   tags: string[];
+  reactionSummary: ReactionSummary;
   createdAt: string;
   lastActivityAt: string;
   updatedAt: string;
@@ -72,6 +83,9 @@ export default function WorkingGroupThreadList() {
     if (session?.user) fetchGroupAndThreads();
   }, [session, groupSlug]);
 
+  const getErrorMessage = (error: unknown) =>
+    error instanceof Error ? error.message : "An error occurred";
+
   const fetchGroupAndThreads = async () => {
     try {
       setLoading(true);
@@ -101,8 +115,8 @@ export default function WorkingGroupThreadList() {
       }
 
       setThreads(threadsData.data || []);
-    } catch (err: any) {
-      setError(err.message || "An error occurred");
+    } catch (err: unknown) {
+      setError(getErrorMessage(err));
     } finally {
       setLoading(false);
     }
@@ -347,7 +361,7 @@ export default function WorkingGroupThreadList() {
                 overflow: "hidden",
                 display: "-webkit-box",
                 WebkitLineClamp: 2,
-                WebkitBoxOrient: "vertical" as any,
+                WebkitBoxOrient: "vertical" as React.CSSProperties["WebkitBoxOrient"],
               }}>
                 {thread.title}
               </h3>
@@ -390,6 +404,12 @@ export default function WorkingGroupThreadList() {
                   Last reply by <span style={{ color: "#6b7280", fontWeight: 500 }}>{thread.lastReplyBy!.name}</span>
                   {" · "}{formatDate(thread.lastActivityAt)}
                 </span>
+              </div>
+            )}
+
+            {thread.reactionSummary?.total > 0 && (
+              <div style={{ marginTop: "0.55rem" }}>
+                <ReactionSummaryInline reactionSummary={thread.reactionSummary} />
               </div>
             )}
           </div>

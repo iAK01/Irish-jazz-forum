@@ -7,6 +7,16 @@ import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Link from "@tiptap/extension-link";
 import Placeholder from "@tiptap/extension-placeholder";
+import ReactionBar from "@/app/components/ReactionBar";
+
+interface ReactionSummary {
+  counts: {
+    like: number;
+    agree: number;
+    thanks: number;
+  };
+  total: number;
+}
 
 interface Post {
   _id: string;
@@ -30,6 +40,8 @@ interface Post {
     name: string;
     email: string;
   };
+  reactionSummary: ReactionSummary;
+  currentUserReaction: "like" | "agree" | "thanks" | null;
   createdAt: string;
   deleted: boolean;
 }
@@ -40,6 +52,10 @@ interface PostListProps {
   currentUserRole: string;
   onPostEdited: (postId: string, newContent: string) => void;
   onPostDeleted: (postId: string) => void;
+}
+
+function getErrorMessage(error: unknown, fallback: string) {
+  return error instanceof Error ? error.message : fallback;
 }
 
 export default function PostList({
@@ -111,8 +127,8 @@ function PostEditEditor({
     setError("");
     try {
       await onSave(html);
-    } catch (err: any) {
-      setError(err.message || "Failed to save changes");
+    } catch (err: unknown) {
+      setError(getErrorMessage(err, "Failed to save changes"));
       setSaving(false);
     }
   };
@@ -324,8 +340,8 @@ function PostCard({
       }
 
       onPostDeleted(post._id);
-    } catch (err: any) {
-      alert(err.message || "Failed to delete post");
+    } catch (err: unknown) {
+      alert(getErrorMessage(err, "Failed to delete post"));
     }
   };
 
@@ -442,6 +458,17 @@ function PostCard({
               )}
             </div>
           ))}
+        </div>
+      )}
+
+      {!isEditing && (
+        <div style={{ marginTop: "1rem", paddingTop: "0.75rem", borderTop: "1px solid #f3f4f6" }}>
+          <ReactionBar
+            targetType="post"
+            targetId={post._id}
+            reactionSummary={post.reactionSummary}
+            currentUserReaction={post.currentUserReaction}
+          />
         </div>
       )}
     </div>

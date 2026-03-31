@@ -9,6 +9,8 @@ export type UserRole =
   | "team"
   | "super_admin";
 
+export type ForumDigestPreference = "off" | "weekly";
+
 export interface User extends Document {
   email: string;
   name: string;
@@ -18,6 +20,7 @@ export interface User extends Document {
   role: UserRole;
   memberProfile?: string; // slug of their Member document
   workingGroups?: string[];
+  forumDigest?: ForumDigestPreference;
   lastSeenAt?: Date;
   createdAt: Date;
   updatedAt: Date;
@@ -38,6 +41,11 @@ const UserSchema = new Schema<User>(
     },
     memberProfile: String, // slug of the linked Member document
     workingGroups: [String],
+    forumDigest: {
+      type: String,
+      enum: ["off", "weekly"],
+      default: "weekly",
+    },
   },
   {
     timestamps: true,

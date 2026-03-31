@@ -1,7 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
+import {
+  FolderKanban,
+  Mail,
+  ShieldCheck,
+  Users,
+} from "lucide-react";
 import DashboardLayout from "./DashboardLayout";
 import AdminDashboard from "./AdminDashboard";
 import TeamDashboard from "./TeamDashboard";
@@ -9,6 +14,7 @@ import SteeringDashboard from "./SteeringDashboard";
 import WorkingGroupDashboard from "./WorkingGroupDashboard";
 import MemberDashboard from "./MemberDashboard";
 import UserManagement from "./UserManagement";
+import DashboardFeatureCard from "./DashboardFeatureCard";
 
 interface User {
   id: string;
@@ -78,29 +84,34 @@ export default function SuperAdminDashboard({ user }: { user: User }) {
       </div>
 
       <div className="grid gap-6 md:grid-cols-3">
-        <Link 
+        <DashboardFeatureCard
           href="/dashboard/admin/working-groups"
-          className="p-6 bg-ijf-primary rounded-lg hover:scale-105 hover:shadow-lg transition-all cursor-pointer"
-        >
-          <h3 className="text-xl font-semibold text-ijf-surface mb-2">Working Groups</h3>
-          <p className="text-ijf-surface/80">Create and manage forum working groups</p>
-        </Link>
-        
-        <Link 
-          href="/dashboard/admin/members"
-          className="p-6 bg-ijf-primary rounded-lg hover:scale-105 hover:shadow-lg transition-all cursor-pointer"
-        >
-          <h3 className="text-xl font-semibold text-ijf-surface mb-2">Member List</h3>
-          <p className="text-ijf-surface/80">View and manage all member profiles</p>
-        </Link>
+          icon={FolderKanban}
+          title="Working Groups"
+          description="Create and manage forum working groups."
+        />
 
-        <a 
-          href="#user-management"
-          className="p-6 bg-ijf-primary rounded-lg hover:scale-105 hover:shadow-lg transition-all cursor-pointer"
-        >
-          <h3 className="text-xl font-semibold text-ijf-surface mb-2">User Management</h3>
-          <p className="text-ijf-surface/80">Manage user roles and permissions</p>
+        <DashboardFeatureCard
+          href="/dashboard/admin/members"
+          icon={Users}
+          title="Member List"
+          description="View and manage all member profiles."
+        />
+
+        <a href="#user-management" className="block">
+          <DashboardFeatureCard
+            icon={ShieldCheck}
+            title="User Management"
+            description="Manage user roles and permissions."
+          />
         </a>
+
+        <DashboardFeatureCard
+          href="/dashboard/profile/notifications"
+          icon={Mail}
+          title="Email Settings"
+          description="Turn your weekly forum digest on or off."
+        />
       </div>
     </DashboardLayout>
   );

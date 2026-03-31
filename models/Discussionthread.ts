@@ -1,4 +1,11 @@
 import { Schema, model, models, Document, Types } from "mongoose";
+import { ReactionType } from "@/lib/reactions";
+
+export interface DiscussionReaction {
+  userId: Types.ObjectId;
+  type: ReactionType;
+  createdAt: Date;
+}
 
 export interface DiscussionThread extends Document {
   workingGroups: string[];
@@ -23,11 +30,32 @@ export interface DiscussionThread extends Document {
   viewCount: number;
 
   tags: string[];
+  reactions: DiscussionReaction[];
 
   deleted: boolean;
   deletedAt: Date | null;
   deletedBy: Types.ObjectId | null;
 }
+
+const DiscussionReactionSchema = new Schema<DiscussionReaction>(
+  {
+    userId: {
+      type: Schema.Types.ObjectId,
+      ref: "User",
+      required: true,
+    },
+    type: {
+      type: String,
+      enum: ["like", "agree", "thanks"],
+      required: true,
+    },
+    createdAt: {
+      type: Date,
+      default: Date.now,
+    },
+  },
+  { _id: false }
+);
 
 const DiscussionThreadSchema = new Schema<DiscussionThread>(
   {
@@ -101,6 +129,11 @@ const DiscussionThreadSchema = new Schema<DiscussionThread>(
 
     tags: {
       type: [String],
+      default: [],
+    },
+
+    reactions: {
+      type: [DiscussionReactionSchema],
       default: [],
     },
 

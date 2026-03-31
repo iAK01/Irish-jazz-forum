@@ -8,6 +8,7 @@ import { UserModel } from "@/models/User";
 import { WorkingGroupModel } from "@/models/Workinggroup";
 import { requireAuth } from "@/lib/auth";
 import { parseMentionIds } from "@/lib/parseMentions";
+import { withReactionState } from "@/lib/reactions";
 import { sendMentionNotificationEmail } from "@/lib/email";
 
 export async function GET(
@@ -79,7 +80,9 @@ export async function GET(
 
     return NextResponse.json({
       success: true,
-      data: posts,
+      data: posts.map((post: any) =>
+        withReactionState(post, currentUser._id.toString())
+      ),
       pagination: {
         page,
         limit,
@@ -217,7 +220,10 @@ export async function POST(
       })();
     }
 
-    return NextResponse.json({ success: true, data: populatedPost });
+    return NextResponse.json({
+      success: true,
+      data: withReactionState(populatedPost as any, currentUser._id.toString()),
+    });
 
   } catch (error: any) {
     return NextResponse.json(

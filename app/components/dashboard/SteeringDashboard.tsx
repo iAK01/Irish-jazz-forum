@@ -1,4 +1,6 @@
+import { BarChart3, FileText, Mail } from "lucide-react";
 import DashboardLayout from "./DashboardLayout";
+import DashboardFeatureCard from "./DashboardFeatureCard";
 
 interface User {
   id: string;
@@ -10,15 +12,23 @@ interface User {
 export default function SteeringDashboard({ user }: { user: User }) {
   return (
     <DashboardLayout title="Steering Committee Dashboard" userName={user.name} role={user.role}>
-      <div className="grid gap-6 md:grid-cols-2">
-        <div className="p-6 bg-ijf-primary rounded-lg">
-          <h3 className="text-xl font-semibold text-ijf-surface mb-2">Analytics</h3>
-          <p className="text-ijf-surface/80">View sector data and insights</p>
-        </div>
-        <div className="p-6 bg-ijf-primary rounded-lg">
-          <h3 className="text-xl font-semibold text-ijf-surface mb-2">Reports</h3>
-          <p className="text-ijf-surface/80">Generate advocacy reports</p>
-        </div>
+      <div className="grid gap-6 md:grid-cols-3">
+        <DashboardFeatureCard
+          icon={BarChart3}
+          title="Analytics"
+          description="View sector data, trends, and shared insights."
+        />
+        <DashboardFeatureCard
+          icon={FileText}
+          title="Reports"
+          description="Generate advocacy reports and review strategic outputs."
+        />
+        <DashboardFeatureCard
+          href="/dashboard/profile/notifications"
+          icon={Mail}
+          title="Email Settings"
+          description="Turn your weekly forum digest on or off."
+        />
       </div>
     </DashboardLayout>
   );

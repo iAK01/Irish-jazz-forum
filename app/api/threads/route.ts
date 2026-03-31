@@ -7,6 +7,7 @@ import { WorkingGroupModel } from "@/models/Workinggroup";
 import { UserModel } from "@/models/User";
 import { requireAuth } from "@/lib/auth";
 import { parseMentionIds } from "@/lib/parseMentions";
+import { withReactionState } from "@/lib/reactions";
 import { sendMentionNotificationEmail } from "@/lib/email";
 import slugify from "slugify";
 
@@ -70,7 +71,12 @@ export async function GET(request: Request) {
       .populate("lastReplyBy", "name image email")
       .lean();
 
-    return NextResponse.json({ success: true, data: threads });
+    return NextResponse.json({
+      success: true,
+      data: threads.map((thread: any) =>
+        withReactionState(thread, currentUser._id.toString())
+      ),
+    });
   } catch (error: any) {
     return NextResponse.json(
       { success: false, error: error.message },
@@ -224,7 +230,13 @@ export async function POST(request: Request) {
       })();
     }
 
-    return NextResponse.json({ success: true, data: populatedThread });
+    return NextResponse.json({
+      success: true,
+      data: withReactionState(
+        populatedThread as any,
+        currentUser._id.toString()
+      ),
+    });
   } catch (error: any) {
     return NextResponse.json(
       { success: false, error: error.message },

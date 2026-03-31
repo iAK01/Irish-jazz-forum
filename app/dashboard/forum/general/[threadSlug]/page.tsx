@@ -9,6 +9,16 @@ import PostList from "@/app/components/PostList";
 import ReplyComposer from "@/app/components/ReplyComposer";
 import ConfirmDeleteDialog from "@/app/components/ConfirmDeleteDialog";
 import ThreadAdminMenu from "@/app/components/ThreadAdminMenu";
+import ReactionBar from "@/app/components/ReactionBar";
+
+interface ReactionSummary {
+  counts: {
+    like: number;
+    agree: number;
+    thanks: number;
+  };
+  total: number;
+}
 
 interface Thread {
   _id: string;
@@ -26,6 +36,8 @@ interface Thread {
   replyCount: number;
   viewCount: number;
   tags: string[];
+  reactionSummary: ReactionSummary;
+  currentUserReaction: "like" | "agree" | "thanks" | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -49,6 +61,8 @@ interface Post {
   }>;
   editedAt?: string;
   editedBy?: { name: string; email: string };
+  reactionSummary: ReactionSummary;
+  currentUserReaction: "like" | "agree" | "thanks" | null;
   createdAt: string;
   deleted: boolean;
 }
@@ -58,6 +72,17 @@ interface Pagination {
   limit: number;
   total: number;
   hasMore: boolean;
+}
+
+interface ForumSessionUser {
+  id?: string;
+  _id?: string;
+  role: string;
+  name?: string;
+}
+
+function getErrorMessage(error: unknown, fallback: string) {
+  return error instanceof Error ? error.message : fallback;
 }
 
 export default function GeneralThreadView() {
@@ -115,8 +140,8 @@ export default function GeneralThreadView() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: "incrementView" }),
       });
-    } catch (err: any) {
-      setError(err.message || "An error occurred");
+    } catch (err: unknown) {
+      setError(getErrorMessage(err, "An error occurred"));
     } finally {
       setLoading(false);
     }
@@ -134,8 +159,8 @@ export default function GeneralThreadView() {
         setPosts((prev) => [...prev, ...(postsData.data || [])]);
       }
       setPagination(postsData.pagination);
-    } catch (err: any) {
-      setError(err.message || "An error occurred");
+    } catch (err: unknown) {
+      setError(getErrorMessage(err, "An error occurred"));
     } finally {
       setLoadingMore(false);
     }
@@ -174,8 +199,8 @@ export default function GeneralThreadView() {
       const data = await response.json();
       if (!response.ok || !data.success) throw new Error(data.error || "Failed to delete thread");
       router.push("/dashboard/forum/general");
-    } catch (err: any) {
-      setDeleteError(err.message || "Failed to delete thread");
+    } catch (err: unknown) {
+      setDeleteError(getErrorMessage(err, "Failed to delete thread"));
       setDeleting(false);
     }
   };
@@ -220,7 +245,7 @@ export default function GeneralThreadView() {
     );
   }
 
-  const currentUser = session?.user as any;
+  const currentUser = session?.user as ForumSessionUser;
   const isAdmin = currentUser.role === "super_admin" || currentUser.role === "admin";
   const isSuperAdmin = currentUser.role === "super_admin";
 
@@ -320,6 +345,16 @@ export default function GeneralThreadView() {
             </div>
           </div>
 
+          <div style={{ marginTop: "1rem" }}>
+            <ReactionBar
+              targetType="thread"
+              targetId={thread._id}
+              reactionSummary={thread.reactionSummary}
+              currentUserReaction={thread.currentUserReaction}
+              variant="dark"
+            />
+          </div>
+
           {/* Non-active status warning */}
           {thread.status && thread.status !== "active" && thread.status !== "open" && (
             <div style={{
@@ -347,7 +382,7 @@ export default function GeneralThreadView() {
         <div style={{ marginBottom: "2rem" }}>
           <PostList
             posts={posts}
-            currentUserId={currentUser._id}
+            currentUserId={currentUser.id || currentUser._id}
             currentUserRole={currentUser.role}
             onPostEdited={handlePostEdited}
             onPostDeleted={handlePostDeleted}

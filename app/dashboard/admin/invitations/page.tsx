@@ -8,17 +8,22 @@ import Link from "next/link";
 import InvitationList from "@/app/components/InvitationList";
 import DashboardLayout from "@/app/components/dashboard/DashboardLayout";
 import type { InvitationListItem } from "@/types/invitation";
+import type { InvitationFilter } from "@/app/components/InvitationList";
 
 export default function AdminInvitationsPage() {
   const { data: session } = useSession();
   const [invitations, setInvitations] = useState<InvitationListItem[]>([]);
   const [pendingApprovalsCount, setPendingApprovalsCount] = useState(0);
+  const [filter, setFilter] = useState<InvitationFilter>("all");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
   useEffect(() => {
     fetchInitialData();
   }, []);
+
+  const getErrorMessage = (error: unknown) =>
+    error instanceof Error ? error.message : "An error occurred";
 
   const fetchInitialData = async () => {
     await Promise.all([fetchInvitations(), fetchPendingApprovalsCount()]);
@@ -37,8 +42,8 @@ export default function AdminInvitationsPage() {
       }
 
       setInvitations(data.data || []);
-    } catch (err: any) {
-      setError(err.message || "An error occurred");
+    } catch (err: unknown) {
+      setError(getErrorMessage(err));
     } finally {
       setLoading(false);
     }
@@ -58,6 +63,95 @@ export default function AdminInvitationsPage() {
   };
 
   const pendingCount = invitations.filter((inv) => inv.status === "pending").length;
+  const acceptedCount = invitations.filter(
+    (inv) => inv.status === "accepted" || inv.status === "completed"
+  ).length;
+  const expiredCount = invitations.filter((inv) => inv.status === "expired").length;
+
+  const StatCard = ({
+    label,
+    count,
+    filterValue,
+    tone = "neutral",
+    onClick,
+    isLink = false,
+  }: {
+    label: string;
+    count: number;
+    filterValue?: InvitationFilter;
+    tone?: "neutral" | "pending" | "approvals" | "accepted" | "expired";
+    onClick?: () => void;
+    isLink?: boolean;
+  }) => {
+    const isActive = filterValue ? filter === filterValue : false;
+
+    const toneStyles = {
+      neutral: {
+        bg: "bg-white",
+        border: isActive ? "border-gray-400" : "border-gray-200",
+        label: "text-gray-600",
+        count: "text-gray-900",
+      },
+      pending: {
+        bg: "bg-yellow-50",
+        border: isActive ? "border-yellow-400" : "border-yellow-200",
+        label: "text-yellow-800",
+        count: "text-yellow-900",
+      },
+      approvals: {
+        bg: "bg-amber-50",
+        border: isActive ? "border-amber-400" : "border-amber-200",
+        label: "text-amber-800",
+        count: "text-amber-900",
+      },
+      accepted: {
+        bg: "bg-green-50",
+        border: isActive ? "border-green-400" : "border-green-200",
+        label: "text-green-800",
+        count: "text-green-900",
+      },
+      expired: {
+        bg: "bg-gray-50",
+        border: isActive ? "border-gray-400" : "border-gray-200",
+        label: "text-gray-600",
+        count: "text-gray-900",
+      },
+    } as const;
+
+    const styles = toneStyles[tone];
+    const interactive = Boolean(onClick);
+
+    return (
+      <button
+        type="button"
+        onClick={onClick}
+        disabled={!interactive}
+        className={`${styles.bg} rounded-lg border-2 ${styles.border} p-3 sm:p-4 text-left transition-all ${
+          interactive
+            ? "cursor-pointer hover:shadow-md hover:-translate-y-0.5"
+            : "cursor-default"
+        } ${isActive ? "shadow-md ring-2 ring-black/5" : ""}`}
+        aria-pressed={filterValue ? isActive : undefined}
+        title={
+          filterValue
+            ? `Show ${label.toLowerCase()} invitations`
+            : isLink
+              ? "Open pending approvals"
+              : undefined
+        }
+      >
+        <p className={`text-xs sm:text-sm font-medium ${styles.label}`}>{label}</p>
+        <div className="mt-1 flex items-end justify-between gap-2">
+          <p className={`text-2xl sm:text-3xl font-bold ${styles.count}`}>{count}</p>
+          {interactive && (
+            <span className={`text-xs font-semibold ${styles.label}`}>
+              {isLink ? "Open" : isActive ? "Active" : "Filter"}
+            </span>
+          )}
+        </div>
+      </button>
+    );
+  };
 
   if (loading) {
     return (
@@ -108,30 +202,47 @@ export default function AdminInvitationsPage() {
 
           {/* Stats */}
           <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 sm:gap-4 mt-4 sm:mt-6">
-            <div className="bg-white rounded-lg border-2 border-gray-200 p-3 sm:p-4">
-              <p className="text-xs sm:text-sm text-gray-600 font-medium">Total</p>
-              <p className="text-2xl sm:text-3xl font-bold text-gray-900 mt-1">{invitations.length}</p>
-            </div>
-            <div className="bg-yellow-50 rounded-lg border-2 border-yellow-200 p-3 sm:p-4">
-              <p className="text-xs sm:text-sm text-yellow-800 font-medium">Pending</p>
-              <p className="text-2xl sm:text-3xl font-bold text-yellow-900 mt-1">{pendingCount}</p>
-            </div>
-            <div className="bg-amber-50 rounded-lg border-2 border-amber-200 p-3 sm:p-4">
-              <p className="text-xs sm:text-sm text-amber-800 font-medium">Pending Approvals</p>
-              <p className="text-2xl sm:text-3xl font-bold text-amber-900 mt-1">{pendingApprovalsCount}</p>
-            </div>
-            <div className="bg-green-50 rounded-lg border-2 border-green-200 p-3 sm:p-4">
-              <p className="text-xs sm:text-sm text-green-800 font-medium">Accepted</p>
-              <p className="text-2xl sm:text-3xl font-bold text-green-900 mt-1">
-                {invitations.filter((inv) => inv.status === "accepted" || inv.status === "completed").length}
-              </p>
-            </div>
-            <div className="bg-gray-50 rounded-lg border-2 border-gray-200 p-3 sm:p-4">
-              <p className="text-xs sm:text-sm text-gray-600 font-medium">Expired</p>
-              <p className="text-2xl sm:text-3xl font-bold text-gray-900 mt-1">
-                {invitations.filter((inv) => inv.status === "expired").length}
-              </p>
-            </div>
+            <StatCard
+              label="Total"
+              count={invitations.length}
+              filterValue="all"
+              tone="neutral"
+              onClick={() => setFilter("all")}
+            />
+            <StatCard
+              label="Pending"
+              count={pendingCount}
+              filterValue="pending"
+              tone="pending"
+              onClick={() => setFilter("pending")}
+            />
+            <StatCard
+              label="Pending Approvals"
+              count={pendingApprovalsCount}
+              tone="approvals"
+              onClick={
+                pendingApprovalsCount > 0
+                  ? () => {
+                      window.location.href = "/dashboard/admin/members/pending";
+                    }
+                  : undefined
+              }
+              isLink
+            />
+            <StatCard
+              label="Accepted"
+              count={acceptedCount}
+              filterValue="accepted"
+              tone="accepted"
+              onClick={() => setFilter("accepted")}
+            />
+            <StatCard
+              label="Expired"
+              count={expiredCount}
+              filterValue="expired"
+              tone="expired"
+              onClick={() => setFilter("expired")}
+            />
           </div>
         </div>
 
@@ -144,7 +255,12 @@ export default function AdminInvitationsPage() {
 
         {/* Invitations List */}
         <div className="bg-white rounded-xl border-2 border-gray-200 p-4 sm:p-6">
-          <InvitationList invitations={invitations} onUpdate={fetchInitialData} />
+          <InvitationList
+            invitations={invitations}
+            filter={filter}
+            onFilterChange={setFilter}
+            onUpdate={fetchInitialData}
+          />
         </div>
       </div>
     </DashboardLayout>

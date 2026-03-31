@@ -1,6 +1,7 @@
 // /models/Discussionpost.ts
 
 import { Schema, model, models, Document, Types } from "mongoose";
+import { ReactionType } from "@/lib/reactions";
 
 export interface FileAttachment {
   filename: string;
@@ -23,6 +24,11 @@ export interface DiscussionPost extends Document {
   editedBy?: Types.ObjectId;
   attachments: FileAttachment[];
   mentions: Types.ObjectId[];
+  reactions: {
+    userId: Types.ObjectId;
+    type: ReactionType;
+    createdAt: Date;
+  }[];
   deleted: boolean;
   deletedAt: Date | null;
   deletedBy: Types.ObjectId | null;
@@ -38,6 +44,26 @@ const FileAttachmentSchema = new Schema<FileAttachment>(
     storage: { type: String, enum: ["gcs", "drive"] },
     gcsFilename: { type: String },
     driveFileId: { type: String },
+  },
+  { _id: false }
+);
+
+const PostReactionSchema = new Schema(
+  {
+    userId: {
+      type: Schema.Types.ObjectId,
+      ref: "User",
+      required: true,
+    },
+    type: {
+      type: String,
+      enum: ["like", "agree", "thanks"],
+      required: true,
+    },
+    createdAt: {
+      type: Date,
+      default: Date.now,
+    },
   },
   { _id: false }
 );
@@ -62,6 +88,10 @@ const DiscussionPostSchema = new Schema<DiscussionPost>(
     attachments: { type: [FileAttachmentSchema], default: [] },
     mentions: {
       type: [{ type: Schema.Types.ObjectId, ref: "User" }],
+      default: [],
+    },
+    reactions: {
+      type: [PostReactionSchema],
       default: [],
     },
     deleted: { type: Boolean, default: false, index: true },

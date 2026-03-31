@@ -8,6 +8,7 @@ import { WorkingGroupModel } from "@/models/Workinggroup";
 import { requireAuth } from "@/lib/auth";
 import { createDeletedAttachmentsFolder, moveFileToFolder } from "@/lib/googledrive";
 import { deleteMultipleFilesFromGCS } from "@/lib/gcs";
+import { withReactionState } from "@/lib/reactions";
 
 export async function GET(
   request: Request,
@@ -61,7 +62,10 @@ export async function GET(
       $inc: { viewCount: 1 },
     });
 
-    return NextResponse.json({ success: true, data: thread });
+    return NextResponse.json({
+      success: true,
+      data: withReactionState(thread, currentUser._id.toString()),
+    });
 
   } catch (error: any) {
     return NextResponse.json(
@@ -154,7 +158,10 @@ if (typeof publicToMembers === "boolean") updates.publicToMembers = publicToMemb
       .populate("createdBy", "name image email")
       .lean();
 
-    return NextResponse.json({ success: true, data: updatedThread });
+    return NextResponse.json({
+      success: true,
+      data: withReactionState(updatedThread as any, currentUser._id.toString()),
+    });
 
   } catch (error: any) {
     return NextResponse.json(

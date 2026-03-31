@@ -5,6 +5,16 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import DashboardLayout from "@/app/components/dashboard/DashboardLayout";
+import { ReactionSummaryInline } from "@/app/components/ReactionBar";
+
+interface ReactionSummary {
+  counts: {
+    like: number;
+    agree: number;
+    thanks: number;
+  };
+  total: number;
+}
 
 interface Thread {
   _id: string;
@@ -22,6 +32,7 @@ interface Thread {
   replyCount: number;
   viewCount: number;
   tags: string[];
+  reactionSummary: ReactionSummary;
 }
 
 export default function GeneralDiscussionPage() {
@@ -127,7 +138,7 @@ export default function GeneralDiscussionPage() {
                 overflow: "hidden",
                 display: "-webkit-box",
                 WebkitLineClamp: 2,
-                WebkitBoxOrient: "vertical" as any,
+                WebkitBoxOrient: "vertical" as React.CSSProperties["WebkitBoxOrient"],
               }}>
                 {thread.title}
               </h3>
@@ -163,6 +174,12 @@ export default function GeneralDiscussionPage() {
                 </span>
               )}
             </div>
+
+            {thread.reactionSummary?.total > 0 && (
+              <div style={{ marginTop: "0.55rem" }}>
+                <ReactionSummaryInline reactionSummary={thread.reactionSummary} />
+              </div>
+            )}
           </div>
 
           {/* Right: stats */}

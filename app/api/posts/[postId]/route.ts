@@ -9,6 +9,7 @@ import { WorkingGroupModel } from "@/models/Workinggroup";
 import { requireAuth } from "@/lib/auth";
 import { createDeletedAttachmentsFolder, moveFileToFolder } from "@/lib/googledrive";
 import { deleteMultipleFilesFromGCS } from "@/lib/gcs";
+import { withReactionState } from "@/lib/reactions";
 
 // PATCH /api/posts/[postId]
 // Edit post content - Author within 24hrs OR Admin anytime
@@ -81,7 +82,10 @@ export async function PATCH(
       .populate("editedBy", "name email")
       .lean();
 
-    return NextResponse.json({ success: true, data: updatedPost });
+    return NextResponse.json({
+      success: true,
+      data: withReactionState(updatedPost as any, currentUser._id.toString()),
+    });
   } catch (error: any) {
     return NextResponse.json(
       { success: false, error: error.message },

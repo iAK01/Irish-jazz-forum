@@ -148,3 +148,20 @@ export async function sendMentionNotificationEmail(params: {
     from: 'Irish Jazz Forum <hello@irishjazzforum.com>',
   });
 }
+
+export async function sendForumDigestEmail(params: {
+  to: string;
+  payload: import("@/lib/forumDigest").ForumDigestPayload;
+}) {
+  const {
+    generateForumDigestEmail,
+    generateForumDigestSubject,
+  } = await import("@/lib/email-templates/forum-digest");
+
+  return sendEmail({
+    to: params.to,
+    subject: generateForumDigestSubject(params.payload),
+    html: generateForumDigestEmail(params.payload),
+    from: "Irish Jazz Forum <hello@irishjazzforum.com>",
+  });
+}
