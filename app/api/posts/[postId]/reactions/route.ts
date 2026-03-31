@@ -5,9 +5,15 @@ import { DiscussionThreadModel } from "@/models/Discussionthread";
 import { requireThreadAccess } from "@/lib/forumAccess";
 import {
   isReactionType,
+  StoredReaction,
   toggleReaction,
   withReactionState,
 } from "@/lib/reactions";
+
+interface ReactionReadyPost {
+  reactions?: StoredReaction[];
+  [key: string]: unknown;
+}
 
 export async function POST(
   request: Request,
@@ -65,10 +71,10 @@ export async function POST(
     ) as typeof post.reactions;
     await post.save();
 
-    const populatedPost = await DiscussionPostModel.findById(post._id)
+    const populatedPost = (await DiscussionPostModel.findById(post._id)
       .populate("createdBy", "name image email")
       .populate("editedBy", "name email")
-      .lean();
+      .lean()) as unknown as ReactionReadyPost | null;
 
     if (!populatedPost) {
       return NextResponse.json(

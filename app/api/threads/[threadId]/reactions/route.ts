@@ -4,9 +4,15 @@ import { DiscussionThreadModel } from "@/models/Discussionthread";
 import { requireThreadAccess } from "@/lib/forumAccess";
 import {
   isReactionType,
+  StoredReaction,
   toggleReaction,
   withReactionState,
 } from "@/lib/reactions";
+
+interface ReactionReadyThread {
+  reactions?: StoredReaction[];
+  [key: string]: unknown;
+}
 
 export async function POST(
   request: Request,
@@ -51,7 +57,10 @@ export async function POST(
 
     return NextResponse.json({
       success: true,
-      data: withReactionState(thread.toObject(), currentUser._id.toString()),
+      data: withReactionState(
+        thread.toObject() as ReactionReadyThread,
+        currentUser._id.toString()
+      ),
     });
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : "Unknown error";
