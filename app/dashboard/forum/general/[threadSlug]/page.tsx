@@ -246,6 +246,7 @@ export default function GeneralThreadView() {
   }
 
   const currentUser = session?.user as ForumSessionUser;
+  const currentUserId = currentUser.id ?? currentUser._id ?? "";
   const isAdmin = currentUser.role === "super_admin" || currentUser.role === "admin";
   const isSuperAdmin = currentUser.role === "super_admin";
 
@@ -382,7 +383,7 @@ export default function GeneralThreadView() {
         <div style={{ marginBottom: "2rem" }}>
           <PostList
             posts={posts}
-            currentUserId={currentUser.id || currentUser._id}
+            currentUserId={currentUserId}
             currentUserRole={currentUser.role}
             onPostEdited={handlePostEdited}
             onPostDeleted={handlePostDeleted}
