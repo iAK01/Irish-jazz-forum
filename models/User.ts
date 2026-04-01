@@ -21,6 +21,7 @@ export interface User extends Document {
   memberProfile?: string; // slug of their Member document
   workingGroups?: string[];
   forumDigest?: ForumDigestPreference;
+  lastForumVisitAt?: Date | null;
   lastSeenAt?: Date;
   createdAt: Date;
   updatedAt: Date;
@@ -45,6 +46,10 @@ const UserSchema = new Schema<User>(
       type: String,
       enum: ["off", "daily", "weekly"],
       default: "weekly",
+    },
+    lastForumVisitAt: {
+      type: Date,
+      default: null,
     },
   },
   {

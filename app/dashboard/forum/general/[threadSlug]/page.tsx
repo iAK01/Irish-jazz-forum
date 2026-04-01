@@ -81,6 +81,12 @@ interface ForumSessionUser {
   name?: string;
 }
 
+interface QuoteReplyState {
+  postId: string;
+  authorName: string;
+  content: string;
+}
+
 function getErrorMessage(error: unknown, fallback: string) {
   return error instanceof Error ? error.message : fallback;
 }
@@ -101,6 +107,7 @@ export default function GeneralThreadView() {
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState("");
   const [isMobile, setIsMobile] = useState(false);
+  const [quoteReplyTo, setQuoteReplyTo] = useState<QuoteReplyState | null>(null);
 
   useEffect(() => {
     const check = () => setIsMobile(window.innerWidth < 768);
@@ -112,6 +119,17 @@ export default function GeneralThreadView() {
   useEffect(() => {
     if (session?.user) fetchThread();
   }, [session, threadSlug]);
+
+  useEffect(() => {
+    if (posts.length === 0 || typeof window === "undefined" || !window.location.hash) {
+      return;
+    }
+
+    const target = document.querySelector(window.location.hash);
+    if (target) {
+      target.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }, [posts]);
 
   const fetchThread = async () => {
     try {
@@ -188,6 +206,13 @@ export default function GeneralThreadView() {
 
   const handleThreadUpdated = (updates: Partial<Thread>) => {
     if (thread) setThread({ ...thread, ...updates });
+  };
+
+  const handleQuoteReply = (quote: QuoteReplyState) => {
+    setQuoteReplyTo(quote);
+    document
+      .getElementById("reply-composer")
+      ?.scrollIntoView({ behavior: "smooth", block: "start" });
   };
 
   const handleDeleteThread = async () => {
@@ -385,6 +410,8 @@ export default function GeneralThreadView() {
             posts={posts}
             currentUserId={currentUserId}
             currentUserRole={currentUser.role}
+            threadPath={`/dashboard/forum/general/${thread.slug}`}
+            onQuoteReply={handleQuoteReply}
             onPostEdited={handlePostEdited}
             onPostDeleted={handlePostDeleted}
           />
@@ -405,7 +432,13 @@ export default function GeneralThreadView() {
 
         {/* Reply composer */}
         <div style={{ backgroundColor: "white", borderRadius: "0.75rem", boxShadow: "0 4px 6px -1px rgba(0,0,0,0.1)", border: "1px solid #f3f4f6", padding: isMobile ? "1rem" : "1.5rem" }}>
-          <ReplyComposer threadId={thread._id} onReplyAdded={handleReplyAdded} workingGroup="general" />
+          <ReplyComposer
+            threadId={thread._id}
+            onReplyAdded={handleReplyAdded}
+            workingGroup="general"
+            quoteReplyTo={quoteReplyTo}
+            onQuoteInserted={() => setQuoteReplyTo(null)}
+          />
         </div>
       </div>
 

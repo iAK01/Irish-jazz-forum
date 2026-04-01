@@ -39,5 +39,6 @@ export async function requireAuth(allowedRoles?: UserRole[]) {
     ...sessionUser,
     _id: fullUser._id.toString(),
     workingGroups: fullUser.workingGroups || [],
+    lastForumVisitAt: fullUser.lastForumVisitAt || null,
   };
 }

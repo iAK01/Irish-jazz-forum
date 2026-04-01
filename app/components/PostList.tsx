@@ -2,11 +2,19 @@
 
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Link from "@tiptap/extension-link";
 import Placeholder from "@tiptap/extension-placeholder";
+import {
+  Copy,
+  Ellipsis,
+  Link2,
+  MessageSquareQuote,
+  Pencil,
+  Trash2,
+} from "lucide-react";
 import ReactionBar from "@/app/components/ReactionBar";
 
 interface ReactionSummary {
@@ -50,6 +58,12 @@ interface PostListProps {
   posts: Post[];
   currentUserId: string;
   currentUserRole: string;
+  threadPath: string;
+  onQuoteReply: (post: {
+    postId: string;
+    authorName: string;
+    content: string;
+  }) => void;
   onPostEdited: (postId: string, newContent: string) => void;
   onPostDeleted: (postId: string) => void;
 }
@@ -62,6 +76,8 @@ export default function PostList({
   posts,
   currentUserId,
   currentUserRole,
+  threadPath,
+  onQuoteReply,
   onPostEdited,
   onPostDeleted,
 }: PostListProps) {
@@ -77,6 +93,8 @@ export default function PostList({
           isOriginalPost={index === 0}
           currentUserId={currentUserId}
           isAdmin={isAdmin}
+          threadPath={threadPath}
+          onQuoteReply={onQuoteReply}
           onPostEdited={onPostEdited}
           onPostDeleted={onPostDeleted}
         />
@@ -288,6 +306,8 @@ function PostCard({
   isOriginalPost,
   currentUserId,
   isAdmin,
+  threadPath,
+  onQuoteReply,
   onPostEdited,
   onPostDeleted,
 }: {
@@ -295,10 +315,20 @@ function PostCard({
   isOriginalPost: boolean;
   currentUserId: string;
   isAdmin: boolean;
+  threadPath: string;
+  onQuoteReply: (post: {
+    postId: string;
+    authorName: string;
+    content: string;
+  }) => void;
   onPostEdited: (postId: string, newContent: string) => void;
   onPostDeleted: (postId: string) => void;
 }) {
   const [isEditing, setIsEditing] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const [isHighlighted, setIsHighlighted] = useState(false);
+  const [showMobileMenu, setShowMobileMenu] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
 
   const isAuthor = currentUserId === post.createdBy._id;
   const canEdit =
@@ -307,6 +337,43 @@ function PostCard({
       new Date().getTime() - new Date(post.createdAt).getTime() <
         24 * 60 * 60 * 1000);
   const canDelete = isAdmin;
+  const postHash = `#post-${post._id}`;
+
+  useEffect(() => {
+    const syncHighlight = () => {
+      setIsHighlighted(window.location.hash === postHash);
+    };
+
+    syncHighlight();
+    window.addEventListener("hashchange", syncHighlight);
+
+    return () => window.removeEventListener("hashchange", syncHighlight);
+  }, [postHash]);
+
+  useEffect(() => {
+    const syncViewport = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+
+    syncViewport();
+    window.addEventListener("resize", syncViewport);
+
+    return () => window.removeEventListener("resize", syncViewport);
+  }, []);
+
+  useEffect(() => {
+    if (!showMobileMenu) return;
+
+    const handlePointerDown = (event: MouseEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (!target?.closest(`[data-post-menu="${post._id}"]`)) {
+        setShowMobileMenu(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handlePointerDown);
+    return () => document.removeEventListener("mousedown", handlePointerDown);
+  }, [post._id, showMobileMenu]);
 
   const handleSaveEdit = async (html: string) => {
     const response = await fetch(`/api/posts/${post._id}`, {
@@ -345,11 +412,57 @@ function PostCard({
     }
   };
 
+  const handleCopyLink = async () => {
+    const absoluteUrl = `${window.location.origin}${threadPath}${postHash}`;
+
+    try {
+      await navigator.clipboard.writeText(absoluteUrl);
+      window.history.replaceState(null, "", postHash);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1800);
+    } catch {
+      window.prompt("Copy post link:", absoluteUrl);
+    }
+  };
+
+  const handleJumpToPost = () => {
+    window.history.replaceState(null, "", postHash);
+    setIsHighlighted(true);
+    setShowMobileMenu(false);
+  };
+
+  const actionButtonStyle: React.CSSProperties = {
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    width: "2.25rem",
+    height: "2.25rem",
+    borderRadius: "9999px",
+    border: "1px solid #e5e7eb",
+    color: "#6b7280",
+    backgroundColor: "white",
+    cursor: "pointer",
+    flexShrink: 0,
+  };
+
+  const destructiveButtonStyle: React.CSSProperties = {
+    ...actionButtonStyle,
+    border: "1px solid #fecaca",
+    color: "#dc2626",
+  };
+
   return (
     <div
+      id={`post-${post._id}`}
       className={`bg-white dark:bg-gray-800 rounded-lg shadow p-6 ${
         isOriginalPost ? "border-2 border-ijf-accent" : ""
       }`}
+      style={{
+        scrollMarginTop: "7rem",
+        boxShadow: isHighlighted
+          ? "0 0 0 3px rgba(228,185,91,0.35)"
+          : undefined,
+      }}
     >
       {/* Post Header */}
       <div className="flex items-start justify-between mb-4">
@@ -389,23 +502,203 @@ function PostCard({
           </div>
         </div>
 
-        {(canEdit || canDelete) && !isEditing && (
-          <div className="flex gap-2">
-            {canEdit && (
-              <button
-                onClick={() => setIsEditing(true)}
-                className="text-sm text-ijf-accent hover:underline"
+        {!isEditing && (
+          <div
+            className="flex items-center gap-2"
+            data-post-menu={post._id}
+          >
+            {!isMobile ? (
+              <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+              <a
+                href={postHash}
+                onClick={handleJumpToPost}
+                aria-label="Jump to this post"
+                title="Jump to this post"
+                style={actionButtonStyle}
               >
-                Edit
-              </button>
-            )}
-            {canDelete && (
+                <Link2 className="h-4 w-4" />
+              </a>
               <button
-                onClick={handleDelete}
-                className="text-sm text-red-600 dark:text-red-400 hover:underline"
+                onClick={handleCopyLink}
+                type="button"
+                aria-label={copied ? "Post link copied" : "Copy post link"}
+                title={copied ? "Post link copied" : "Copy post link"}
+                style={actionButtonStyle}
               >
-                Delete
+                <Copy className="h-4 w-4" />
               </button>
+              <button
+                onClick={() =>
+                  onQuoteReply({
+                    postId: post._id,
+                    authorName: post.createdBy.name,
+                    content: post.content,
+                  })
+                }
+                type="button"
+                aria-label="Quote reply"
+                title="Quote reply"
+                style={actionButtonStyle}
+              >
+                <MessageSquareQuote className="h-4 w-4" />
+              </button>
+              {canEdit && (
+                <button
+                  onClick={() => setIsEditing(true)}
+                  type="button"
+                  aria-label="Edit post"
+                  title="Edit post"
+                  style={actionButtonStyle}
+                >
+                  <Pencil className="h-4 w-4" />
+                </button>
+              )}
+              {canDelete && (
+                <button
+                  onClick={handleDelete}
+                  type="button"
+                  aria-label="Delete post"
+                  title="Delete post"
+                  style={destructiveButtonStyle}
+                >
+                  <Trash2 className="h-4 w-4" />
+                </button>
+              )}
+              </div>
+            ) : (
+            <div style={{ position: "relative" }}>
+              <button
+                type="button"
+                onClick={() => setShowMobileMenu((prev) => !prev)}
+                aria-label="Open post actions"
+                title="Post actions"
+                aria-expanded={showMobileMenu}
+                style={actionButtonStyle}
+              >
+                <Ellipsis className="h-4 w-4" />
+              </button>
+
+              {showMobileMenu && (
+                <div
+                  style={{
+                    position: "absolute",
+                    right: 0,
+                    top: "2.75rem",
+                    zIndex: 20,
+                    minWidth: "11rem",
+                    overflow: "hidden",
+                    borderRadius: "0.75rem",
+                    border: "1px solid #e5e7eb",
+                    backgroundColor: "white",
+                    boxShadow: "0 12px 24px rgba(0,0,0,0.12)",
+                  }}
+                >
+                  <a
+                    href={postHash}
+                    onClick={handleJumpToPost}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "0.75rem",
+                      padding: "0.75rem 1rem",
+                      fontSize: "0.875rem",
+                      color: "#374151",
+                    }}
+                  >
+                    <Link2 className="h-4 w-4 text-gray-500" />
+                    <span>Jump to post</span>
+                  </a>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      void handleCopyLink();
+                      setShowMobileMenu(false);
+                    }}
+                    style={{
+                      display: "flex",
+                      width: "100%",
+                      alignItems: "center",
+                      gap: "0.75rem",
+                      padding: "0.75rem 1rem",
+                      textAlign: "left",
+                      fontSize: "0.875rem",
+                      color: "#374151",
+                    }}
+                  >
+                    <Copy className="h-4 w-4 text-gray-500" />
+                    <span>{copied ? "Link copied" : "Copy link"}</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onQuoteReply({
+                        postId: post._id,
+                        authorName: post.createdBy.name,
+                        content: post.content,
+                      });
+                      setShowMobileMenu(false);
+                    }}
+                    style={{
+                      display: "flex",
+                      width: "100%",
+                      alignItems: "center",
+                      gap: "0.75rem",
+                      padding: "0.75rem 1rem",
+                      textAlign: "left",
+                      fontSize: "0.875rem",
+                      color: "#374151",
+                    }}
+                  >
+                    <MessageSquareQuote className="h-4 w-4 text-gray-500" />
+                    <span>Quote reply</span>
+                  </button>
+                  {canEdit && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsEditing(true);
+                        setShowMobileMenu(false);
+                      }}
+                      style={{
+                        display: "flex",
+                        width: "100%",
+                        alignItems: "center",
+                        gap: "0.75rem",
+                        padding: "0.75rem 1rem",
+                        textAlign: "left",
+                        fontSize: "0.875rem",
+                        color: "#374151",
+                      }}
+                    >
+                      <Pencil className="h-4 w-4 text-gray-500" />
+                      <span>Edit post</span>
+                    </button>
+                  )}
+                  {canDelete && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowMobileMenu(false);
+                        void handleDelete();
+                      }}
+                      style={{
+                        display: "flex",
+                        width: "100%",
+                        alignItems: "center",
+                        gap: "0.75rem",
+                        padding: "0.75rem 1rem",
+                        textAlign: "left",
+                        fontSize: "0.875rem",
+                        color: "#dc2626",
+                      }}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                      <span>Delete post</span>
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
             )}
           </div>
         )}

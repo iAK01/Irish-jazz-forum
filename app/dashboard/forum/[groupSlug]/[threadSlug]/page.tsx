@@ -10,6 +10,7 @@ import ReplyComposer from "@/app/components/ReplyComposer";
 import ConfirmDeleteDialog from "@/app/components/ConfirmDeleteDialog";
 import ThreadAdminMenu from "@/app/components/ThreadAdminMenu";
 import ReactionBar from "@/app/components/ReactionBar";
+import ThreadResources from "@/app/components/ThreadResources";
 
 interface ReactionSummary {
   counts: {
@@ -74,6 +75,7 @@ interface WorkingGroup {
   slug: string;
   description: string;
   isPrivate: boolean;
+  googleDriveFolderId?: string;
 }
 
 interface Pagination {
@@ -91,6 +93,12 @@ interface ForumSessionUser {
   workingGroups?: string[];
 }
 
+interface QuoteReplyState {
+  postId: string;
+  authorName: string;
+  content: string;
+}
+
 function getErrorMessage(error: unknown, fallback: string) {
   return error instanceof Error ? error.message : fallback;
 }
@@ -105,6 +113,7 @@ export default function WorkingGroupThreadView() {
   const [group, setGroup] = useState<WorkingGroup | null>(null);
   const [thread, setThread] = useState<Thread | null>(null);
   const [posts, setPosts] = useState<Post[]>([]);
+  const [resourcePosts, setResourcePosts] = useState<Post[]>([]);
   const [pagination, setPagination] = useState<Pagination | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -113,6 +122,7 @@ export default function WorkingGroupThreadView() {
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState("");
   const [isMobile, setIsMobile] = useState(false);
+  const [quoteReplyTo, setQuoteReplyTo] = useState<QuoteReplyState | null>(null);
 
   useEffect(() => {
     const check = () => setIsMobile(window.innerWidth < 768);
@@ -124,6 +134,17 @@ export default function WorkingGroupThreadView() {
   useEffect(() => {
     if (session?.user) fetchGroupAndThread();
   }, [session, groupSlug, threadSlug]);
+
+  useEffect(() => {
+    if (posts.length === 0 || typeof window === "undefined" || !window.location.hash) {
+      return;
+    }
+
+    const target = document.querySelector(window.location.hash);
+    if (target) {
+      target.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }, [posts]);
 
   const fetchGroupAndThread = async () => {
     try {
@@ -180,6 +201,7 @@ export default function WorkingGroupThreadView() {
 
       setThread(currentThread);
       await fetchPosts(currentThread._id, 1);
+      await fetchResourcePosts(currentThread._id);
 
       await fetch(`/api/threads/${currentThread._id}`, {
         method: "PATCH",
@@ -214,12 +236,40 @@ export default function WorkingGroupThreadView() {
     }
   };
 
+  const fetchResourcePosts = async (threadId: string) => {
+    try {
+      const allPosts: Post[] = [];
+      let page = 1;
+      let hasMore = true;
+
+      while (hasMore) {
+        const response = await fetch(
+          `/api/threads/${threadId}/posts?page=${page}&limit=100`
+        );
+        const result = await response.json();
+
+        if (!response.ok || !result.success) {
+          throw new Error(result.error || "Failed to fetch thread resources");
+        }
+
+        allPosts.push(...(result.data || []));
+        hasMore = Boolean(result.pagination?.hasMore);
+        page += 1;
+      }
+
+      setResourcePosts(allPosts);
+    } catch (err: unknown) {
+      console.error(getErrorMessage(err, "Failed to fetch thread resources"));
+    }
+  };
+
   const handleLoadMore = () => {
     if (thread && pagination?.hasMore) fetchPosts(thread._id, pagination.page + 1);
   };
 
   const handleReplyAdded = (newPost: Post) => {
     setPosts((prev) => [...prev, newPost]);
+    setResourcePosts((prev) => [...prev, newPost]);
     if (thread) setThread({ ...thread, replyCount: thread.replyCount + 1 });
   };
 
@@ -227,15 +277,26 @@ export default function WorkingGroupThreadView() {
     setPosts((prev) =>
       prev.map((p) => p._id === postId ? { ...p, content: newContent, editedAt: new Date().toISOString() } : p)
     );
+    setResourcePosts((prev) =>
+      prev.map((p) => p._id === postId ? { ...p, content: newContent, editedAt: new Date().toISOString() } : p)
+    );
   };
 
   const handlePostDeleted = (postId: string) => {
     setPosts((prev) => prev.filter((p) => p._id !== postId));
+    setResourcePosts((prev) => prev.filter((p) => p._id !== postId));
     if (thread) setThread({ ...thread, replyCount: Math.max(0, thread.replyCount - 1) });
   };
 
   const handleThreadUpdated = (updates: Partial<Thread>) => {
     if (thread) setThread({ ...thread, ...updates });
+  };
+
+  const handleQuoteReply = (quote: QuoteReplyState) => {
+    setQuoteReplyTo(quote);
+    document
+      .getElementById("reply-composer")
+      ?.scrollIntoView({ behavior: "smooth", block: "start" });
   };
 
   const handleDeleteThread = async () => {
@@ -458,12 +519,21 @@ export default function WorkingGroupThreadView() {
           </div>
         )}
 
+        <ThreadResources
+          posts={resourcePosts}
+          threadPath={`/dashboard/forum/${groupSlug}/${thread.slug}`}
+          groupName={group.name}
+          driveFolderId={group.googleDriveFolderId}
+        />
+
         {/* Posts */}
         <div style={{ marginBottom: "2rem" }}>
           <PostList
             posts={posts}
             currentUserId={currentUserId}
             currentUserRole={currentUser.role}
+            threadPath={`/dashboard/forum/${groupSlug}/${thread.slug}`}
+            onQuoteReply={handleQuoteReply}
             onPostEdited={handlePostEdited}
             onPostDeleted={handlePostDeleted}
           />
@@ -484,7 +554,13 @@ export default function WorkingGroupThreadView() {
 
         {/* Reply composer */}
         <div style={{ backgroundColor: "white", borderRadius: "0.75rem", boxShadow: "0 4px 6px -1px rgba(0,0,0,0.1)", border: "1px solid #f3f4f6", padding: isMobile ? "1rem" : "1.5rem" }}>
-          <ReplyComposer threadId={thread._id} onReplyAdded={handleReplyAdded} workingGroup={groupSlug} />
+          <ReplyComposer
+            threadId={thread._id}
+            onReplyAdded={handleReplyAdded}
+            workingGroup={groupSlug}
+            quoteReplyTo={quoteReplyTo}
+            onQuoteInserted={() => setQuoteReplyTo(null)}
+          />
         </div>
       </div>
 

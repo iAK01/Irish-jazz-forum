@@ -40,12 +40,20 @@ export interface ForumDigestThreadItem {
   url: string;
 }
 
+export interface ForumDigestGroupPrompt {
+  name: string;
+  slug: string;
+  coordinatorName: string | null;
+}
+
 export interface ForumDigestSection {
   key: string;
   name: string;
   slug: string | null;
   threads: ForumDigestThreadItem[];
 }
+
+export type ForumDigestEmptyState = "none" | "member" | "coordinator";
 
 export interface ForumDigestPayload {
   userName: string;
@@ -54,6 +62,9 @@ export interface ForumDigestPayload {
   periodEnd: Date;
   threadCount: number;
   sections: ForumDigestSection[];
+  emptyState: ForumDigestEmptyState;
+  assignedGroups: ForumDigestGroupPrompt[];
+  coordinatorGroups: ForumDigestGroupPrompt[];
   forumUrl: string;
   manageSettingsUrl: string;
 }
@@ -73,6 +84,13 @@ interface DigestGroupDocument {
   _id: { toString(): string } | string;
   name: string;
   slug: string;
+  coordinator?:
+    | string
+    | {
+        _id?: { toString(): string } | string;
+        name?: string;
+      }
+    | null;
 }
 
 interface DigestPostDocument {
@@ -84,6 +102,14 @@ interface DigestPostDocument {
         name?: string;
       };
   createdAt: Date;
+}
+
+function getCoordinatorName(
+  coordinator?: string | { _id?: { toString(): string } | string; name?: string } | null
+) {
+  return coordinator && typeof coordinator === "object"
+    ? coordinator.name || null
+    : null;
 }
 
 function normalizeGroupIds(workingGroups?: string[]) {
@@ -180,9 +206,31 @@ export async function buildForumDigestForUser(
 
   const groups = groupIds.length
     ? ((await WorkingGroupModel.find({ _id: { $in: groupIds } })
-        .select("name slug")
+        .select("name slug coordinator")
+        .populate("coordinator", "name")
         .lean()) as unknown as DigestGroupDocument[])
     : [];
+
+  const assignedGroupIds = normalizeGroupIds(user.workingGroups);
+  const assignedGroups = assignedGroupIds.length
+    ? ((await WorkingGroupModel.find({
+        _id: { $in: assignedGroupIds },
+        deleted: { $ne: true },
+        isActive: { $ne: false },
+      })
+        .select("name slug coordinator")
+        .populate("coordinator", "name")
+        .lean()) as unknown as DigestGroupDocument[])
+    : [];
+
+  const coordinatorGroups = ((await WorkingGroupModel.find({
+    coordinator: user._id,
+    deleted: { $ne: true },
+    isActive: { $ne: false },
+  })
+    .select("name slug coordinator")
+    .populate("coordinator", "name")
+    .lean()) as unknown as DigestGroupDocument[]);
 
   const threadIds = threads.map((thread) => thread._id.toString());
   const posts = threadIds.length
@@ -199,7 +247,11 @@ export async function buildForumDigestForUser(
   const groupMap = new Map(
     groups.map((group) => [
       group._id.toString(),
-      { name: group.name, slug: group.slug },
+      {
+        name: group.name,
+        slug: group.slug,
+        coordinatorName: getCoordinatorName(group.coordinator),
+      },
     ])
   );
 
@@ -275,6 +327,22 @@ export async function buildForumDigestForUser(
 
   const forumUrl = `${baseUrl}/dashboard/forum`;
   const manageSettingsUrl = `${baseUrl}/dashboard/profile/notifications`;
+  const normalizedAssignedGroups = assignedGroups.map((group) => ({
+    name: group.name,
+    slug: group.slug,
+    coordinatorName: getCoordinatorName(group.coordinator),
+  }));
+  const normalizedCoordinatorGroups = coordinatorGroups.map((group) => ({
+    name: group.name,
+    slug: group.slug,
+    coordinatorName: getCoordinatorName(group.coordinator),
+  }));
+  const emptyState: ForumDigestEmptyState =
+    threads.length > 0
+      ? "none"
+      : normalizedCoordinatorGroups.length > 0
+        ? "coordinator"
+        : "member";
 
   return {
     userName: user.name,
@@ -283,6 +351,9 @@ export async function buildForumDigestForUser(
     periodEnd: window.periodEnd,
     threadCount: threads.length,
     sections: [...sections.values()],
+    emptyState,
+    assignedGroups: normalizedAssignedGroups,
+    coordinatorGroups: normalizedCoordinatorGroups,
     forumUrl,
     manageSettingsUrl,
   };

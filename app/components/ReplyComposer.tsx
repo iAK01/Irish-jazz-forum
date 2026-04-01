@@ -30,25 +30,51 @@ import {
 interface ReplyComposerProps {
   threadId: string;
   workingGroup?: string;
-  onReplyAdded: (newPost: any) => void;
+  quoteReplyTo?: {
+    postId: string;
+    authorName: string;
+    content: string;
+  } | null;
+  onQuoteInserted?: () => void;
+  onReplyAdded: (newPost: Record<string, unknown>) => void;
 }
 
 const DRAFT_KEY = (threadId: string) => `reply-draft-${threadId}`;
 
+interface UploadedAttachment {
+  filename: string;
+  url: string;
+  mimetype: string;
+  size: number;
+  uploadedAt: Date;
+}
+
+function escapeHtml(value: string) {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
 export default function ReplyComposer({
   threadId,
   workingGroup,
+  quoteReplyTo = null,
+  onQuoteInserted,
   onReplyAdded,
 }: ReplyComposerProps) {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
-  const [attachments, setAttachments] = useState<any[]>([]);
+  const [attachments, setAttachments] = useState<UploadedAttachment[]>([]);
   const [uploading, setUploading] = useState(false);
   const [showMoreTools, setShowMoreTools] = useState(false);
   const [wordCount, setWordCount] = useState(0);
   const [hasDraft, setHasDraft] = useState(false);
   const moreToolsRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const lastQuotedPostIdRef = useRef<string | null>(null);
 
   const editor = useEditor({
     immediatelyRender: false,
@@ -103,6 +129,33 @@ export default function ReplyComposer({
   }, [editor, threadId]);
 
   useEffect(() => {
+    if (!quoteReplyTo) {
+      lastQuotedPostIdRef.current = null;
+      return;
+    }
+
+  }, [quoteReplyTo]);
+
+  useEffect(() => {
+    if (!editor || !quoteReplyTo) return;
+    if (lastQuotedPostIdRef.current === quoteReplyTo.postId) return;
+
+    const quotedBlock = `<blockquote data-quoted-post-id="${quoteReplyTo.postId}"><p><strong>${escapeHtml(
+      quoteReplyTo.authorName
+    )} wrote:</strong></p>${quoteReplyTo.content}</blockquote><p></p>`;
+    const currentHtml = editor.getHTML();
+    const nextHtml =
+      currentHtml && currentHtml !== "<p></p>"
+        ? `${quotedBlock}${currentHtml}`
+        : quotedBlock;
+
+    editor.commands.setContent(nextHtml);
+    editor.commands.focus("end");
+    lastQuotedPostIdRef.current = quoteReplyTo.postId;
+    onQuoteInserted?.();
+  }, [editor, quoteReplyTo, onQuoteInserted]);
+
+  useEffect(() => {
     const handler = (e: MouseEvent) => {
       if (
         moreToolsRef.current &&
@@ -128,13 +181,7 @@ export default function ReplyComposer({
     setError("");
 
     try {
-      const uploadedFiles: {
-        filename: string;
-        url: string;
-        mimetype: string;
-        size: number;
-        uploadedAt: Date;
-      }[] = [];
+      const uploadedFiles: UploadedAttachment[] = [];
 
       for (let i = 0; i < files.length; i++) {
         const file = files[i];
@@ -159,8 +206,8 @@ export default function ReplyComposer({
         });
       }
       setAttachments((prev) => [...prev, ...uploadedFiles]);
-    } catch (err: any) {
-      setError(err.message || "File upload failed");
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "File upload failed");
     } finally {
       setUploading(false);
       if (fileInputRef.current) fileInputRef.current.value = "";
@@ -198,8 +245,8 @@ export default function ReplyComposer({
       setWordCount(0);
       clearDraft();
       onReplyAdded(result.data);
-    } catch (err: any) {
-      setError(err.message || "An error occurred");
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "An error occurred");
     } finally {
       setSubmitting(false);
     }
@@ -216,7 +263,7 @@ export default function ReplyComposer({
   });
 
   return (
-    <div>
+    <div id="reply-composer">
       {error && (
         <div
           className="mb-3 p-3 rounded-lg border-l-4"

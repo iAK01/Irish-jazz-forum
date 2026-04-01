@@ -9,6 +9,7 @@ import { requireAuth } from "@/lib/auth";
 import { parseMentionIds } from "@/lib/parseMentions";
 import { withReactionState } from "@/lib/reactions";
 import { sendMentionNotificationEmail } from "@/lib/email";
+import { withForumVisitState } from "@/lib/forumDiscovery";
 import slugify from "slugify";
 
 export async function GET(request: Request) {
@@ -74,7 +75,10 @@ export async function GET(request: Request) {
     return NextResponse.json({
       success: true,
       data: threads.map((thread: any) =>
-        withReactionState(thread, currentUser._id.toString())
+        withForumVisitState(
+          withReactionState(thread, currentUser._id.toString()),
+          currentUser.lastForumVisitAt
+        )
       ),
     });
   } catch (error: any) {

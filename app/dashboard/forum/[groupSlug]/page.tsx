@@ -37,6 +37,7 @@ interface Thread {
   viewCount: number;
   tags: string[];
   reactionSummary: ReactionSummary;
+  isNewSinceLastVisit?: boolean;
   createdAt: string;
   lastActivityAt: string;
   updatedAt: string;
@@ -115,6 +116,7 @@ export default function WorkingGroupThreadList() {
       }
 
       setThreads(threadsData.data || []);
+      await fetch("/api/forum/visit", { method: "POST" });
     } catch (err: unknown) {
       setError(getErrorMessage(err));
     } finally {
@@ -365,6 +367,11 @@ export default function WorkingGroupThreadList() {
               }}>
                 {thread.title}
               </h3>
+              {thread.isNewSinceLastVisit && (
+                <span style={{ padding: "0.12rem 0.45rem", borderRadius: "9999px", backgroundColor: "rgba(34,197,94,0.12)", color: "#166534", fontSize: "0.68rem", fontWeight: 700, flexShrink: 0 }}>
+                  New
+                </span>
+              )}
             </div>
 
             {/* Created by row */}
@@ -511,12 +518,26 @@ export default function WorkingGroupThreadList() {
               </div>
             </div>
 
-            <button
-              onClick={() => router.push(`/dashboard/forum/new?workingGroup=${groupSlug}`)}
-              style={{ padding: "0.625rem 1.25rem", borderRadius: "0.5rem", fontWeight: 600, backgroundColor: "var(--color-ijf-accent)", color: "var(--color-ijf-bg)", width: isMobile ? "100%" : "auto", cursor: "pointer", fontSize: "0.875rem", whiteSpace: "nowrap" }}
-            >
-              + New Thread
-            </button>
+            <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap", width: isMobile ? "100%" : "auto" }}>
+              <button
+                onClick={() => router.push("/dashboard/forum/whats-new")}
+                style={{ padding: "0.625rem 1rem", borderRadius: "0.5rem", fontWeight: 600, backgroundColor: "rgba(255,255,255,0.08)", color: "white", border: "1px solid rgba(255,255,255,0.12)", width: isMobile ? "100%" : "auto", cursor: "pointer", fontSize: "0.875rem" }}
+              >
+                What&apos;s New
+              </button>
+              <button
+                onClick={() => router.push("/dashboard/forum/search")}
+                style={{ padding: "0.625rem 1rem", borderRadius: "0.5rem", fontWeight: 600, backgroundColor: "rgba(255,255,255,0.08)", color: "white", border: "1px solid rgba(255,255,255,0.12)", width: isMobile ? "100%" : "auto", cursor: "pointer", fontSize: "0.875rem" }}
+              >
+                Search
+              </button>
+              <button
+                onClick={() => router.push(`/dashboard/forum/new?workingGroup=${groupSlug}`)}
+                style={{ padding: "0.625rem 1.25rem", borderRadius: "0.5rem", fontWeight: 600, backgroundColor: "var(--color-ijf-accent)", color: "var(--color-ijf-bg)", width: isMobile ? "100%" : "auto", cursor: "pointer", fontSize: "0.875rem", whiteSpace: "nowrap" }}
+              >
+                + New Thread
+              </button>
+            </div>
           </div>
 
           <div style={{ display: "flex", gap: "1.5rem", paddingTop: "0.875rem", borderTop: "1px solid rgba(255,255,255,0.15)" }}>

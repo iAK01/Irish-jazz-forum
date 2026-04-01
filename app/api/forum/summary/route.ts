@@ -5,6 +5,7 @@ import dbConnect from "@/lib/mongodb";
 import { WorkingGroupModel } from "@/models/Workinggroup";
 import { DiscussionThreadModel } from "@/models/Discussionthread";
 import { requireAuth } from "@/lib/auth";
+import { buildAccessibleThreadQuery } from "@/lib/forumDiscovery";
 import mongoose from "mongoose";
 
 export async function GET() {
@@ -43,6 +44,8 @@ export async function GET() {
 
     // workingGroups field on threads stores ObjectId strings — match exactly as threads API does
     const groupIds = groups.map((g: any) => g._id.toString());
+    const accessibleThreadQuery = buildAccessibleThreadQuery(currentUser);
+    const lastForumVisitAt = currentUser.lastForumVisitAt || null;
 
     // --- 2. General thread count — threads with workingGroups: [] (empty array) ---
     const generalThreadCount = await DiscussionThreadModel.countDocuments({
@@ -72,6 +75,32 @@ export async function GET() {
         )
       ),
     ]);
+
+    let whatsNewCount = 0;
+    let generalNewThreadCount = 0;
+    let groupNewThreadCounts: number[] = groupIds.map(() => 0);
+
+    if (lastForumVisitAt) {
+      const freshThreadQuery = {
+        deleted: { $ne: true },
+        lastActivityAt: { $gt: new Date(lastForumVisitAt) },
+        ...accessibleThreadQuery,
+      };
+
+      const freshThreads = await DiscussionThreadModel.find(freshThreadQuery)
+        .select("workingGroups")
+        .lean();
+
+      whatsNewCount = freshThreads.length;
+      generalNewThreadCount = freshThreads.filter(
+        (thread: any) => !thread.workingGroups || thread.workingGroups.length === 0
+      ).length;
+      groupNewThreadCounts = groupIds.map((groupId: string) =>
+        freshThreads.filter((thread: any) =>
+          (thread.workingGroups || []).map((value: any) => value.toString()).includes(groupId)
+        ).length
+      );
+    }
 
     // If user is a member, also count private threads they can see
     let memberThreadCounts: number[] = [];
@@ -120,6 +149,7 @@ export async function GET() {
       description: group.description,
       isPrivate: group.isPrivate,
       threadCount: finalThreadCounts[index] || 0,
+      newThreadCount: groupNewThreadCounts[index] || 0,
       lastActivityAt: (lastActivityResults[index] as any)?.lastActivityAt || null,
     }));
 
@@ -127,6 +157,9 @@ export async function GET() {
       success: true,
       data: {
         generalThreadCount,
+        generalNewThreadCount,
+        whatsNewCount,
+        lastForumVisitAt,
         workingGroups: workingGroupStats,
         members: allMembers,
       },

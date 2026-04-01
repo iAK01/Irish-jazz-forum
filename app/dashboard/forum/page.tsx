@@ -12,6 +12,7 @@ interface WorkingGroupStats {
   description: string;
   isPrivate: boolean;
   threadCount: number;
+  newThreadCount?: number;
   lastActivityAt?: string;
 }
 
@@ -23,12 +24,31 @@ interface OnlineMember {
   isOnline: boolean;
 }
 
+interface ForumSummaryResponse {
+  generalThreadCount?: number;
+  generalNewThreadCount?: number;
+  whatsNewCount?: number;
+  workingGroups?: WorkingGroupStats[];
+  members?: Array<{
+    _id: string;
+    name: string;
+    image?: string;
+    lastSeenAt?: string;
+  }>;
+}
+
+interface ForumHomeUser {
+  role?: string;
+}
+
 export default function ForumHomePage() {
   const { data: session } = useSession();
   const router = useRouter();
   const [generalThreadCount, setGeneralThreadCount] = useState(0);
+  const [generalNewThreadCount, setGeneralNewThreadCount] = useState(0);
   const [workingGroups, setWorkingGroups] = useState<WorkingGroupStats[]>([]);
   const [allMembers, setAllMembers] = useState<OnlineMember[]>([]);
+  const [whatsNewCount, setWhatsNewCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [isMobile, setIsMobile] = useState(false);
 
@@ -65,13 +85,15 @@ export default function ForumHomePage() {
       setLoading(true);
       const res = await fetch("/api/forum/summary");
       if (!res.ok) return;
-      const { data } = await res.json();
+      const { data } = (await res.json()) as { data?: ForumSummaryResponse };
 
       setGeneralThreadCount(data.generalThreadCount || 0);
+      setGeneralNewThreadCount(data.generalNewThreadCount || 0);
+      setWhatsNewCount(data.whatsNewCount || 0);
       setWorkingGroups(data.workingGroups || []);
 
       const members: OnlineMember[] = (data.members || [])
-        .map((m: any) => ({ ...m, isOnline: isOnline(m.lastSeenAt) }))
+        .map((member) => ({ ...member, isOnline: isOnline(member.lastSeenAt) }))
         .sort((a: OnlineMember, b: OnlineMember) => {
           if (a.isOnline && !b.isOnline) return -1;
           if (!a.isOnline && b.isOnline) return 1;
@@ -82,6 +104,7 @@ export default function ForumHomePage() {
         });
 
       setAllMembers(members);
+      await fetch("/api/forum/visit", { method: "POST" });
     } catch (error) {
       console.error("Error fetching forum data:", error);
     } finally {
@@ -97,7 +120,7 @@ export default function ForumHomePage() {
     );
   }
 
-  const currentUser = session.user as any;
+  const currentUser = session.user as ForumHomeUser;
   const isPrivileged =
     currentUser.role === "steering" ||
     currentUser.role === "admin" ||
@@ -168,6 +191,35 @@ export default function ForumHomePage() {
         <p style={{ fontSize: isMobile ? "0.9rem" : "1.25rem", color: "#d1d5db" }}>
           Collaborate with the Irish jazz community through focused discussions
         </p>
+        <div style={{ marginTop: "1rem", display: "flex", gap: "0.75rem", flexWrap: "wrap" }}>
+          <button
+            onClick={() => router.push("/dashboard/forum/whats-new")}
+            style={{
+              padding: "0.7rem 1rem",
+              borderRadius: "0.625rem",
+              backgroundColor: "var(--color-ijf-accent)",
+              color: "var(--color-ijf-bg)",
+              fontWeight: 700,
+              cursor: "pointer",
+            }}
+          >
+            What&apos;s New{whatsNewCount > 0 ? ` (${whatsNewCount})` : ""}
+          </button>
+          <button
+            onClick={() => router.push("/dashboard/forum/search")}
+            style={{
+              padding: "0.7rem 1rem",
+              borderRadius: "0.625rem",
+              backgroundColor: "rgba(255,255,255,0.08)",
+              color: "white",
+              fontWeight: 700,
+              border: "1px solid rgba(255,255,255,0.12)",
+              cursor: "pointer",
+            }}
+          >
+            Search Forum
+          </button>
+        </div>
       </div>
 
       <div style={{ maxWidth: "72rem", margin: "0 auto", paddingBottom: "2rem" }}>
@@ -251,7 +303,7 @@ export default function ForumHomePage() {
                         IJF General Discussion
                       </h2>
                       <p style={{ fontSize: "0.8rem", fontWeight: 600, color: "var(--color-ijf-accent)" }}>
-                        Open to all members
+                        Open to all members{generalNewThreadCount > 0 ? ` • ${generalNewThreadCount} new` : ""}
                       </p>
                     </div>
                   </div>
@@ -324,6 +376,11 @@ export default function ForumHomePage() {
                           <div style={{ fontSize: "0.7rem", color: "#6b7280", fontWeight: 500 }}>
                             {group.threadCount === 1 ? "thread" : "threads"}
                           </div>
+                          {group.newThreadCount ? (
+                            <div style={{ marginTop: "0.35rem", fontSize: "0.72rem", fontWeight: 700, color: "#166534" }}>
+                              {group.newThreadCount} new
+                            </div>
+                          ) : null}
                         </div>
                       </div>
 
