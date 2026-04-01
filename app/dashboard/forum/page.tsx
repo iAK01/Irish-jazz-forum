@@ -85,7 +85,7 @@ export default function ForumHomePage() {
       setLoading(true);
       const res = await fetch("/api/forum/summary");
       if (!res.ok) return;
-      const { data } = (await res.json()) as { data?: ForumSummaryResponse };
+      const { data = {} } = (await res.json()) as { data?: ForumSummaryResponse };
 
       setGeneralThreadCount(data.generalThreadCount || 0);
       setGeneralNewThreadCount(data.generalNewThreadCount || 0);

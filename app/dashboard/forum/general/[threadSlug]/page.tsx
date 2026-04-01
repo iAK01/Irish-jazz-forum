@@ -434,7 +434,7 @@ export default function GeneralThreadView() {
         <div style={{ backgroundColor: "white", borderRadius: "0.75rem", boxShadow: "0 4px 6px -1px rgba(0,0,0,0.1)", border: "1px solid #f3f4f6", padding: isMobile ? "1rem" : "1.5rem" }}>
           <ReplyComposer
             threadId={thread._id}
-            onReplyAdded={handleReplyAdded}
+            onReplyAdded={(newPost) => handleReplyAdded(newPost as unknown as Post)}
             workingGroup="general"
             quoteReplyTo={quoteReplyTo}
             onQuoteInserted={() => setQuoteReplyTo(null)}

@@ -62,7 +62,7 @@ export async function GET() {
       ? await WorkingGroupModel.find({ _id: { $in: groupIds } })
           .select("name slug")
           .lean()
-      : []) as WhatsNewGroup[];
+      : []) as unknown as WhatsNewGroup[];
 
     const groupMap = new Map(
       groups.map((group) => [

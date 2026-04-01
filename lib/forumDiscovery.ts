@@ -59,8 +59,8 @@ export function isThreadNewSinceLastVisit(
   );
 }
 
-export function withForumVisitState<T extends ForumActivityShape>(
-  item: T,
+export function withForumVisitState<T extends object>(
+  item: T & ForumActivityShape,
   lastForumVisitAt?: Date | string | null
 ) {
   return {
