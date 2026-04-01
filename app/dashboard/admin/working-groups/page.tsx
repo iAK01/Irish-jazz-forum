@@ -53,6 +53,14 @@ interface AssignmentModalState {
   error: string;
 }
 
+interface PersonAssignmentModalState {
+  open: boolean;
+  user: User | null;
+  selectedGroupIds: string[];
+  saving: boolean;
+  error: string;
+}
+
 const EMPTY_ASSIGNMENT_MODAL: AssignmentModalState = {
   open: false,
   group: null,
@@ -62,15 +70,26 @@ const EMPTY_ASSIGNMENT_MODAL: AssignmentModalState = {
   error: "",
 };
 
+const EMPTY_PERSON_ASSIGNMENT_MODAL: PersonAssignmentModalState = {
+  open: false,
+  user: null,
+  selectedGroupIds: [],
+  saving: false,
+  error: "",
+};
+
 export default function WorkingGroupsAdminPage() {
   const { data: session } = useSession();
   const [groups, setGroups] = useState<WorkingGroup[]>([]);
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
+  const [quickActionUserId, setQuickActionUserId] = useState<string | null>(null);
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [editingGroup, setEditingGroup] = useState<WorkingGroup | null>(null);
   const [assignmentModal, setAssignmentModal] =
     useState<AssignmentModalState>(EMPTY_ASSIGNMENT_MODAL);
+  const [personAssignmentModal, setPersonAssignmentModal] =
+    useState<PersonAssignmentModalState>(EMPTY_PERSON_ASSIGNMENT_MODAL);
 
   const [formData, setFormData] = useState({
     name: "",
@@ -126,7 +145,15 @@ export default function WorkingGroupsAdminPage() {
         group._id,
         assignableUsers
           .filter((user) => (user.workingGroups || []).includes(group._id))
-          .sort((a, b) => a.name.localeCompare(b.name))
+          .sort((a, b) => {
+            const aIsCoordinator = a._id === group.coordinator._id;
+            const bIsCoordinator = b._id === group.coordinator._id;
+
+            if (aIsCoordinator && !bIsCoordinator) return -1;
+            if (!aIsCoordinator && bIsCoordinator) return 1;
+
+            return a.name.localeCompare(b.name);
+          })
       );
     }
 
@@ -255,6 +282,29 @@ export default function WorkingGroupsAdminPage() {
     setAssignmentModal(EMPTY_ASSIGNMENT_MODAL);
   };
 
+  const getCoordinatorGroupIds = (userId: string) =>
+    groups
+      .filter((group) => group.coordinator._id === userId)
+      .map((group) => group._id);
+
+  const openPersonAssignmentModal = (user: User) => {
+    const coordinatorGroupIds = getCoordinatorGroupIds(user._id);
+
+    setPersonAssignmentModal({
+      open: true,
+      user,
+      selectedGroupIds: [
+        ...new Set([...(user.workingGroups || []), ...coordinatorGroupIds]),
+      ],
+      saving: false,
+      error: "",
+    });
+  };
+
+  const closePersonAssignmentModal = () => {
+    setPersonAssignmentModal(EMPTY_PERSON_ASSIGNMENT_MODAL);
+  };
+
   const toggleUserAssignment = (userId: string) => {
     if (!assignmentModal.group) return;
     if (assignmentModal.group.coordinator._id === userId) return;
@@ -345,6 +395,150 @@ export default function WorkingGroupsAdminPage() {
     }
   };
 
+  const togglePersonGroupAssignment = (groupId: string) => {
+    const user = personAssignmentModal.user;
+    if (!user) return;
+    if (getCoordinatorGroupIds(user._id).includes(groupId)) return;
+
+    setPersonAssignmentModal((current) => ({
+      ...current,
+      selectedGroupIds: current.selectedGroupIds.includes(groupId)
+        ? current.selectedGroupIds.filter((id) => id !== groupId)
+        : [...current.selectedGroupIds, groupId],
+    }));
+  };
+
+  const savePersonAssignments = async () => {
+    const user = personAssignmentModal.user;
+    if (!user) return;
+
+    const lockedGroupIds = getCoordinatorGroupIds(user._id);
+    const nextWorkingGroups = [
+      ...new Set([
+        ...personAssignmentModal.selectedGroupIds,
+        ...lockedGroupIds,
+      ]),
+    ];
+    const currentWorkingGroups = user.workingGroups || [];
+    const affectedGroups = groups.filter(
+      (group) =>
+        currentWorkingGroups.includes(group._id) ||
+        nextWorkingGroups.includes(group._id)
+    );
+
+    try {
+      setPersonAssignmentModal((current) => ({
+        ...current,
+        saving: true,
+        error: "",
+      }));
+
+      const userResponse = await fetch(`/api/users/${user._id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          workingGroups: nextWorkingGroups,
+        }),
+      });
+
+      if (!userResponse.ok) {
+        const result = await userResponse.json();
+        throw new Error(result.error || `Failed to update ${user.name}`);
+      }
+
+      await Promise.all(
+        affectedGroups.map(async (group) => {
+          const currentMemberIds = (assignedUsersByGroup.get(group._id) || []).map(
+            (assignedUser) => assignedUser._id
+          );
+          const nextMemberIds = nextWorkingGroups.includes(group._id)
+            ? [...new Set([...currentMemberIds, user._id, group.coordinator._id])]
+            : currentMemberIds.filter((memberId) => memberId !== user._id);
+
+          const syncGroupResponse = await fetch(
+            `/api/working-groups/${group._id}`,
+            {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                coordinatorId: group.coordinator._id,
+                members: nextMemberIds,
+              }),
+            }
+          );
+
+          if (!syncGroupResponse.ok) {
+            const result = await syncGroupResponse.json();
+            throw new Error(
+              result.error || `Failed to sync ${group.name} members`
+            );
+          }
+        })
+      );
+
+      await fetchData();
+      closePersonAssignmentModal();
+    } catch (error) {
+      setPersonAssignmentModal((current) => ({
+        ...current,
+        saving: false,
+        error:
+          error instanceof Error ? error.message : "Failed to save assignments",
+      }));
+    }
+  };
+
+  const quickUnassignUser = async (group: WorkingGroup, user: User) => {
+    if (user._id === group.coordinator._id) {
+      return;
+    }
+
+    try {
+      setQuickActionUserId(`${group._id}:${user._id}`);
+
+      const nextWorkingGroups = (user.workingGroups || []).filter(
+        (value) => value !== group._id
+      );
+
+      const userResponse = await fetch(`/api/users/${user._id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          workingGroups: nextWorkingGroups,
+        }),
+      });
+
+      if (!userResponse.ok) {
+        const result = await userResponse.json();
+        throw new Error(result.error || `Failed to unassign ${user.name}`);
+      }
+
+      const nextAssignedUserIds = (assignedUsersByGroup.get(group._id) || [])
+        .filter((assignedUser) => assignedUser._id !== user._id)
+        .map((assignedUser) => assignedUser._id);
+
+      const syncGroupResponse = await fetch(`/api/working-groups/${group._id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          coordinatorId: group.coordinator._id,
+          members: nextAssignedUserIds,
+        }),
+      });
+
+      if (!syncGroupResponse.ok) {
+        const result = await syncGroupResponse.json();
+        throw new Error(result.error || "Failed to sync working group members");
+      }
+
+      await fetchData();
+    } catch (error) {
+      alert(error instanceof Error ? error.message : "Failed to unassign user");
+    } finally {
+      setQuickActionUserId(null);
+    }
+  };
+
   if (
     !session ||
     (session.user.role !== "admin" && session.user.role !== "super_admin")
@@ -359,6 +553,7 @@ export default function WorkingGroupsAdminPage() {
   }
 
   const modalGroup = assignmentModal.group;
+  const personModalUser = personAssignmentModal.user;
   const modalUsers = modalGroup
     ? assignableUsers
         .filter((user) => {
@@ -379,6 +574,26 @@ export default function WorkingGroupsAdminPage() {
           if (aSelected && !bSelected) return -1;
           if (!aSelected && bSelected) return 1;
           return a.name.localeCompare(b.name);
+        })
+    : [];
+  const personModalGroups = personModalUser
+    ? groups
+        .map((group) => {
+          const assignedCount = assignedUsersByGroup.get(group._id)?.length || 0;
+          const isCoordinator = group.coordinator._id === personModalUser._id;
+          const isSelected = personAssignmentModal.selectedGroupIds.includes(group._id);
+
+          return {
+            group,
+            assignedCount,
+            isCoordinator,
+            isSelected,
+          };
+        })
+        .sort((a, b) => {
+          if (a.isSelected && !b.isSelected) return -1;
+          if (!a.isSelected && b.isSelected) return 1;
+          return a.group.name.localeCompare(b.group.name);
         })
     : [];
 
@@ -431,17 +646,22 @@ export default function WorkingGroupsAdminPage() {
             <p className="text-sm font-semibold text-amber-900">
               Unassigned people
             </p>
+            <p className="mt-1 text-xs text-amber-800">
+              Click a person to place them into one or more working groups.
+            </p>
             <div className="mt-3 flex flex-wrap gap-2">
               {unassignedUsers.slice(0, 10).map((user) => (
-                <span
+                <button
+                  type="button"
                   key={user._id}
-                  className="inline-flex items-center gap-2 rounded-full bg-white px-3 py-1.5 text-xs font-medium text-zinc-800 border border-amber-200"
+                  onClick={() => openPersonAssignmentModal(user)}
+                  className="inline-flex items-center gap-2 rounded-full bg-white px-3 py-1.5 text-xs font-medium text-zinc-800 border border-amber-200 transition hover:border-amber-300 hover:bg-amber-100"
                 >
                   {user.name}
                   {user.primaryRegion && (
                     <span className="text-zinc-500">{user.primaryRegion}</span>
                   )}
-                </span>
+                </button>
               ))}
               {unassignedUsers.length > 10 && (
                 <span className="inline-flex items-center rounded-full bg-white px-3 py-1.5 text-xs font-medium text-zinc-600 border border-amber-200">
@@ -472,125 +692,157 @@ export default function WorkingGroupsAdminPage() {
               return (
                 <div
                   key={group._id}
-                  className="bg-white rounded-xl p-6 border border-zinc-200"
+                  className="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm"
                 >
-                  <div className="flex items-start justify-between gap-6">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-3 mb-2 flex-wrap">
-                        <h3 className="text-xl font-bold text-zinc-900">
-                          {group.name}
-                        </h3>
-                        {group.isPrivate && (
-                          <span className="px-2 py-1 bg-red-100 text-red-800 rounded text-xs font-medium">
-                            Private
-                          </span>
-                        )}
-                        {!group.isActive && (
-                          <span className="px-2 py-1 bg-zinc-100 text-zinc-800 rounded text-xs font-medium">
-                            Inactive
-                          </span>
-                        )}
-                      </div>
-
-                      <p className="text-zinc-600 mb-4">{group.description}</p>
-
-                      <div className="flex flex-wrap items-center gap-3 mb-4 text-sm">
-                        <span className="inline-flex items-center gap-2 rounded-full bg-zinc-50 border border-zinc-200 px-3 py-1.5 text-zinc-800">
-                          Coordinator: <strong>{group.coordinator.name}</strong>
-                        </span>
-                        <span className="inline-flex items-center gap-2 rounded-full bg-amber-50 border border-amber-200 px-3 py-1.5 text-amber-900">
-                          <strong>{assignedUsers.length}</strong> assigned
-                        </span>
-                        <span className="inline-flex items-center gap-2 rounded-full bg-sky-50 border border-sky-200 px-3 py-1.5 text-sky-900">
-                          {assignedUsers.filter((user) => user.primaryRegion).length} with region
-                        </span>
-                      </div>
-
-                      <div className="rounded-xl border border-zinc-200 bg-zinc-50/50 p-4">
-                        <div className="flex items-center justify-between gap-3 mb-3">
-                          <h4 className="text-sm font-semibold uppercase tracking-wide text-zinc-500">
-                            Assigned People
-                          </h4>
-                          {assignedUsers.length > 0 && (
-                            <button
-                              type="button"
-                              onClick={() => openAssignmentModal(group)}
-                              className="text-sm font-semibold text-ijf-accent hover:underline"
-                            >
-                              Manage people
-                            </button>
+                  <div className="flex flex-col gap-5">
+                    <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+                      <div className="min-w-0 flex-1">
+                        <div className="mb-2 flex flex-wrap items-center gap-3">
+                          <h3 className="text-3xl font-bold tracking-tight text-zinc-950">
+                            {group.name}
+                          </h3>
+                          {group.isPrivate && (
+                            <span className="rounded-full bg-red-50 px-3 py-1 text-xs font-semibold text-red-700 ring-1 ring-red-200">
+                              Private
+                            </span>
+                          )}
+                          {!group.isActive && (
+                            <span className="rounded-full bg-zinc-100 px-3 py-1 text-xs font-semibold text-zinc-700 ring-1 ring-zinc-200">
+                              Inactive
+                            </span>
                           )}
                         </div>
 
-                        {assignedUsers.length === 0 ? (
-                          <div className="rounded-lg border border-dashed border-zinc-300 bg-white px-4 py-5 text-sm text-zinc-500">
-                            Nobody is assigned to this group yet.
-                          </div>
-                        ) : (
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                            {previewUsers.map((user) => {
-                              const isCoordinator = user._id === group.coordinator._id;
-                              return (
-                                <div
-                                  key={user._id}
-                                  className="rounded-lg border border-zinc-200 bg-white px-4 py-3"
-                                >
-                                  <div className="flex items-center justify-between gap-3">
-                                    <div className="min-w-0">
-                                      <p className="font-semibold text-zinc-900 truncate">
-                                        {user.name}
-                                      </p>
-                                      <p className="text-xs text-zinc-500 truncate">
-                                        {user.primaryOrgName || user.email}
-                                      </p>
-                                    </div>
-                                    {isCoordinator && (
-                                      <span className="px-2 py-1 rounded-full bg-amber-50 text-amber-800 text-[11px] font-semibold border border-amber-200">
-                                        Coordinator
-                                      </span>
-                                    )}
-                                  </div>
-                                  <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
-                                    <span className="rounded-full bg-zinc-100 px-2.5 py-1 text-zinc-700">
-                                      {user.primaryRegion || "No region"}
-                                    </span>
-                                    <span className="rounded-full bg-zinc-100 px-2.5 py-1 text-zinc-700">
-                                      {(user.workingGroups?.length || 0)} groups
-                                    </span>
-                                  </div>
-                                </div>
-                              );
-                            })}
-                            {hiddenCount > 0 && (
-                              <div className="rounded-lg border border-dashed border-zinc-300 bg-white px-4 py-3 text-sm text-zinc-500 flex items-center justify-center">
-                                +{hiddenCount} more assigned people
-                              </div>
-                            )}
-                          </div>
+                        <p className="max-w-3xl text-[15px] leading-7 text-zinc-600">
+                          {group.description}
+                        </p>
+                      </div>
+
+                      <div className="flex flex-wrap gap-2 xl:w-auto xl:justify-end">
+                        <button
+                          onClick={() => openAssignmentModal(group)}
+                          className="rounded-xl bg-zinc-950 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-zinc-800"
+                        >
+                          Manage People
+                        </button>
+                        <button
+                          onClick={() => startEdit(group)}
+                          className="rounded-xl border border-zinc-300 bg-white px-4 py-2.5 text-sm font-semibold text-zinc-800 transition hover:bg-zinc-50"
+                        >
+                          Edit Group
+                        </button>
+                        {group.isActive && (
+                          <button
+                            onClick={() => handleDeactivate(group._id)}
+                            className="rounded-xl border border-red-200 bg-red-50 px-4 py-2.5 text-sm font-semibold text-red-700 transition hover:bg-red-100"
+                          >
+                            Deactivate
+                          </button>
                         )}
                       </div>
                     </div>
 
-                    <div className="flex flex-col items-stretch gap-2 w-40 flex-shrink-0">
-                      <button
-                        onClick={() => openAssignmentModal(group)}
-                        className="px-4 py-2 bg-zinc-900 text-white rounded-lg hover:bg-zinc-700 text-sm font-semibold"
-                      >
-                        Manage People
-                      </button>
-                      <button
-                        onClick={() => startEdit(group)}
-                        className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 text-sm font-semibold"
-                      >
-                        Edit Group
-                      </button>
-                      {group.isActive && (
-                        <button
-                          onClick={() => handleDeactivate(group._id)}
-                          className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 text-sm font-semibold"
-                        >
-                          Deactivate
-                        </button>
+                    <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+                      <div className="rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-3">
+                        <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-500">
+                          Coordinator
+                        </p>
+                        <p className="mt-1 text-lg font-semibold text-zinc-950">
+                          {group.coordinator.name}
+                        </p>
+                      </div>
+                      <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
+                        <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-amber-700">
+                          Assigned
+                        </p>
+                        <p className="mt-1 text-lg font-semibold text-zinc-950">
+                          {assignedUsers.length} people
+                        </p>
+                      </div>
+                      <div className="rounded-xl border border-sky-200 bg-sky-50 px-4 py-3">
+                        <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-sky-700">
+                          With Region
+                        </p>
+                        <p className="mt-1 text-lg font-semibold text-zinc-950">
+                          {assignedUsers.filter((user) => user.primaryRegion).length} people
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="border-t border-zinc-200 pt-5">
+                      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+                        <h4 className="text-sm font-semibold uppercase tracking-[0.18em] text-zinc-500">
+                            Assigned People
+                          </h4>
+                        <p className="text-sm text-zinc-500">
+                          {hiddenCount > 0
+                            ? `Showing 6 of ${assignedUsers.length}`
+                            : `${assignedUsers.length} currently assigned`}
+                        </p>
+                      </div>
+
+                      {assignedUsers.length === 0 ? (
+                        <div className="rounded-xl border border-dashed border-zinc-300 bg-zinc-50 px-4 py-6 text-sm text-zinc-500">
+                          Nobody is assigned to this group yet.
+                        </div>
+                      ) : (
+                        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                          {previewUsers.map((user) => {
+                            const isCoordinator = user._id === group.coordinator._id;
+                            const isQuickActionLoading =
+                              quickActionUserId === `${group._id}:${user._id}`;
+                            return (
+                              <div
+                                key={user._id}
+                                className={`rounded-xl border px-4 py-4 ${
+                                  isCoordinator
+                                    ? "border-amber-200 bg-amber-50"
+                                    : "border-zinc-200 bg-zinc-50/60"
+                                }`}
+                              >
+                                <div className="flex items-start justify-between gap-4">
+                                  <div className="min-w-0">
+                                    <p className="truncate text-xl font-semibold leading-tight text-zinc-950">
+                                      {user.name}
+                                    </p>
+                                    <p className="mt-1 truncate text-sm text-zinc-500">
+                                      {user.primaryOrgName || user.email}
+                                    </p>
+                                    <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
+                                      <span className="rounded-full bg-white px-2.5 py-1 text-zinc-700 ring-1 ring-zinc-200">
+                                        {user.primaryRegion || "No region"}
+                                      </span>
+                                      <span className="rounded-full bg-white px-2.5 py-1 text-zinc-700 ring-1 ring-zinc-200">
+                                        {(user.workingGroups?.length || 0)} groups
+                                      </span>
+                                    </div>
+                                  </div>
+                                  <div className="flex items-center gap-2 pt-0.5">
+                                    {isCoordinator ? (
+                                      <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-amber-800 ring-1 ring-amber-200">
+                                        Coordinator
+                                      </span>
+                                    ) : (
+                                      <button
+                                        type="button"
+                                        onClick={() => quickUnassignUser(group, user)}
+                                        disabled={isQuickActionLoading}
+                                        className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-red-700 ring-1 ring-red-200 transition hover:bg-red-50 disabled:opacity-50"
+                                      >
+                                        {isQuickActionLoading ? "Removing..." : "Unassign"}
+                                      </button>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })}
+                          {hiddenCount > 0 && (
+                            <div className="flex items-center justify-center rounded-xl border border-dashed border-zinc-300 bg-zinc-50 px-4 py-4 text-sm text-zinc-500">
+                              +{hiddenCount} more assigned people
+                            </div>
+                          )}
+                        </div>
                       )}
                     </div>
                   </div>
@@ -885,7 +1137,7 @@ export default function WorkingGroupsAdminPage() {
                           <div className="flex items-center gap-2 flex-wrap">
                             <p className="font-semibold text-zinc-900">{user.name}</p>
                             {isCoordinator && (
-                              <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 text-xs font-semibold">
+                              <span className="px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-800 text-xs font-semibold">
                                 Coordinator
                               </span>
                             )}
@@ -925,6 +1177,133 @@ export default function WorkingGroupsAdminPage() {
                   onClick={closeAssignmentModal}
                   disabled={assignmentModal.saving}
                   className="px-6 py-3 bg-zinc-200 rounded-lg hover:bg-zinc-300 disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {personAssignmentModal.open && personModalUser && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+            <div className="mx-4 max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-lg bg-white p-8">
+              <div className="mb-6 flex items-start justify-between gap-4">
+                <div>
+                  <h2 className="text-2xl font-bold text-zinc-900">
+                    Assign Working Groups: {personModalUser.name}
+                  </h2>
+                  <p className="mt-1 text-sm text-zinc-500">
+                    Choose one or more groups for this person.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={closePersonAssignmentModal}
+                  className="rounded-lg bg-zinc-100 px-3 py-1.5 text-zinc-700 hover:bg-zinc-200"
+                >
+                  Close
+                </button>
+              </div>
+
+              <div className="mb-4 rounded-xl border border-zinc-200 bg-zinc-50 p-4">
+                <div className="flex flex-wrap items-center gap-3 text-sm">
+                  <span className="inline-flex items-center gap-2 rounded-full border border-zinc-200 bg-white px-3 py-1.5 text-zinc-800">
+                    {personModalUser.primaryRegion || "No region"}
+                  </span>
+                  <span className="inline-flex items-center gap-2 rounded-full border border-zinc-200 bg-white px-3 py-1.5 text-zinc-800">
+                    {personAssignmentModal.selectedGroupIds.length} selected
+                  </span>
+                  <span className="inline-flex items-center gap-2 rounded-full border border-zinc-200 bg-white px-3 py-1.5 text-zinc-800">
+                    {personModalUser.primaryOrgName || personModalUser.email}
+                  </span>
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                {personModalGroups.map(
+                  ({ group, assignedCount, isCoordinator, isSelected }) => (
+                    <button
+                      key={group._id}
+                      type="button"
+                      onClick={() => togglePersonGroupAssignment(group._id)}
+                      disabled={isCoordinator}
+                      className={`w-full rounded-xl border p-4 text-left transition ${
+                        isSelected
+                          ? "border-amber-300 bg-amber-50"
+                          : "border-zinc-200 bg-white"
+                      } ${isCoordinator ? "cursor-not-allowed opacity-80" : "hover:border-zinc-300"}`}
+                    >
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="min-w-0">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <p className="font-semibold text-zinc-900">
+                              {group.name}
+                            </p>
+                            {isCoordinator && (
+                              <span className="rounded-full bg-indigo-100 px-2 py-0.5 text-xs font-semibold text-indigo-800">
+                                Coordinator
+                              </span>
+                            )}
+                            {group.isPrivate && (
+                              <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-700">
+                                Private
+                              </span>
+                            )}
+                          </div>
+                          <p className="mt-1 text-sm text-zinc-500">
+                            Coordinator: {group.coordinator.name}
+                          </p>
+                          <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
+                            <span className="rounded-full bg-zinc-100 px-2.5 py-1 text-zinc-700">
+                              {assignedCount} assigned
+                            </span>
+                            <span className="rounded-full bg-zinc-100 px-2.5 py-1 text-zinc-700">
+                              {group.isPrivate ? "Private group" : "Visible group"}
+                            </span>
+                          </div>
+                        </div>
+                        <div className="pt-1">
+                          <span
+                            className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${
+                              isSelected
+                                ? "bg-amber-100 text-amber-900"
+                                : "bg-zinc-100 text-zinc-600"
+                            }`}
+                          >
+                            {isCoordinator
+                              ? "Locked"
+                              : isSelected
+                                ? "Assigned"
+                                : "Not assigned"}
+                          </span>
+                        </div>
+                      </div>
+                    </button>
+                  )
+                )}
+              </div>
+
+              {personAssignmentModal.error && (
+                <div className="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
+                  {personAssignmentModal.error}
+                </div>
+              )}
+
+              <div className="mt-6 flex gap-3">
+                <button
+                  type="button"
+                  onClick={savePersonAssignments}
+                  disabled={personAssignmentModal.saving}
+                  className="rounded-lg bg-ijf-accent px-6 py-3 font-semibold text-ijf-bg hover:bg-ijf-accent/80 disabled:opacity-50"
+                >
+                  {personAssignmentModal.saving ? "Saving..." : "Save Assignments"}
+                </button>
+                <button
+                  type="button"
+                  onClick={closePersonAssignmentModal}
+                  disabled={personAssignmentModal.saving}
+                  className="rounded-lg bg-zinc-200 px-6 py-3 hover:bg-zinc-300 disabled:opacity-50"
                 >
                   Cancel
                 </button>
