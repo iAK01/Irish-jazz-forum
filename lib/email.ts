@@ -10,7 +10,7 @@ interface EmailOptions {
   replyTo?: string;
 }
 
-export async function sendEmail({ to, subject, html, from }: EmailOptions) {
+export async function sendEmail({ to, subject, html, from, replyTo }: EmailOptions) {
   const transporter = nodemailer.createTransport({
     host: process.env.SMTP_HOST,
     port: parseInt(process.env.SMTP_PORT || '587'),
@@ -24,6 +24,7 @@ export async function sendEmail({ to, subject, html, from }: EmailOptions) {
   const info = await transporter.sendMail({
     from: from || process.env.SMTP_FROM || 'Irish Jazz Forum <hello@mg.irishjazzforum.com>',
     to: Array.isArray(to) ? to.join(', ') : to,
+    replyTo,
     subject,
     html,
   });

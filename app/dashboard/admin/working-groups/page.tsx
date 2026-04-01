@@ -2,6 +2,7 @@
 
 import { useSession } from "next-auth/react";
 import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import DashboardLayout from "@/app/components/dashboard/DashboardLayout";
 
 interface WorkingGroup {
@@ -9,6 +10,7 @@ interface WorkingGroup {
   name: string;
   slug: string;
   description: string;
+  googleDriveFolderId?: string;
   coordinator: {
     _id: string;
     name: string;
@@ -61,6 +63,21 @@ interface PersonAssignmentModalState {
   error: string;
 }
 
+type EmailAudience = "members_only" | "members_and_coordinator" | "coordinator_only";
+
+interface EmailGroupModalState {
+  open: boolean;
+  group: WorkingGroup | null;
+  audience: EmailAudience;
+  subject: string;
+  message: string;
+  sending: boolean;
+  sent: boolean;
+  error: string;
+  copied: boolean;
+  recipientCount: number;
+}
+
 const EMPTY_ASSIGNMENT_MODAL: AssignmentModalState = {
   open: false,
   group: null,
@@ -78,8 +95,22 @@ const EMPTY_PERSON_ASSIGNMENT_MODAL: PersonAssignmentModalState = {
   error: "",
 };
 
+const EMPTY_EMAIL_MODAL: EmailGroupModalState = {
+  open: false,
+  group: null,
+  audience: "members_and_coordinator",
+  subject: "",
+  message: "",
+  sending: false,
+  sent: false,
+  error: "",
+  copied: false,
+  recipientCount: 0,
+};
+
 export default function WorkingGroupsAdminPage() {
   const { data: session } = useSession();
+  const router = useRouter();
   const [groups, setGroups] = useState<WorkingGroup[]>([]);
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
@@ -90,6 +121,8 @@ export default function WorkingGroupsAdminPage() {
     useState<AssignmentModalState>(EMPTY_ASSIGNMENT_MODAL);
   const [personAssignmentModal, setPersonAssignmentModal] =
     useState<PersonAssignmentModalState>(EMPTY_PERSON_ASSIGNMENT_MODAL);
+  const [emailModal, setEmailModal] =
+    useState<EmailGroupModalState>(EMPTY_EMAIL_MODAL);
 
   const [formData, setFormData] = useState({
     name: "",
@@ -280,6 +313,67 @@ export default function WorkingGroupsAdminPage() {
 
   const closeAssignmentModal = () => {
     setAssignmentModal(EMPTY_ASSIGNMENT_MODAL);
+  };
+
+  const buildDriveFolderUrl = (folderId?: string) =>
+    folderId ? `https://drive.google.com/drive/folders/${folderId}` : "";
+
+  const getEmailRecipients = (
+    group: WorkingGroup,
+    audience: EmailAudience
+  ) => {
+    const recipients = new Map<string, { name: string; email: string }>();
+    const addRecipient = (recipient?: { name: string; email: string }) => {
+      const normalizedEmail = recipient?.email?.trim().toLowerCase();
+      if (!normalizedEmail) return;
+      recipients.set(normalizedEmail, {
+        name: recipient?.name || normalizedEmail,
+        email: normalizedEmail,
+      });
+    };
+
+    if (
+      audience === "members_only" ||
+      audience === "members_and_coordinator"
+    ) {
+      (assignedUsersByGroup.get(group._id) || []).forEach((user) =>
+        addRecipient({ name: user.name, email: user.email })
+      );
+    }
+
+    if (
+      audience === "members_and_coordinator" ||
+      audience === "coordinator_only"
+    ) {
+      addRecipient({
+        name: group.coordinator.name,
+        email: group.coordinator.email,
+      });
+    }
+
+    return Array.from(recipients.values());
+  };
+
+  const openEmailModal = (
+    group: WorkingGroup,
+    audience: EmailAudience = "members_and_coordinator"
+  ) => {
+    setEmailModal({
+      open: true,
+      group,
+      audience,
+      subject: `${group.name}: update from Irish Jazz Forum`,
+      message: "",
+      sending: false,
+      sent: false,
+      error: "",
+      copied: false,
+      recipientCount: getEmailRecipients(group, audience).length,
+    });
+  };
+
+  const closeEmailModal = () => {
+    setEmailModal(EMPTY_EMAIL_MODAL);
   };
 
   const getCoordinatorGroupIds = (userId: string) =>
@@ -539,6 +633,67 @@ export default function WorkingGroupsAdminPage() {
     }
   };
 
+  const copyEmailRecipients = async () => {
+    if (!emailModal.group) return;
+
+    try {
+      const recipients = getEmailRecipients(emailModal.group, emailModal.audience);
+      await navigator.clipboard.writeText(
+        recipients.map((recipient) => recipient.email).join(", ")
+      );
+      setEmailModal((current) => ({ ...current, copied: true }));
+    } catch {
+      setEmailModal((current) => ({
+        ...current,
+        error: "Could not copy recipient list",
+      }));
+    }
+  };
+
+  const sendWorkingGroupEmail = async () => {
+    if (!emailModal.group) return;
+
+    try {
+      setEmailModal((current) => ({
+        ...current,
+        sending: true,
+        error: "",
+      }));
+
+      const response = await fetch(
+        `/api/working-groups/${emailModal.group._id}/email`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            audience: emailModal.audience,
+            subject: emailModal.subject,
+            message: emailModal.message,
+          }),
+        }
+      );
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || "Failed to send email");
+      }
+
+      setEmailModal((current) => ({
+        ...current,
+        sending: false,
+        sent: true,
+        recipientCount: result.data?.recipientCount || current.recipientCount,
+      }));
+    } catch (error) {
+      setEmailModal((current) => ({
+        ...current,
+        sending: false,
+        error: error instanceof Error ? error.message : "Failed to send email",
+      }));
+    }
+  };
+
   if (
     !session ||
     (session.user.role !== "admin" && session.user.role !== "super_admin")
@@ -554,6 +709,8 @@ export default function WorkingGroupsAdminPage() {
 
   const modalGroup = assignmentModal.group;
   const personModalUser = personAssignmentModal.user;
+  const emailModalGroup = emailModal.group;
+  const isSuperAdmin = session.user.role === "super_admin";
   const modalUsers = modalGroup
     ? assignableUsers
         .filter((user) => {
@@ -575,6 +732,30 @@ export default function WorkingGroupsAdminPage() {
           if (!aSelected && bSelected) return 1;
           return a.name.localeCompare(b.name);
         })
+    : [];
+  const emailAudienceOptions: Array<{
+    value: EmailAudience;
+    label: string;
+    description: string;
+  }> = [
+    {
+      value: "members_and_coordinator",
+      label: "Members + coordinator",
+      description: "Send to everyone assigned to this group, including the lead.",
+    },
+    {
+      value: "members_only",
+      label: "Members only",
+      description: "Send only to assigned members.",
+    },
+    {
+      value: "coordinator_only",
+      label: "Coordinator only",
+      description: "Use this when you just need to contact the group lead.",
+    },
+  ];
+  const emailRecipients = emailModalGroup
+    ? getEmailRecipients(emailModalGroup, emailModal.audience)
     : [];
   const personModalGroups = personModalUser
     ? groups
@@ -695,50 +876,99 @@ export default function WorkingGroupsAdminPage() {
                   className="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm"
                 >
                   <div className="flex flex-col gap-5">
-                    <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
-                      <div className="min-w-0 flex-1">
-                        <div className="mb-2 flex flex-wrap items-center gap-3">
-                          <h3 className="text-3xl font-bold tracking-tight text-zinc-950">
-                            {group.name}
-                          </h3>
-                          {group.isPrivate && (
-                            <span className="rounded-full bg-red-50 px-3 py-1 text-xs font-semibold text-red-700 ring-1 ring-red-200">
-                              Private
-                            </span>
-                          )}
-                          {!group.isActive && (
-                            <span className="rounded-full bg-zinc-100 px-3 py-1 text-xs font-semibold text-zinc-700 ring-1 ring-zinc-200">
-                              Inactive
-                            </span>
-                          )}
+                    <div className="flex flex-col gap-4">
+                      <div className="flex flex-wrap items-start justify-between gap-4">
+                        <div className="min-w-0 flex-1 basis-[32rem]">
+                          <div className="mb-2 flex flex-wrap items-center gap-3">
+                            <h3 className="text-3xl font-bold tracking-tight text-zinc-950">
+                              {group.name}
+                            </h3>
+                            {group.isPrivate && (
+                              <span className="rounded-full bg-red-50 px-3 py-1 text-xs font-semibold text-red-700 ring-1 ring-red-200">
+                                Private
+                              </span>
+                            )}
+                            {!group.isActive && (
+                              <span className="rounded-full bg-zinc-100 px-3 py-1 text-xs font-semibold text-zinc-700 ring-1 ring-zinc-200">
+                                Inactive
+                              </span>
+                            )}
+                          </div>
+
+                          <p className="max-w-3xl text-[15px] leading-7 text-zinc-600">
+                            {group.description}
+                          </p>
                         </div>
 
-                        <p className="max-w-3xl text-[15px] leading-7 text-zinc-600">
-                          {group.description}
-                        </p>
-                      </div>
+                        <div className="ml-auto flex max-w-[34rem] flex-col items-end gap-2">
+                          <div className="flex flex-wrap items-center justify-end gap-2">
+                            <button
+                              onClick={() => openAssignmentModal(group)}
+                              className="rounded-xl bg-zinc-950 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-zinc-800"
+                            >
+                              Manage People
+                            </button>
+                            <button
+                              onClick={() => startEdit(group)}
+                              className="rounded-xl border border-zinc-300 bg-white px-4 py-2.5 text-sm font-semibold text-zinc-800 transition hover:bg-zinc-50"
+                            >
+                              Edit Group
+                            </button>
+                            {group.isActive && (
+                              <button
+                                onClick={() => handleDeactivate(group._id)}
+                                className="rounded-xl border border-red-200 bg-red-50 px-4 py-2.5 text-sm font-semibold text-red-700 transition hover:bg-red-100"
+                              >
+                                Deactivate
+                              </button>
+                            )}
+                          </div>
 
-                      <div className="flex flex-wrap gap-2 xl:w-auto xl:justify-end">
-                        <button
-                          onClick={() => openAssignmentModal(group)}
-                          className="rounded-xl bg-zinc-950 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-zinc-800"
-                        >
-                          Manage People
-                        </button>
-                        <button
-                          onClick={() => startEdit(group)}
-                          className="rounded-xl border border-zinc-300 bg-white px-4 py-2.5 text-sm font-semibold text-zinc-800 transition hover:bg-zinc-50"
-                        >
-                          Edit Group
-                        </button>
-                        {group.isActive && (
-                          <button
-                            onClick={() => handleDeactivate(group._id)}
-                            className="rounded-xl border border-red-200 bg-red-50 px-4 py-2.5 text-sm font-semibold text-red-700 transition hover:bg-red-100"
-                          >
-                            Deactivate
-                          </button>
-                        )}
+                          {isSuperAdmin && (
+                            <div className="flex flex-wrap items-center justify-end gap-2">
+                              <button
+                                type="button"
+                                onClick={() => router.push(`/dashboard/forum/${group.slug}`)}
+                                className="rounded-full border border-zinc-300 bg-white px-3 py-1.5 text-xs font-semibold text-zinc-700 transition hover:bg-zinc-50"
+                              >
+                                Open Forum
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  router.push(
+                                    `/dashboard/forum/new?workingGroup=${group.slug}`
+                                  )
+                                }
+                                className="rounded-full border border-zinc-300 bg-white px-3 py-1.5 text-xs font-semibold text-zinc-700 transition hover:bg-zinc-50"
+                              >
+                                Start Thread
+                              </button>
+                              {group.googleDriveFolderId && (
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    window.open(
+                                      buildDriveFolderUrl(group.googleDriveFolderId),
+                                      "_blank",
+                                      "noopener,noreferrer"
+                                    )
+                                  }
+                                  className="rounded-full border border-zinc-300 bg-white px-3 py-1.5 text-xs font-semibold text-zinc-700 transition hover:bg-zinc-50"
+                                >
+                                  Open Drive
+                                </button>
+                              )}
+                              <button
+                                type="button"
+                                onClick={() => openEmailModal(group)}
+                                className="rounded-full border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-900 transition hover:bg-amber-100"
+                              >
+                                Email Group
+                              </button>
+                            </div>
+                          )}
+                        </div>
                       </div>
                     </div>
 
@@ -1308,6 +1538,192 @@ export default function WorkingGroupsAdminPage() {
                   Cancel
                 </button>
               </div>
+            </div>
+          </div>
+        )}
+
+        {emailModal.open && emailModalGroup && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+            <div className="mx-4 max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-lg bg-white p-8">
+              <div className="mb-6 flex items-start justify-between gap-4">
+                <div>
+                  <h2 className="text-2xl font-bold text-zinc-900">
+                    Email Group: {emailModalGroup.name}
+                  </h2>
+                  <p className="mt-1 text-sm text-zinc-500">
+                    Send an update without leaving the staffing screen.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={closeEmailModal}
+                  className="rounded-lg bg-zinc-100 px-3 py-1.5 text-zinc-700 hover:bg-zinc-200"
+                >
+                  Close
+                </button>
+              </div>
+
+              {emailModal.sent ? (
+                <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-5">
+                  <p className="text-lg font-semibold text-emerald-900">
+                    Email sent
+                  </p>
+                  <p className="mt-2 text-sm text-emerald-800">
+                    Your message went to {emailModal.recipientCount}{" "}
+                    {emailModal.recipientCount === 1 ? "recipient" : "recipients"}.
+                  </p>
+                  <div className="mt-4 flex gap-3">
+                    <button
+                      type="button"
+                      onClick={closeEmailModal}
+                      className="rounded-lg bg-emerald-700 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-800"
+                    >
+                      Done
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => openEmailModal(emailModalGroup)}
+                      className="rounded-lg bg-white px-4 py-2 text-sm font-semibold text-emerald-800 ring-1 ring-emerald-200 hover:bg-emerald-100"
+                    >
+                      Send another
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <div className="mb-5 grid grid-cols-1 gap-3 md:grid-cols-3">
+                    {emailAudienceOptions.map((option) => (
+                      <button
+                        key={option.value}
+                        type="button"
+                        onClick={() =>
+                          setEmailModal((current) => ({
+                            ...current,
+                            audience: option.value,
+                            copied: false,
+                            recipientCount: current.group
+                              ? getEmailRecipients(current.group, option.value)
+                                  .length
+                              : 0,
+                          }))
+                        }
+                        className={`rounded-xl border px-4 py-3 text-left transition ${
+                          emailModal.audience === option.value
+                            ? "border-amber-300 bg-amber-50"
+                            : "border-zinc-200 bg-white hover:bg-zinc-50"
+                        }`}
+                      >
+                        <p className="text-sm font-semibold text-zinc-900">
+                          {option.label}
+                        </p>
+                        <p className="mt-1 text-xs leading-5 text-zinc-500">
+                          {option.description}
+                        </p>
+                      </button>
+                    ))}
+                  </div>
+
+                  <div className="mb-5 rounded-xl border border-zinc-200 bg-zinc-50 p-4">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <div>
+                        <p className="text-sm font-semibold text-zinc-900">
+                          {emailRecipients.length}{" "}
+                          {emailRecipients.length === 1
+                            ? "recipient"
+                            : "recipients"}
+                        </p>
+                        <p className="mt-1 text-xs text-zinc-500">
+                          {emailRecipients
+                            .slice(0, 4)
+                            .map((recipient) => recipient.name)
+                            .join(", ")}
+                          {emailRecipients.length > 4
+                            ? ` +${emailRecipients.length - 4} more`
+                            : ""}
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={copyEmailRecipients}
+                        className="rounded-lg bg-white px-3 py-2 text-sm font-semibold text-zinc-700 ring-1 ring-zinc-200 hover:bg-zinc-100"
+                      >
+                        {emailModal.copied ? "Recipient list copied" : "Copy recipient list"}
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="space-y-4">
+                    <div>
+                      <label className="mb-2 block text-sm font-medium text-zinc-700">
+                        Subject
+                      </label>
+                      <input
+                        type="text"
+                        value={emailModal.subject}
+                        onChange={(event) =>
+                          setEmailModal((current) => ({
+                            ...current,
+                            subject: event.target.value,
+                          }))
+                        }
+                        className="w-full rounded-lg border border-zinc-300 bg-white px-4 py-3 text-zinc-900"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="mb-2 block text-sm font-medium text-zinc-700">
+                        Message
+                      </label>
+                      <textarea
+                        rows={8}
+                        value={emailModal.message}
+                        onChange={(event) =>
+                          setEmailModal((current) => ({
+                            ...current,
+                            message: event.target.value,
+                          }))
+                        }
+                        placeholder="Write your update to this working group..."
+                        className="w-full rounded-lg border border-zinc-300 bg-white px-4 py-3 text-zinc-900"
+                      />
+                      <p className="mt-2 text-xs text-zinc-500">
+                        The email includes links back to the working-group forum
+                        and Drive folder when available.
+                      </p>
+                    </div>
+                  </div>
+
+                  {emailModal.error && (
+                    <div className="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
+                      {emailModal.error}
+                    </div>
+                  )}
+
+                  <div className="mt-6 flex gap-3">
+                    <button
+                      type="button"
+                      onClick={sendWorkingGroupEmail}
+                      disabled={
+                        emailModal.sending ||
+                        !emailModal.subject.trim() ||
+                        !emailModal.message.trim() ||
+                        emailRecipients.length === 0
+                      }
+                      className="rounded-lg bg-zinc-950 px-6 py-3 font-semibold text-white hover:bg-zinc-800 disabled:opacity-50"
+                    >
+                      {emailModal.sending ? "Sending..." : "Send Email"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={closeEmailModal}
+                      disabled={emailModal.sending}
+                      className="rounded-lg bg-zinc-200 px-6 py-3 hover:bg-zinc-300 disabled:opacity-50"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </>
+              )}
             </div>
           </div>
         )}
