@@ -60,7 +60,9 @@ export default function MembersListPage() {
   const [pendingCount, setPendingCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
-  const [regionFilter, setRegionFilter] = useState<RegionFilter>("all");
+  const [selectedRegionFilters, setSelectedRegionFilters] = useState<
+    Exclude<RegionFilter, "all">[]
+  >([]);
   const [deleteModal, setDeleteModal] = useState<DeleteModalState>({
     open: false,
     member: null,
@@ -96,21 +98,23 @@ export default function MembersListPage() {
         member.region?.toLowerCase().includes(query);
 
       const matchesRegion =
-        regionFilter === "all" ||
-        (regionFilter === "unassigned"
-          ? !member.region
-          : regionFilter === "leinster_total"
-            ? member.region === "Dublin" || member.region === "Leinster"
-            : regionFilter === "ulster_total"
-              ? member.region === "Ulster (ROI)" ||
-                member.region === "Northern Ireland"
-            : member.region === regionFilter);
+        selectedRegionFilters.length === 0 ||
+        selectedRegionFilters.some((regionFilter) =>
+          regionFilter === "unassigned"
+            ? !member.region
+            : regionFilter === "leinster_total"
+              ? member.region === "Dublin" || member.region === "Leinster"
+              : regionFilter === "ulster_total"
+                ? member.region === "Ulster (ROI)" ||
+                  member.region === "Northern Ireland"
+                : member.region === regionFilter
+        );
 
       return matchesSearch && matchesRegion;
     });
 
     setFilteredMembers(nextMembers);
-  }, [searchQuery, regionFilter, members]);
+  }, [searchQuery, selectedRegionFilters, members]);
 
   const fetchMembers = async () => {
     try {
@@ -294,6 +298,19 @@ export default function MembersListPage() {
     },
   ];
 
+  const toggleRegionFilter = (value: RegionFilter) => {
+    if (value === "all") {
+      setSelectedRegionFilters([]);
+      return;
+    }
+
+    setSelectedRegionFilters((current) =>
+      current.includes(value)
+        ? current.filter((item) => item !== value)
+        : [...current, value]
+    );
+  };
+
   const toneClasses: Record<string, { base: string; active: string; text: string; subtext: string }> = {
     zinc: {
       base: "bg-white border-zinc-200 hover:border-zinc-300",
@@ -392,14 +409,17 @@ export default function MembersListPage() {
             className="w-full px-4 py-3 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100" />
         </div>
 
-        {(regionFilter !== "all" || searchQuery.trim()) && (
+        {(selectedRegionFilters.length > 0 || searchQuery.trim()) && (
           <div className="mb-4 flex flex-wrap items-center gap-2 text-sm text-zinc-600">
             <span className="font-medium text-zinc-800">Filtered by:</span>
-            {regionFilter !== "all" && (
-              <span className="rounded-full bg-sky-100 px-3 py-1 font-medium text-sky-800">
+            {selectedRegionFilters.map((regionFilter) => (
+              <span
+                key={regionFilter}
+                className="rounded-full bg-sky-100 px-3 py-1 font-medium text-sky-800"
+              >
                 {regionFilterLabels[regionFilter]}
               </span>
-            )}
+            ))}
             {searchQuery.trim() && (
               <span className="rounded-full bg-zinc-100 px-3 py-1 font-medium text-zinc-800">
                 Search: {searchQuery.trim()}
@@ -414,9 +434,11 @@ export default function MembersListPage() {
             <p className="text-sm font-medium text-zinc-600">Visible Members</p>
             <p className="mt-1 text-3xl font-bold text-zinc-900">{filteredMembers.length}</p>
             <p className="mt-2 text-xs text-zinc-500">
-              {regionFilter === "all"
+              {selectedRegionFilters.length === 0
                 ? "All member profiles"
-                : `Filtered to ${regionFilterLabels[regionFilter]}`}
+                : selectedRegionFilters.length === 1
+                  ? `Filtered to ${regionFilterLabels[selectedRegionFilters[0]]}`
+                  : `Filtered to ${selectedRegionFilters.length} regions`}
             </p>
           </div>
           <div className="rounded-xl border border-zinc-200 bg-white p-4">
@@ -446,10 +468,10 @@ export default function MembersListPage() {
                 Click a region to filter the member directory below
               </p>
             </div>
-            {regionFilter !== "all" && (
+            {selectedRegionFilters.length > 1 && (
               <button
                 type="button"
-                onClick={() => setRegionFilter("all")}
+                onClick={() => setSelectedRegionFilters([])}
                 className="cursor-pointer rounded-xl bg-zinc-900 px-5 py-3 text-sm font-semibold text-white transition hover:bg-zinc-700"
               >
                 Clear Region Filter
@@ -460,13 +482,16 @@ export default function MembersListPage() {
           <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-9 gap-3">
             {regionCards.map((card) => {
               const tone = toneClasses[card.tone];
-              const isActive = regionFilter === card.value;
+              const isActive =
+                card.value === "all"
+                  ? selectedRegionFilters.length === 0
+                  : selectedRegionFilters.includes(card.value);
 
               return (
                 <button
                   key={card.label}
                   type="button"
-                  onClick={() => setRegionFilter(card.value)}
+                  onClick={() => toggleRegionFilter(card.value)}
                   className={`group cursor-pointer rounded-xl border p-5 text-left transition-all ${tone.base} ${
                     isActive ? tone.active : ""
                   }`}
