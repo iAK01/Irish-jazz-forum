@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, Suspense, useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -40,7 +40,7 @@ function formatRelative(dateString: string) {
   });
 }
 
-export default function ForumSearchPage() {
+function ForumSearchContent() {
   const { data: session } = useSession();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -218,5 +218,23 @@ export default function ForumSearchPage() {
         )}
       </div>
     </DashboardLayout>
+  );
+}
+
+function ForumSearchFallback() {
+  return (
+    <DashboardLayout title="Forum Search" userName="">
+      <div style={{ textAlign: "center", padding: "3rem 0", color: "#6b7280" }}>
+        Loading search...
+      </div>
+    </DashboardLayout>
+  );
+}
+
+export default function ForumSearchPage() {
+  return (
+    <Suspense fallback={<ForumSearchFallback />}>
+      <ForumSearchContent />
+    </Suspense>
   );
 }
