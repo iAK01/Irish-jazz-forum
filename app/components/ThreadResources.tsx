@@ -1,13 +1,17 @@
 "use client";
 
+import { type ReactNode, useState } from "react";
 import {
   ExternalLink,
   FileArchive,
   FileImage,
+  FilePlus2,
   FileSpreadsheet,
   FileText,
   FolderOpen,
   Link2,
+  Loader2,
+  Plus,
 } from "lucide-react";
 
 interface ThreadResourcePost {
@@ -41,10 +45,15 @@ interface ResourceItem {
 
 interface Props {
   posts: ThreadResourcePost[];
+  threadId: string;
   threadPath: string;
   groupName: string;
+  workingGroupSlug: string;
   driveFolderId?: string;
+  onResourceAdded?: (newPost: Record<string, unknown>) => void;
 }
+
+type ResourceMode = "create_google_doc" | "attach_drive_link" | null;
 
 const FILE_EXTENSIONS = [
   "pdf",
@@ -394,13 +403,57 @@ function ResourceSection({
   );
 }
 
+function ResourceActionButton({
+  label,
+  icon,
+  active = false,
+  onClick,
+}: {
+  label: string;
+  icon: ReactNode;
+  active?: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        gap: "0.45rem",
+        padding: "0.7rem 0.95rem",
+        borderRadius: "0.65rem",
+        border: active ? "1px solid rgba(228,185,91,0.35)" : "1px solid #e5e7eb",
+        backgroundColor: active ? "rgba(228,185,91,0.12)" : "white",
+        color: active ? "#8a6612" : "#374151",
+        fontWeight: 700,
+        cursor: "pointer",
+      }}
+    >
+      {icon}
+      {label}
+    </button>
+  );
+}
+
 export default function ThreadResources({
   posts,
+  threadId,
   threadPath,
   groupName,
+  workingGroupSlug,
   driveFolderId,
+  onResourceAdded,
 }: Props) {
   const { workingDocuments, referenceFiles } = collectResources(posts);
+  const [mode, setMode] = useState<ResourceMode>(null);
+  const [docTitle, setDocTitle] = useState("");
+  const [linkTitle, setLinkTitle] = useState("");
+  const [linkUrl, setLinkUrl] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
 
   if (!driveFolderId && workingDocuments.length === 0 && referenceFiles.length === 0) {
     return null;
@@ -409,6 +462,111 @@ export default function ThreadResources({
   const driveFolderUrl = driveFolderId
     ? `https://drive.google.com/drive/folders/${driveFolderId}`
     : null;
+
+  const resetForm = () => {
+    setDocTitle("");
+    setLinkTitle("");
+    setLinkUrl("");
+    setError("");
+    setSuccess("");
+  };
+
+  const toggleMode = (nextMode: Exclude<ResourceMode, null>) => {
+    setMode((currentMode) => {
+      const finalMode = currentMode === nextMode ? null : nextMode;
+      setError("");
+      setSuccess("");
+      return finalMode;
+    });
+  };
+
+  const handleCreateGoogleDoc = async () => {
+    const title = docTitle.trim();
+
+    if (!title) {
+      setError("Document title is required.");
+      return;
+    }
+
+    try {
+      setSubmitting(true);
+      setError("");
+      setSuccess("");
+
+      const response = await fetch(`/api/threads/${threadId}/resources`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "create_google_doc",
+          title,
+          workingGroupSlug,
+        }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok || !result.success) {
+        throw new Error(result.error || "Failed to create Google Doc");
+      }
+
+      onResourceAdded?.(result.data);
+      setSuccess("Google Doc created and added to Thread Resources.");
+      setDocTitle("");
+      setMode(null);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Failed to create Google Doc");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleAttachLink = async () => {
+    const title = linkTitle.trim();
+    const url = linkUrl.trim();
+
+    if (!title) {
+      setError("Resource title is required.");
+      return;
+    }
+
+    if (!url) {
+      setError("Google Docs or Drive URL is required.");
+      return;
+    }
+
+    try {
+      setSubmitting(true);
+      setError("");
+      setSuccess("");
+
+      const response = await fetch(`/api/threads/${threadId}/resources`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "attach_drive_link",
+          title,
+          url,
+          workingGroupSlug,
+        }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok || !result.success) {
+        throw new Error(result.error || "Failed to attach Drive link");
+      }
+
+      onResourceAdded?.(result.data);
+      setSuccess("Drive resource added to Thread Resources.");
+      setLinkTitle("");
+      setLinkUrl("");
+      setMode(null);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Failed to attach Drive link");
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   return (
     <div
@@ -447,28 +605,44 @@ export default function ThreadResources({
             </p>
           </div>
 
-          {driveFolderUrl && (
-            <a
-              href={driveFolderUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: "0.5rem",
-                padding: "0.7rem 1rem",
-                borderRadius: "0.65rem",
-                backgroundColor: "var(--color-ijf-accent)",
-                color: "var(--color-ijf-bg)",
-                fontWeight: 700,
-                textDecoration: "none",
-                flexShrink: 0,
-              }}
-            >
-              <FolderOpen size={16} strokeWidth={2.2} />
-              Open {groupName} Drive Folder
-            </a>
-          )}
+          <div style={{ display: "flex", alignItems: "center", gap: "0.65rem", flexWrap: "wrap" }}>
+            {driveFolderUrl && (
+              <>
+                <ResourceActionButton
+                  label="Create Google Doc"
+                  icon={<FilePlus2 size={16} strokeWidth={2.2} />}
+                  active={mode === "create_google_doc"}
+                  onClick={() => toggleMode("create_google_doc")}
+                />
+                <ResourceActionButton
+                  label="Attach Drive Link"
+                  icon={<Plus size={16} strokeWidth={2.2} />}
+                  active={mode === "attach_drive_link"}
+                  onClick={() => toggleMode("attach_drive_link")}
+                />
+                <a
+                  href={driveFolderUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "0.5rem",
+                    padding: "0.7rem 1rem",
+                    borderRadius: "0.65rem",
+                    backgroundColor: "var(--color-ijf-accent)",
+                    color: "var(--color-ijf-bg)",
+                    fontWeight: 700,
+                    textDecoration: "none",
+                    flexShrink: 0,
+                  }}
+                >
+                  <FolderOpen size={16} strokeWidth={2.2} />
+                  Open {groupName} Drive Folder
+                </a>
+              </>
+            )}
+          </div>
         </div>
       </div>
 
@@ -479,6 +653,214 @@ export default function ThreadResources({
           gap: "1.5rem",
         }}
       >
+        {mode && (
+          <div
+            style={{
+              padding: "1rem",
+              borderRadius: "0.8rem",
+              border: "1px solid rgba(228,185,91,0.28)",
+              backgroundColor: "#fffaf0",
+            }}
+          >
+            {mode === "create_google_doc" ? (
+              <div style={{ display: "grid", gap: "0.9rem" }}>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: "0.95rem", fontWeight: 700, color: "#111827" }}>
+                    Create a Working Document
+                  </h3>
+                  <p style={{ marginTop: "0.25rem", fontSize: "0.82rem", color: "#6b7280" }}>
+                    A new Google Doc will be created in the shared {groupName} Drive folder and pinned into Working Documents.
+                  </p>
+                </div>
+
+                <label style={{ display: "grid", gap: "0.35rem" }}>
+                  <span style={{ fontSize: "0.82rem", fontWeight: 700, color: "#374151" }}>
+                    Document title
+                  </span>
+                  <input
+                    value={docTitle}
+                    onChange={(event) => setDocTitle(event.target.value)}
+                    placeholder="e.g. Proposed programme draft"
+                    style={{
+                      width: "100%",
+                      padding: "0.8rem 0.9rem",
+                      borderRadius: "0.65rem",
+                      border: "1px solid #d1d5db",
+                      backgroundColor: "white",
+                      color: "#111827",
+                    }}
+                  />
+                </label>
+
+                <div style={{ display: "flex", alignItems: "center", gap: "0.65rem", flexWrap: "wrap" }}>
+                  <button
+                    type="button"
+                    onClick={handleCreateGoogleDoc}
+                    disabled={submitting}
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: "0.45rem",
+                      padding: "0.75rem 1rem",
+                      borderRadius: "0.65rem",
+                      backgroundColor: "var(--color-ijf-accent)",
+                      color: "var(--color-ijf-bg)",
+                      fontWeight: 700,
+                      cursor: submitting ? "not-allowed" : "pointer",
+                      opacity: submitting ? 0.7 : 1,
+                    }}
+                  >
+                    {submitting ? <Loader2 size={16} className="animate-spin" /> : <FilePlus2 size={16} strokeWidth={2.2} />}
+                    Create and add
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      resetForm();
+                      setMode(null);
+                    }}
+                    disabled={submitting}
+                    style={{
+                      padding: "0.75rem 1rem",
+                      borderRadius: "0.65rem",
+                      border: "1px solid #d1d5db",
+                      backgroundColor: "white",
+                      color: "#374151",
+                      fontWeight: 700,
+                      cursor: submitting ? "not-allowed" : "pointer",
+                    }}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div style={{ display: "grid", gap: "0.9rem" }}>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: "0.95rem", fontWeight: 700, color: "#111827" }}>
+                    Attach an Existing Drive Resource
+                  </h3>
+                  <p style={{ marginTop: "0.25rem", fontSize: "0.82rem", color: "#6b7280" }}>
+                    Paste a Google Docs or Drive link and it will appear at the top of this thread as a shared resource.
+                  </p>
+                </div>
+
+                <label style={{ display: "grid", gap: "0.35rem" }}>
+                  <span style={{ fontSize: "0.82rem", fontWeight: 700, color: "#374151" }}>
+                    Resource title
+                  </span>
+                  <input
+                    value={linkTitle}
+                    onChange={(event) => setLinkTitle(event.target.value)}
+                    placeholder="e.g. Final venue brief"
+                    style={{
+                      width: "100%",
+                      padding: "0.8rem 0.9rem",
+                      borderRadius: "0.65rem",
+                      border: "1px solid #d1d5db",
+                      backgroundColor: "white",
+                      color: "#111827",
+                    }}
+                  />
+                </label>
+
+                <label style={{ display: "grid", gap: "0.35rem" }}>
+                  <span style={{ fontSize: "0.82rem", fontWeight: 700, color: "#374151" }}>
+                    Google Docs or Drive URL
+                  </span>
+                  <input
+                    value={linkUrl}
+                    onChange={(event) => setLinkUrl(event.target.value)}
+                    placeholder="https://docs.google.com/document/d/..."
+                    style={{
+                      width: "100%",
+                      padding: "0.8rem 0.9rem",
+                      borderRadius: "0.65rem",
+                      border: "1px solid #d1d5db",
+                      backgroundColor: "white",
+                      color: "#111827",
+                    }}
+                  />
+                </label>
+
+                <div style={{ display: "flex", alignItems: "center", gap: "0.65rem", flexWrap: "wrap" }}>
+                  <button
+                    type="button"
+                    onClick={handleAttachLink}
+                    disabled={submitting}
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: "0.45rem",
+                      padding: "0.75rem 1rem",
+                      borderRadius: "0.65rem",
+                      backgroundColor: "var(--color-ijf-accent)",
+                      color: "var(--color-ijf-bg)",
+                      fontWeight: 700,
+                      cursor: submitting ? "not-allowed" : "pointer",
+                      opacity: submitting ? 0.7 : 1,
+                    }}
+                  >
+                    {submitting ? <Loader2 size={16} className="animate-spin" /> : <Link2 size={16} strokeWidth={2.2} />}
+                    Add to resources
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      resetForm();
+                      setMode(null);
+                    }}
+                    disabled={submitting}
+                    style={{
+                      padding: "0.75rem 1rem",
+                      borderRadius: "0.65rem",
+                      border: "1px solid #d1d5db",
+                      backgroundColor: "white",
+                      color: "#374151",
+                      fontWeight: 700,
+                      cursor: submitting ? "not-allowed" : "pointer",
+                    }}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {error && (
+              <div
+                style={{
+                  marginTop: "0.9rem",
+                  padding: "0.8rem 0.9rem",
+                  borderRadius: "0.65rem",
+                  backgroundColor: "#fef2f2",
+                  color: "#991b1b",
+                  fontSize: "0.84rem",
+                  fontWeight: 600,
+                }}
+              >
+                {error}
+              </div>
+            )}
+          </div>
+        )}
+
+        {!mode && success && (
+          <div
+            style={{
+              padding: "0.85rem 0.95rem",
+              borderRadius: "0.75rem",
+              backgroundColor: "#f0fdf4",
+              border: "1px solid #bbf7d0",
+              color: "#166534",
+              fontSize: "0.84rem",
+              fontWeight: 600,
+            }}
+          >
+            {success}
+          </div>
+        )}
+
         <ResourceSection
           title="Working Documents"
           description="Google Docs, Sheets, Slides, or linked working materials the group is actively collaborating in."

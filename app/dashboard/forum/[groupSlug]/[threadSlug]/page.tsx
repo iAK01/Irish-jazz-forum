@@ -521,9 +521,12 @@ export default function WorkingGroupThreadView() {
 
         <ThreadResources
           posts={resourcePosts}
+          threadId={thread._id}
           threadPath={`/dashboard/forum/${groupSlug}/${thread.slug}`}
           groupName={group.name}
+          workingGroupSlug={groupSlug}
           driveFolderId={group.googleDriveFolderId}
+          onResourceAdded={(newPost) => handleReplyAdded(newPost as unknown as Post)}
         />
 
         {/* Posts */}

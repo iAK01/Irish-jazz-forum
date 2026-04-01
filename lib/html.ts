@@ -13,6 +13,15 @@ export function stripHtml(html: string) {
     .trim();
 }
 
+export function escapeHtml(value: string) {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
 export function buildSearchSnippet(content: string, query: string, radius = 110) {
   const plain = stripHtml(content);
 

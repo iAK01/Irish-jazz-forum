@@ -1,11 +1,12 @@
 // /lib/googledrive.ts
 // Google Drive helper functions for folder and file operations
 
-import { google } from 'googleapis';
+import { Readable } from "stream";
+import { google, drive_v3 } from "googleapis";
 
 const SCOPES = ['https://www.googleapis.com/auth/drive.file'];
 
-let driveClient: any = null;
+let driveClient: drive_v3.Drive | null = null;
 
 export function getDriveClient() {
   if (driveClient) return driveClient;
@@ -61,7 +62,6 @@ async function createFolder(name: string, parentId: string): Promise<string> {
 }
 
 export async function ensureFolderStructure() {
-  const drive = getDriveClient();
   const rootFolderId = process.env.GOOGLE_DRIVE_ROOT_FOLDER_ID;
 
   console.log('=== FOLDER STRUCTURE CHECK ===');
@@ -133,17 +133,23 @@ export async function uploadFileToDrive(
     },
     media: {
       mimeType: mimetype,
-      body: require('stream').Readable.from(file),
+      body: Readable.from(file),
     },
     fields: 'id, webViewLink',
     supportsAllDrives: true,
   });
 
-  console.log('File created with ID:', response.data.id);
+  const fileId = response.data.id;
+
+  if (!fileId) {
+    throw new Error("Drive upload did not return a file id");
+  }
+
+  console.log('File created with ID:', fileId);
 
   // Make file accessible to anyone with link
   await drive.permissions.create({
-    fileId: response.data.id,
+    fileId,
     requestBody: {
       role: 'reader',
       type: 'anyone',
@@ -154,7 +160,39 @@ export async function uploadFileToDrive(
   console.log('Permissions set successfully');
   console.log('=== UPLOAD COMPLETE ===');
 
-  return response.data.webViewLink || `https://drive.google.com/file/d/${response.data.id}/view`;
+  return response.data.webViewLink || `https://drive.google.com/file/d/${fileId}/view`;
+}
+
+export async function createGoogleDocInFolder(
+  title: string,
+  folderId: string
+): Promise<{ id: string; title: string; url: string }> {
+  const drive = getDriveClient();
+
+  const response = await drive.files.create({
+    requestBody: {
+      name: title,
+      mimeType: "application/vnd.google-apps.document",
+      parents: [folderId],
+    },
+    fields: "id, name, webViewLink",
+    supportsAllDrives: true,
+  });
+
+  const id = response.data.id;
+  const name = response.data.name || title;
+
+  if (!id) {
+    throw new Error("Failed to create Google Doc");
+  }
+
+  return {
+    id,
+    title: name,
+    url:
+      response.data.webViewLink ||
+      `https://docs.google.com/document/d/${id}/edit`,
+  };
 }
 
 /**
