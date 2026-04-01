@@ -7,6 +7,10 @@ function getEffectivePreference(value?: ForumDigestPreference) {
   return value || "weekly";
 }
 
+function getAllowedPreferences(isSuperAdmin: boolean) {
+  return isSuperAdmin ? ["off", "weekly", "daily"] : ["off", "weekly"];
+}
+
 function getErrorMessage(error: unknown) {
   return error instanceof Error ? error.message : "Request failed";
 }
@@ -24,6 +28,9 @@ export async function GET() {
       success: true,
       data: {
         forumDigest: getEffectivePreference(user?.forumDigest),
+        allowedForumDigestOptions: getAllowedPreferences(
+          currentUser.role === "super_admin"
+        ),
       },
     });
   } catch (error: unknown) {
@@ -41,8 +48,11 @@ export async function PATCH(request: Request) {
 
     const body = await request.json();
     const forumDigest = body?.forumDigest as ForumDigestPreference | undefined;
+    const allowedPreferences = getAllowedPreferences(
+      currentUser.role === "super_admin"
+    );
 
-    if (!forumDigest || !["off", "weekly"].includes(forumDigest)) {
+    if (!forumDigest || !allowedPreferences.includes(forumDigest)) {
       return NextResponse.json(
         { success: false, error: "Invalid forumDigest value" },
         { status: 400 }
@@ -61,6 +71,7 @@ export async function PATCH(request: Request) {
       success: true,
       data: {
         forumDigest: getEffectivePreference(user?.forumDigest),
+        allowedForumDigestOptions: allowedPreferences,
       },
     });
   } catch (error: unknown) {

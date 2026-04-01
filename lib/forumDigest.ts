@@ -1,9 +1,13 @@
 import dbConnect from "@/lib/mongodb";
+import { DiscussionPostModel } from "@/models/Discussionpost";
 import { DiscussionThreadModel } from "@/models/Discussionthread";
 import { WorkingGroupModel } from "@/models/Workinggroup";
 import { ForumDigestPreference, User } from "@/models/User";
 
+export type ForumDigestCadence = "daily" | "weekly";
+
 const WEEKLY_DIGEST_LOOKBACK_MS = 7 * 24 * 60 * 60 * 1000;
+const DAILY_DIGEST_LOOKBACK_MS = 24 * 60 * 60 * 1000;
 const PRIVILEGED_ROLES = new Set(["super_admin", "admin", "steering"]);
 
 export interface ForumDigestUser {
@@ -31,6 +35,8 @@ export interface ForumDigestThreadItem {
   publicToMembers: boolean;
   groupName: string;
   groupSlug: string | null;
+  latestPosterName: string | null;
+  newResponsesSinceUserPosted: number;
   url: string;
 }
 
@@ -43,6 +49,7 @@ export interface ForumDigestSection {
 
 export interface ForumDigestPayload {
   userName: string;
+  cadence: ForumDigestCadence;
   periodStart: Date;
   periodEnd: Date;
   threadCount: number;
@@ -66,6 +73,17 @@ interface DigestGroupDocument {
   _id: { toString(): string } | string;
   name: string;
   slug: string;
+}
+
+interface DigestPostDocument {
+  threadId: { toString(): string } | string;
+  createdBy:
+    | string
+    | {
+        _id?: { toString(): string } | string;
+        name?: string;
+      };
+  createdAt: Date;
 }
 
 function normalizeGroupIds(workingGroups?: string[]) {
@@ -100,20 +118,37 @@ export function getEffectiveForumDigestPreference(
   return forumDigest || "weekly";
 }
 
-export function buildWeeklyDigestWindow(referenceDate = new Date()): ForumDigestWindow {
+export function buildDigestWindow(
+  cadence: ForumDigestCadence,
+  referenceDate = new Date()
+): ForumDigestWindow {
   const periodEnd = new Date(referenceDate);
-  const periodStart = new Date(referenceDate.getTime() - WEEKLY_DIGEST_LOOKBACK_MS);
+  const lookbackMs =
+    cadence === "daily" ? DAILY_DIGEST_LOOKBACK_MS : WEEKLY_DIGEST_LOOKBACK_MS;
+  const periodStart = new Date(referenceDate.getTime() - lookbackMs);
 
   return {
-    digestKey: periodStart.toISOString().slice(0, 10),
+    digestKey:
+      cadence === "daily"
+        ? periodStart.toISOString().slice(0, 10)
+        : periodStart.toISOString().slice(0, 10),
     periodStart,
     periodEnd,
   };
 }
 
+export function buildWeeklyDigestWindow(referenceDate = new Date()): ForumDigestWindow {
+  return buildDigestWindow("weekly", referenceDate);
+}
+
+export function buildDailyDigestWindow(referenceDate = new Date()): ForumDigestWindow {
+  return buildDigestWindow("daily", referenceDate);
+}
+
 export async function buildForumDigestForUser(
   user: ForumDigestUser,
-  window: ForumDigestWindow
+  window: ForumDigestWindow,
+  cadence: ForumDigestCadence = "weekly"
 ): Promise<ForumDigestPayload> {
   await dbConnect();
 
@@ -149,6 +184,18 @@ export async function buildForumDigestForUser(
         .lean()) as unknown as DigestGroupDocument[])
     : [];
 
+  const threadIds = threads.map((thread) => thread._id.toString());
+  const posts = threadIds.length
+    ? ((await DiscussionPostModel.find({
+        threadId: { $in: threadIds },
+        deleted: { $ne: true },
+      })
+        .select("threadId createdBy createdAt")
+        .populate("createdBy", "name")
+        .sort({ createdAt: 1 })
+        .lean()) as unknown as DigestPostDocument[])
+    : [];
+
   const groupMap = new Map(
     groups.map((group) => [
       group._id.toString(),
@@ -156,9 +203,42 @@ export async function buildForumDigestForUser(
     ])
   );
 
+  const postsByThread = new Map<string, DigestPostDocument[]>();
+
+  for (const post of posts) {
+    const threadId = post.threadId.toString();
+    const existing = postsByThread.get(threadId) || [];
+    existing.push(post);
+    postsByThread.set(threadId, existing);
+  }
+
   const sections = new Map<string, ForumDigestSection>();
 
   for (const thread of threads) {
+    const threadId = thread._id.toString();
+    const threadPosts = postsByThread.get(threadId) || [];
+    const latestPost = threadPosts[threadPosts.length - 1];
+    const latestPosterName =
+      latestPost && typeof latestPost.createdBy === "object"
+        ? latestPost.createdBy.name || null
+        : null;
+    const latestUserPost = [...threadPosts]
+      .reverse()
+      .find((post) =>
+        typeof post.createdBy === "object"
+          ? post.createdBy._id?.toString() === user._id
+          : post.createdBy?.toString() === user._id
+      );
+    const newResponsesSinceUserPosted = latestUserPost
+      ? threadPosts.filter(
+          (post) =>
+            new Date(post.createdAt).getTime() >
+              new Date(latestUserPost.createdAt).getTime() &&
+            (typeof post.createdBy === "object"
+              ? post.createdBy._id?.toString() !== user._id
+              : post.createdBy?.toString() !== user._id)
+        ).length
+      : 0;
     const primaryGroupId = (thread.workingGroups || [])[0]?.toString() || null;
     const group = primaryGroupId ? groupMap.get(primaryGroupId) : null;
     const groupName = group?.name || "General Discussion";
@@ -178,7 +258,7 @@ export async function buildForumDigestForUser(
     }
 
     sections.get(sectionKey)?.threads.push({
-      _id: thread._id.toString(),
+      _id: threadId,
       title: thread.title,
       slug: thread.slug,
       status: thread.status,
@@ -187,6 +267,8 @@ export async function buildForumDigestForUser(
       publicToMembers: thread.publicToMembers === true,
       groupName,
       groupSlug,
+      latestPosterName,
+      newResponsesSinceUserPosted,
       url: threadUrl,
     });
   }
@@ -196,6 +278,7 @@ export async function buildForumDigestForUser(
 
   return {
     userName: user.name,
+    cadence,
     periodStart: window.periodStart,
     periodEnd: window.periodEnd,
     threadCount: threads.length,

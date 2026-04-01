@@ -9,7 +9,7 @@ export type UserRole =
   | "team"
   | "super_admin";
 
-export type ForumDigestPreference = "off" | "weekly";
+export type ForumDigestPreference = "off" | "daily" | "weekly";
 
 export interface User extends Document {
   email: string;
@@ -43,7 +43,7 @@ const UserSchema = new Schema<User>(
     workingGroups: [String],
     forumDigest: {
       type: String,
-      enum: ["off", "weekly"],
+      enum: ["off", "daily", "weekly"],
       default: "weekly",
     },
   },

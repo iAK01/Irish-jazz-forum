@@ -2,7 +2,7 @@ import { Schema, model, models, Document, Types } from "mongoose";
 
 export interface ForumDigestSend extends Document {
   userId: Types.ObjectId;
-  digestType: "weekly";
+  digestType: "daily" | "weekly";
   digestKey: string;
   periodStart: Date;
   periodEnd: Date;
@@ -22,7 +22,7 @@ const ForumDigestSendSchema = new Schema<ForumDigestSend>(
     },
     digestType: {
       type: String,
-      enum: ["weekly"],
+      enum: ["daily", "weekly"],
       required: true,
       default: "weekly",
     },

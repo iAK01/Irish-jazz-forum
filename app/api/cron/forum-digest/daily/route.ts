@@ -2,8 +2,8 @@ import { NextResponse } from "next/server";
 import dbConnect from "@/lib/mongodb";
 import { sendForumDigestEmail } from "@/lib/email";
 import {
+  buildDailyDigestWindow,
   buildForumDigestForUser,
-  buildWeeklyDigestWindow,
 } from "@/lib/forumDigest";
 import { ForumDigestSendModel } from "@/models/ForumDigestSend";
 import { ForumDigestPreference, UserModel, UserRole } from "@/models/User";
@@ -31,7 +31,7 @@ function isAuthorizedRequest(request: Request) {
 }
 
 function getErrorMessage(error: unknown) {
-  return error instanceof Error ? error.message : "Forum digest run failed";
+  return error instanceof Error ? error.message : "Daily forum digest run failed";
 }
 
 interface DigestRecipient {
@@ -61,14 +61,11 @@ export async function GET(request: Request) {
 
     await dbConnect();
 
-    const digestWindow = buildWeeklyDigestWindow();
+    const digestWindow = buildDailyDigestWindow();
     const recipients = (await UserModel.find({
       email: { $exists: true, $nin: [""] },
-      role: { $ne: "public" },
-      $or: [
-        { forumDigest: "weekly" as ForumDigestPreference },
-        { forumDigest: { $exists: false } },
-      ],
+      role: "super_admin",
+      forumDigest: "daily" as ForumDigestPreference,
     })
       .select("name email role workingGroups forumDigest")
       .lean()) as unknown as DigestRecipient[];
@@ -87,7 +84,7 @@ export async function GET(request: Request) {
       try {
         const existingSend = await ForumDigestSendModel.findOne({
           userId,
-          digestType: "weekly",
+          digestType: "daily",
           digestKey: digestWindow.digestKey,
         }).lean();
 
@@ -106,7 +103,7 @@ export async function GET(request: Request) {
             forumDigest: user.forumDigest,
           },
           digestWindow,
-          "weekly"
+          "daily"
         );
 
         if (payload.threadCount === 0) {
@@ -121,7 +118,7 @@ export async function GET(request: Request) {
 
         await ForumDigestSendModel.create({
           userId,
-          digestType: "weekly",
+          digestType: "daily",
           digestKey: digestWindow.digestKey,
           periodStart: digestWindow.periodStart,
           periodEnd: digestWindow.periodEnd,
@@ -136,15 +133,13 @@ export async function GET(request: Request) {
           continue;
         }
 
-        results.errors.push(
-          `${user.email}: ${getErrorMessage(error)}`
-        );
+        results.errors.push(`${user.email}: ${getErrorMessage(error)}`);
       }
     }
 
     return NextResponse.json({
       success: true,
-      message: "Forum digest run completed",
+      message: "Daily forum digest run completed",
       digestKey: digestWindow.digestKey,
       results,
       timestamp: new Date().toISOString(),

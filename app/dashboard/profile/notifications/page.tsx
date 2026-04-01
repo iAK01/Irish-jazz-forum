@@ -16,7 +16,7 @@ export default async function NotificationPreferencesPage() {
       userName={user.name}
       role={user.role}
     >
-      <NotificationPreferencesForm />
+      <NotificationPreferencesForm userRole={user.role} />
     </DashboardLayout>
   );
 }
