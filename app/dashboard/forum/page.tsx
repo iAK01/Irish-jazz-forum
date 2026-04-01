@@ -11,6 +11,8 @@ interface WorkingGroupStats {
   name: string;
   description: string;
   isPrivate: boolean;
+  coordinatorName?: string | null;
+  assignedMemberCount?: number;
   threadCount: number;
   newThreadCount?: number;
   lastActivityAt?: string;
@@ -362,6 +364,42 @@ export default function ForumHomePage() {
                             <h3 style={{ fontSize: isMobile ? "1rem" : "1.25rem", fontWeight: 700, color: "#111827" }}>
                               {group.name}
                             </h3>
+                          </div>
+                          <div style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem", marginBottom: "0.5rem" }}>
+                            {group.coordinatorName && (
+                              <span
+                                style={{
+                                  display: "inline-flex",
+                                  alignItems: "center",
+                                  gap: "0.35rem",
+                                  padding: "0.25rem 0.6rem",
+                                  borderRadius: "9999px",
+                                  backgroundColor: "#f9fafb",
+                                  color: "#374151",
+                                  fontSize: "0.75rem",
+                                  fontWeight: 600,
+                                  border: "1px solid #e5e7eb",
+                                }}
+                              >
+                                Coordinator: {group.coordinatorName}
+                              </span>
+                            )}
+                            <span
+                              style={{
+                                display: "inline-flex",
+                                alignItems: "center",
+                                gap: "0.35rem",
+                                padding: "0.25rem 0.6rem",
+                                borderRadius: "9999px",
+                                backgroundColor: "rgba(228,185,91,0.12)",
+                                color: "#8a6612",
+                                fontSize: "0.75rem",
+                                fontWeight: 700,
+                              }}
+                            >
+                              {group.assignedMemberCount || 0}{" "}
+                              {group.assignedMemberCount === 1 ? "person assigned" : "people assigned"}
+                            </span>
                           </div>
                           {group.lastActivityAt && (
                             <p style={{ fontSize: "0.75rem", color: "#6b7280" }}>

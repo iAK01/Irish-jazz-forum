@@ -4,6 +4,7 @@ import { NextResponse } from "next/server";
 import dbConnect from "@/lib/mongodb";
 import { WorkingGroupModel } from "@/models/Workinggroup";
 import { DiscussionThreadModel } from "@/models/Discussionthread";
+import { UserModel } from "@/models/User";
 import { requireAuth } from "@/lib/auth";
 import { buildAccessibleThreadQuery } from "@/lib/forumDiscovery";
 import mongoose from "mongoose";
@@ -120,6 +121,35 @@ export async function GET() {
         ? memberThreadCounts
         : groupThreadCounts;
 
+    const assignedUserCounts = groupIds.length
+      ? await UserModel.aggregate([
+          {
+            $match: {
+              workingGroups: { $in: groupIds },
+            },
+          },
+          { $unwind: "$workingGroups" },
+          {
+            $match: {
+              workingGroups: { $in: groupIds },
+            },
+          },
+          {
+            $group: {
+              _id: "$workingGroups",
+              count: { $sum: 1 },
+            },
+          },
+        ])
+      : [];
+
+    const assignedUserCountMap = new Map(
+      assignedUserCounts.map((entry: { _id: string; count: number }) => [
+        entry._id,
+        entry.count,
+      ])
+    );
+
     // --- 4. Collect all unique members across all groups ---
     const memberMap = new Map<string, any>();
     for (const group of groups) {
@@ -148,6 +178,8 @@ export async function GET() {
       name: group.name,
       description: group.description,
       isPrivate: group.isPrivate,
+      coordinatorName: group.coordinator?.name || null,
+      assignedMemberCount: assignedUserCountMap.get(group._id.toString()) || 0,
       threadCount: finalThreadCounts[index] || 0,
       newThreadCount: groupNewThreadCounts[index] || 0,
       lastActivityAt: (lastActivityResults[index] as any)?.lastActivityAt || null,

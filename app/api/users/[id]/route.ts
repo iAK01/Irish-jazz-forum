@@ -6,6 +6,10 @@ import { UserModel } from "@/models/User";
 import { MemberModel } from "@/models/Member";
 import { requireAuth } from "@/lib/auth";
 
+function getErrorMessage(error: unknown) {
+  return error instanceof Error ? error.message : "Unknown error";
+}
+
 export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
@@ -28,15 +32,32 @@ export async function PATCH(
       }
     }
 
+    const updateData: Record<string, unknown> = {};
+
+    if (role !== undefined) {
+      updateData.role = role;
+    }
+
+    if (memberProfile !== undefined) {
+      updateData.memberProfile = memberProfile;
+    }
+
+    if (workingGroups !== undefined) {
+      updateData.workingGroups = workingGroups;
+    }
+
     const updatedUser = await UserModel.findByIdAndUpdate(
       id,
-      { role, memberProfile, workingGroups },
+      updateData,
       { new: true }
     );
 
     return NextResponse.json({ success: true, data: updatedUser });
-  } catch (error: any) {
-    return NextResponse.json({ success: false, error: error.message }, { status: 400 });
+  } catch (error: unknown) {
+    return NextResponse.json(
+      { success: false, error: getErrorMessage(error) },
+      { status: 400 }
+    );
   }
 }
 
@@ -72,8 +93,6 @@ export async function DELETE(
     }
 
     const userIdStr = targetUser._id.toString();
-    const userEmail = targetUser.email.toLowerCase();
-
     // Remove user from any Member org's users array
     await MemberModel.updateMany(
       { "users.userId": userIdStr },
@@ -87,7 +106,10 @@ export async function DELETE(
       success: true,
       message: `User ${targetUser.name || targetUser.email} deleted`,
     });
-  } catch (error: any) {
-    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+  } catch (error: unknown) {
+    return NextResponse.json(
+      { success: false, error: getErrorMessage(error) },
+      { status: 500 }
+    );
   }
 }
