@@ -4,6 +4,7 @@ import { type ReactNode, useState } from "react";
 import {
   ExternalLink,
   FileArchive,
+  FileBadge,
   FileImage,
   FilePlus2,
   FileSpreadsheet,
@@ -12,6 +13,7 @@ import {
   Link2,
   Loader2,
   Plus,
+  Presentation,
 } from "lucide-react";
 
 interface ThreadResourcePost {
@@ -35,6 +37,20 @@ interface ResourceItem {
   title: string;
   url: string;
   bucket: "working" | "reference";
+  resourceType:
+    | "google_doc"
+    | "google_sheet"
+    | "google_slide"
+    | "google_form"
+    | "pdf"
+    | "word"
+    | "spreadsheet"
+    | "presentation"
+    | "image"
+    | "archive"
+    | "text"
+    | "link";
+  typeLabel: string;
   sourceType: "attachment" | "link";
   sourceLabel: string;
   addedAt: string;
@@ -98,6 +114,8 @@ function extractLinks(html: string) {
   return matches.map((match) => ({
     url: match[2],
     label: decodeHtmlEntities(stripHtml(match[3] || "")),
+    resourceHint:
+      match[0].match(/data-thread-resource-kind=(["'])(.*?)\1/i)?.[2] || null,
   }));
 }
 
@@ -123,6 +141,21 @@ function isReferenceLink(url: string, label: string) {
   const extension = fileExtension(url) || fileExtension(label);
 
   return isDriveFile(url) || FILE_EXTENSIONS.includes(extension);
+}
+
+function isThreadWorkingDocument(link: {
+  url: string;
+  resourceHint?: string | null;
+}, postContent: string) {
+  if (!isGoogleWorkingDocument(link.url)) {
+    return false;
+  }
+
+  if (link.resourceHint === "working-document") {
+    return true;
+  }
+
+  return postContent.includes("Working document created for this thread:");
 }
 
 function inferLinkTitle(url: string, label: string) {
@@ -152,38 +185,182 @@ function formatBytes(size: number) {
   return `${(size / (1024 * 1024)).toFixed(1)} MB`;
 }
 
+function inferResourceType(
+  url: string,
+  label: string,
+  mimetype?: string
+): Pick<ResourceItem, "resourceType" | "typeLabel"> {
+  const lowerUrl = url.toLowerCase();
+  const lowerLabel = label.toLowerCase();
+  const lowerMime = mimetype?.toLowerCase() || "";
+  const extension = fileExtension(lowerUrl) || fileExtension(lowerLabel);
+
+  if (lowerUrl.includes("docs.google.com/document/")) {
+    return { resourceType: "google_doc", typeLabel: "Google Doc" };
+  }
+
+  if (lowerUrl.includes("docs.google.com/spreadsheets/")) {
+    return { resourceType: "google_sheet", typeLabel: "Google Sheet" };
+  }
+
+  if (lowerUrl.includes("docs.google.com/presentation/")) {
+    return { resourceType: "google_slide", typeLabel: "Google Slides" };
+  }
+
+  if (lowerUrl.includes("docs.google.com/forms/")) {
+    return { resourceType: "google_form", typeLabel: "Google Form" };
+  }
+
+  if (lowerMime === "application/pdf" || extension === "pdf") {
+    return { resourceType: "pdf", typeLabel: "PDF" };
+  }
+
+  if (
+    ["doc", "docx", "odt", "pages"].includes(extension) ||
+    lowerMime.includes("word")
+  ) {
+    return { resourceType: "word", typeLabel: "Document" };
+  }
+
+  if (
+    ["xls", "xlsx", "csv", "tsv", "ods"].includes(extension) ||
+    lowerMime.includes("sheet") ||
+    lowerMime.includes("excel") ||
+    lowerMime.includes("csv")
+  ) {
+    return {
+      resourceType: "spreadsheet",
+      typeLabel: extension === "csv" || extension === "tsv" ? "CSV" : "Spreadsheet",
+    };
+  }
+
+  if (
+    ["ppt", "pptx", "key", "odp"].includes(extension) ||
+    lowerMime.includes("presentation") ||
+    lowerMime.includes("powerpoint")
+  ) {
+    return { resourceType: "presentation", typeLabel: "Presentation" };
+  }
+
+  if (
+    ["png", "jpg", "jpeg", "gif", "webp", "svg", "avif", "heic"].includes(extension) ||
+    lowerMime.startsWith("image/")
+  ) {
+    return { resourceType: "image", typeLabel: "Image" };
+  }
+
+  if (
+    ["zip", "rar", "7z", "tar", "gz"].includes(extension) ||
+    lowerMime.includes("zip") ||
+    lowerMime.includes("compressed")
+  ) {
+    return { resourceType: "archive", typeLabel: "Archive" };
+  }
+
+  if (
+    ["txt", "rtf", "md"].includes(extension) ||
+    lowerMime.startsWith("text/")
+  ) {
+    return { resourceType: "text", typeLabel: "Text" };
+  }
+
+  return { resourceType: "link", typeLabel: "Link" };
+}
+
 function resourceIcon(resource: ResourceItem) {
-  if (resource.bucket === "working") {
+  if (resource.bucket === "working" || resource.resourceType === "google_doc") {
     return <FileText size={16} strokeWidth={2.2} />;
   }
 
-  const lower = resource.title.toLowerCase();
   if (
-    lower.endsWith(".xls") ||
-    lower.endsWith(".xlsx") ||
-    resource.title.toLowerCase().includes("sheet")
+    resource.resourceType === "google_sheet" ||
+    resource.resourceType === "spreadsheet"
   ) {
     return <FileSpreadsheet size={16} strokeWidth={2.2} />;
   }
 
   if (
-    lower.endsWith(".png") ||
-    lower.endsWith(".jpg") ||
-    lower.endsWith(".jpeg") ||
-    lower.endsWith(".gif")
+    resource.resourceType === "google_slide" ||
+    resource.resourceType === "presentation"
   ) {
+    return <Presentation size={16} strokeWidth={2.2} />;
+  }
+
+  if (resource.resourceType === "pdf") {
+    return <FileBadge size={16} strokeWidth={2.2} />;
+  }
+
+  if (resource.resourceType === "image") {
     return <FileImage size={16} strokeWidth={2.2} />;
   }
 
-  if (lower.endsWith(".zip")) {
+  if (resource.resourceType === "archive") {
     return <FileArchive size={16} strokeWidth={2.2} />;
   }
 
-  if (resource.sourceType === "link") {
+  if (resource.resourceType === "link") {
     return <Link2 size={16} strokeWidth={2.2} />;
   }
 
   return <FileText size={16} strokeWidth={2.2} />;
+}
+
+function resourceTone(resource: ResourceItem) {
+  if (resource.bucket === "working") {
+    return {
+      backgroundColor: "rgba(228,185,91,0.14)",
+      color: "#8a6612",
+      badgeBackgroundColor: "rgba(228,185,91,0.12)",
+      badgeColor: "#8a6612",
+    };
+  }
+
+  switch (resource.resourceType) {
+    case "google_sheet":
+    case "spreadsheet":
+      return {
+        backgroundColor: "#ecfdf5",
+        color: "#166534",
+        badgeBackgroundColor: "#dcfce7",
+        badgeColor: "#166534",
+      };
+    case "google_slide":
+    case "presentation":
+      return {
+        backgroundColor: "#fff7ed",
+        color: "#c2410c",
+        badgeBackgroundColor: "#ffedd5",
+        badgeColor: "#c2410c",
+      };
+    case "pdf":
+      return {
+        backgroundColor: "#fef2f2",
+        color: "#b91c1c",
+        badgeBackgroundColor: "#fee2e2",
+        badgeColor: "#b91c1c",
+      };
+    case "image":
+      return {
+        backgroundColor: "#eff6ff",
+        color: "#1d4ed8",
+        badgeBackgroundColor: "#dbeafe",
+        badgeColor: "#1d4ed8",
+      };
+    case "archive":
+      return {
+        backgroundColor: "#f5f3ff",
+        color: "#6d28d9",
+        badgeBackgroundColor: "#ede9fe",
+        badgeColor: "#6d28d9",
+      };
+    default:
+      return {
+        backgroundColor: "#f3f4f6",
+        color: "#4b5563",
+        badgeBackgroundColor: "#f3f4f6",
+        badgeColor: "#4b5563",
+      };
+  }
 }
 
 function collectResources(posts: ThreadResourcePost[]) {
@@ -194,15 +371,20 @@ function collectResources(posts: ThreadResourcePost[]) {
       const key = normalizeUrl(attachment.url);
       if (deduped.has(key)) continue;
 
-      const bucket = isGoogleWorkingDocument(attachment.url)
-        ? "working"
-        : "reference";
+      const bucket = "reference";
+      const resourceType = inferResourceType(
+        attachment.url,
+        attachment.filename,
+        attachment.mimetype
+      );
 
       deduped.set(key, {
         key,
         title: attachment.filename,
         url: attachment.url,
         bucket,
+        resourceType: resourceType.resourceType,
+        typeLabel: resourceType.typeLabel,
         sourceType: "attachment",
         sourceLabel: "Attached in thread",
         addedAt: attachment.uploadedAt || post.createdAt,
@@ -217,21 +399,29 @@ function collectResources(posts: ThreadResourcePost[]) {
       if (deduped.has(normalized)) continue;
 
       let bucket: "working" | "reference" | null = null;
-      if (isGoogleWorkingDocument(link.url)) {
+      if (isThreadWorkingDocument(link, post.content || "")) {
         bucket = "working";
-      } else if (isReferenceLink(link.url, link.label)) {
+      } else if (
+        isGoogleWorkingDocument(link.url) ||
+        isReferenceLink(link.url, link.label)
+      ) {
         bucket = "reference";
       }
 
       if (!bucket) continue;
+
+      const resourceType = inferResourceType(link.url, link.label);
 
       deduped.set(normalized, {
         key: normalized,
         title: inferLinkTitle(link.url, link.label),
         url: link.url,
         bucket,
+        resourceType: resourceType.resourceType,
+        typeLabel: resourceType.typeLabel,
         sourceType: "link",
-        sourceLabel: bucket === "working" ? "Linked working doc" : "Linked file",
+        sourceLabel:
+          bucket === "working" ? "Thread working doc" : "Linked in thread",
         addedAt: post.createdAt,
         postId: post._id,
         postAuthor: post.createdBy.name,
@@ -302,99 +492,107 @@ function ResourceSection({
                 backgroundColor: "white",
               }}
             >
-              <div style={{ display: "flex", gap: "0.75rem", minWidth: 0 }}>
-                <div
-                  style={{
-                    width: "2rem",
-                    height: "2rem",
-                    borderRadius: "0.55rem",
-                    backgroundColor:
-                      resource.bucket === "working"
-                        ? "rgba(228,185,91,0.14)"
-                        : "#f3f4f6",
-                    color:
-                      resource.bucket === "working"
-                        ? "#8a6612"
-                        : "#4b5563",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    flexShrink: 0,
-                  }}
-                >
-                  {resourceIcon(resource)}
-                </div>
+              {(() => {
+                const tone = resourceTone(resource);
 
-                <div style={{ minWidth: 0 }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: "0.45rem", flexWrap: "wrap" }}>
-                    <a
-                      href={resource.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
+                return (
+                  <div style={{ display: "flex", gap: "0.75rem", minWidth: 0 }}>
+                    <div
                       style={{
-                        color: "#111827",
-                        fontWeight: 700,
-                        textDecoration: "none",
-                        wordBreak: "break-word",
-                      }}
-                    >
-                      {resource.title}
-                    </a>
-                    <span
-                      style={{
-                        padding: "0.12rem 0.45rem",
-                        borderRadius: "9999px",
-                        backgroundColor:
-                          resource.bucket === "working"
-                            ? "rgba(228,185,91,0.12)"
-                            : "#f3f4f6",
-                        color:
-                          resource.bucket === "working" ? "#8a6612" : "#4b5563",
-                        fontSize: "0.7rem",
-                        fontWeight: 700,
-                      }}
-                    >
-                      {resource.sourceLabel}
-                    </span>
-                  </div>
-
-                  <div style={{ marginTop: "0.35rem", fontSize: "0.8rem", color: "#6b7280" }}>
-                    Added by {resource.postAuthor} on {formatDate(resource.addedAt)}
-                    {resource.meta ? ` • ${resource.meta}` : ""}
-                  </div>
-
-                  <div style={{ marginTop: "0.45rem", display: "flex", alignItems: "center", gap: "0.85rem", flexWrap: "wrap" }}>
-                    <a
-                      href={resource.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      style={{
-                        display: "inline-flex",
+                        width: "2rem",
+                        height: "2rem",
+                        borderRadius: "0.55rem",
+                        backgroundColor: tone.backgroundColor,
+                        color: tone.color,
+                        display: "flex",
                         alignItems: "center",
-                        gap: "0.35rem",
-                        color: "var(--color-ijf-accent)",
-                        fontSize: "0.82rem",
-                        fontWeight: 600,
-                        textDecoration: "none",
+                        justifyContent: "center",
+                        flexShrink: 0,
                       }}
                     >
-                      <ExternalLink size={14} strokeWidth={2.2} />
-                      Open
-                    </a>
-                    <a
-                      href={`${threadPath}#post-${resource.postId}`}
-                      style={{
-                        color: "#6b7280",
-                        fontSize: "0.82rem",
-                        fontWeight: 600,
-                        textDecoration: "none",
-                      }}
-                    >
-                      View in discussion
-                    </a>
+                      {resourceIcon(resource)}
+                    </div>
+
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: "0.45rem", flexWrap: "wrap" }}>
+                        <a
+                          href={resource.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          style={{
+                            color: "#111827",
+                            fontWeight: 700,
+                            textDecoration: "none",
+                            wordBreak: "break-word",
+                          }}
+                        >
+                          {resource.title}
+                        </a>
+                        <span
+                          style={{
+                            padding: "0.12rem 0.45rem",
+                            borderRadius: "9999px",
+                            backgroundColor: tone.badgeBackgroundColor,
+                            color: tone.badgeColor,
+                            fontSize: "0.7rem",
+                            fontWeight: 700,
+                          }}
+                        >
+                          {resource.typeLabel}
+                        </span>
+                        <span
+                          style={{
+                            padding: "0.12rem 0.45rem",
+                            borderRadius: "9999px",
+                            backgroundColor: "#f9fafb",
+                            color: "#6b7280",
+                            fontSize: "0.7rem",
+                            fontWeight: 700,
+                          }}
+                        >
+                          {resource.sourceLabel}
+                        </span>
+                      </div>
+
+                      <div style={{ marginTop: "0.35rem", fontSize: "0.8rem", color: "#6b7280" }}>
+                        Added by {resource.postAuthor} on {formatDate(resource.addedAt)}
+                        {resource.meta ? ` • ${resource.meta}` : ""}
+                      </div>
+
+                      <div style={{ marginTop: "0.45rem", display: "flex", alignItems: "center", gap: "0.85rem", flexWrap: "wrap" }}>
+                        <a
+                          href={resource.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          style={{
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: "0.35rem",
+                            color: "var(--color-ijf-accent)",
+                            fontSize: "0.82rem",
+                            fontWeight: 600,
+                            textDecoration: "none",
+                          }}
+                        >
+                          <ExternalLink size={14} strokeWidth={2.2} />
+                          Open
+                        </a>
+                        <a
+                          href={`${threadPath}#post-${resource.postId}`}
+                          style={{
+                            color: "#6b7280",
+                            fontSize: "0.82rem",
+                            fontWeight: 600,
+                            textDecoration: "none",
+                          }}
+                        >
+                          View in discussion
+                        </a>
+                      </div>
+                    </div>
                   </div>
-                </div>
-              </div>
+                );
+              })()}
             </div>
           ))}
         </div>

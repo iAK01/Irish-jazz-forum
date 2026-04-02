@@ -57,7 +57,7 @@ function isGoogleDriveResourceUrl(value: string) {
 }
 
 function buildCreatedDocContent(title: string, url: string) {
-  return `<p><strong>Working document created for this thread:</strong> <a href="${escapeHtml(
+  return `<p><strong>Working document created for this thread:</strong> <a data-thread-resource-kind="working-document" href="${escapeHtml(
     url
   )}" target="_blank" rel="noopener noreferrer">${escapeHtml(
     title
@@ -65,7 +65,7 @@ function buildCreatedDocContent(title: string, url: string) {
 }
 
 function buildAttachedResourceContent(title: string, url: string) {
-  return `<p><strong>Resource added to this thread:</strong> <a href="${escapeHtml(
+  return `<p><strong>Resource added to this thread:</strong> <a data-thread-resource-kind="reference-file" href="${escapeHtml(
     url
   )}" target="_blank" rel="noopener noreferrer">${escapeHtml(
     title
