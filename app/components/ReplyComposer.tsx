@@ -3,6 +3,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import { enqueue } from "@/lib/offlineQueue";
 import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Link from "@tiptap/extension-link";
@@ -228,6 +229,25 @@ export default function ReplyComposer({
 
     setSubmitting(true);
     setError("");
+
+    // Queue for later if offline
+    if (!navigator.onLine) {
+      await enqueue({
+        type: "post-reply",
+        url: `/api/threads/${threadId}/posts`,
+        method: "POST",
+        body: JSON.stringify({ content, attachments }),
+        queuedAt: Date.now(),
+        label: "Reply",
+      });
+      editor.commands.setContent("");
+      setAttachments([]);
+      setWordCount(0);
+      clearDraft();
+      setSubmitting(false);
+      setError("You're offline — your reply is queued and will send when reconnected.");
+      return;
+    }
 
     try {
       const response = await fetch(`/api/threads/${threadId}/posts`, {

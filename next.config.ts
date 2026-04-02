@@ -1,6 +1,6 @@
-import type { NextConfig } from "next";
+import { withSerwist } from "@serwist/turbopack";
 
-const nextConfig: NextConfig = {
+export default withSerwist({
   images: {
     remotePatterns: [
       {
@@ -9,6 +9,4 @@ const nextConfig: NextConfig = {
       },
     ],
   },
-};
-
-export default nextConfig;
+});

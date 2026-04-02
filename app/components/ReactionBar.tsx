@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { enqueue } from "@/lib/offlineQueue";
 import { BadgeCheck, HandHeart, ThumbsUp } from "lucide-react";
 
 type ReactionType = "like" | "agree" | "thanks";
@@ -114,6 +115,44 @@ export default function ReactionBar({
   const handleReaction = async (reactionType: ReactionType) => {
     setPendingReaction(reactionType);
 
+    // Optimistic update
+    const prev = state;
+    const isRemoving = state.currentUserReaction === reactionType;
+    const nextReaction = isRemoving ? null : reactionType;
+    const nextCounts = { ...state.reactionSummary.counts };
+    if (isRemoving) {
+      nextCounts[reactionType] = Math.max(0, (nextCounts[reactionType] || 0) - 1);
+    } else {
+      if (state.currentUserReaction) {
+        nextCounts[state.currentUserReaction] = Math.max(0, (nextCounts[state.currentUserReaction] || 0) - 1);
+      }
+      nextCounts[reactionType] = (nextCounts[reactionType] || 0) + 1;
+    }
+    const optimistic = {
+      reactionSummary: {
+        counts: nextCounts,
+        total: Object.values(nextCounts).reduce((a, b) => a + b, 0),
+      },
+      currentUserReaction: nextReaction,
+    };
+    setState(optimistic);
+    onChange?.(optimistic);
+
+    // Queue if offline — optimistic state is already applied
+    if (!navigator.onLine) {
+      const url = `/api/${targetType === "thread" ? "threads" : "posts"}/${targetId}/reactions`;
+      await enqueue({
+        type: "reaction",
+        url,
+        method: "POST",
+        body: JSON.stringify({ reactionType }),
+        queuedAt: Date.now(),
+        label: `${reactionType} reaction`,
+      });
+      setPendingReaction(null);
+      return;
+    }
+
     try {
       const response = await fetch(
         `/api/${targetType === "thread" ? "threads" : "posts"}/${targetId}/reactions`,
@@ -139,6 +178,9 @@ export default function ReactionBar({
       onChange?.(nextState);
     } catch (error) {
       console.error("Reaction update failed:", error);
+      // Revert optimistic update on error
+      setState(prev);
+      onChange?.(prev);
     } finally {
       setPendingReaction(null);
     }

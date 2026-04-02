@@ -12,6 +12,7 @@ import Placeholder from "@tiptap/extension-placeholder";
 import Mention from "@tiptap/extension-mention";
 import { mentionSuggestion } from "@/lib/mentionSuggestion";
 import DashboardLayout from "@/app/components/dashboard/DashboardLayout";
+import { enqueue } from "@/lib/offlineQueue";
 
 interface ThreadFormData {
   title: string;
@@ -118,25 +119,41 @@ function NewThreadFormContent() {
     setSubmitting(true);
     setError("");
 
+    const tagsArray = data.tags
+      ? data.tags
+          .split(",")
+          .map((t) => t.trim())
+          .filter((t) => t.length > 0)
+      : [];
+
+    const workingGroups =
+      workingGroup && workingGroup !== "general" ? [workingGroup] : [];
+
+    const payload = {
+      title: data.title.trim(),
+      workingGroups,
+      tags: tagsArray,
+      content,
+      attachments,
+    };
+
+    if (!navigator.onLine) {
+      await enqueue({
+        type: "create-thread",
+        url: "/api/threads",
+        method: "POST",
+        body: JSON.stringify(payload),
+        queuedAt: Date.now(),
+        label: `Thread: ${payload.title}`,
+      });
+      editor.commands.setContent("");
+      setAttachments([]);
+      setSubmitting(false);
+      setError("You're offline — your thread is queued and will be posted when reconnected.");
+      return;
+    }
+
     try {
-      const tagsArray = data.tags
-        ? data.tags
-            .split(",")
-            .map((t) => t.trim())
-            .filter((t) => t.length > 0)
-        : [];
-
-      const workingGroups =
-        workingGroup && workingGroup !== "general" ? [workingGroup] : [];
-
-      const payload = {
-        title: data.title.trim(),
-        workingGroups,
-        tags: tagsArray,
-        content,
-        attachments,
-      };
-
       const response = await fetch("/api/threads", {
         method: "POST",
         headers: { "Content-Type": "application/json" },

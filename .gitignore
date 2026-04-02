@@ -33,5 +33,11 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
+# serwist generated service worker (built at deploy time)
+public/sw.js
+public/sw.js.map
+public/swe-worker-*.js
+public/swe-worker-*.js.map
+
 # credentials
 google-drive-credentials.json
