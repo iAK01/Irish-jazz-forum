@@ -2,7 +2,9 @@
   "permissions": {
     "allow": [
       "Bash(node -e \"const d=require\\('fs'\\).readFileSync\\('/dev/stdin','utf8'\\); const p=JSON.parse\\(d\\); console.log\\(JSON.stringify\\(p.exports, null, 2\\)\\)\")",
-      "Bash(node -e \"const t = require\\('@serwist/build'\\); console.log\\(Object.keys\\(t\\)\\)\")"
+      "Bash(node -e \"const t = require\\('@serwist/build'\\); console.log\\(Object.keys\\(t\\)\\)\")",
+      "Bash(node -e \"const sharp = require\\('sharp'\\); sharp\\('/Users/kennethkilleen/ijf-site/public/icons/IJF Logo2.png'\\).metadata\\(\\).then\\(m => console.log\\(m.width, 'x', m.height, m.format\\)\\)\")",
+      "Bash(node -e ':*)"
     ]
   }
 }

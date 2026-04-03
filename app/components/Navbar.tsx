@@ -34,7 +34,7 @@ export default function Navbar() {
   ];
 
   return (
-    <nav className="w-full border-b border-zinc-200 dark:border-zinc-800 bg-white dark:bg-black relative z-50">
+    <nav className="w-full border-b border-zinc-200 dark:border-zinc-800 bg-white dark:bg-black relative z-50" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
       <div className="max-w-6xl mx-auto flex items-center justify-between py-4 px-6">
 
         {/* Logo */}
