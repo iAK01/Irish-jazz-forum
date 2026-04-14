@@ -52,23 +52,32 @@ function JoinContent() {
 
   const handleMagicLink = async () => {
     setEmailLoading(true);
-    await signIn("resend", {
+    const result = await signIn("resend", {
       email: invitation.email,
       callbackUrl: `/join/onboarding?token=${token}`,
       redirect: false,
     });
     setEmailLoading(false);
-    setStage("magic_sent");
+    if (result?.error) {
+      setError("We couldn't send the sign-in link right now. Please try again or contact hello@irishjazzforum.com");
+      setStage("error");
+    } else {
+      setStage("magic_sent");
+    }
   };
 
   const handleResend = async () => {
     setResending(true);
-    await signIn("resend", {
+    const result = await signIn("resend", {
       email: invitation.email,
       callbackUrl: `/join/onboarding?token=${token}`,
       redirect: false,
     });
     setResending(false);
+    if (result?.error) {
+      setError("We couldn't send the sign-in link right now. Please try again or contact hello@irishjazzforum.com");
+      setStage("error");
+    }
   };
 
   if (stage === "loading") {

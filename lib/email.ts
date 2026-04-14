@@ -21,15 +21,20 @@ export async function sendEmail({ to, subject, html, from, replyTo }: EmailOptio
     },
   });
 
-  const info = await transporter.sendMail({
-    from: from || process.env.SMTP_FROM || 'Irish Jazz Forum <hello@mg.irishjazzforum.com>',
-    to: Array.isArray(to) ? to.join(', ') : to,
-    replyTo,
-    subject,
-    html,
-  });
-
-  return info;
+  try {
+    const info = await transporter.sendMail({
+      from: from || process.env.SMTP_FROM || 'Irish Jazz Forum <onboarding@contact.irishjazzforum.com>',
+      to: Array.isArray(to) ? to.join(', ') : to,
+      replyTo,
+      subject,
+      html,
+    });
+    console.log(`[email] sent "${subject}" to ${Array.isArray(to) ? to.join(', ') : to} — messageId: ${info.messageId}`);
+    return info;
+  } catch (err: any) {
+    console.error(`[email] failed to send "${subject}" to ${Array.isArray(to) ? to.join(', ') : to}:`, err.message);
+    throw err;
+  }
 }
 
 export async function sendInvitationEmail(params: {

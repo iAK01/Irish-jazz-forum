@@ -21,6 +21,30 @@ const { handlers, auth, signIn, signOut } = NextAuth({
     Resend({
       apiKey: process.env.AUTH_RESEND_KEY!,
       from: process.env.SMTP_FROM!,
+      async sendVerificationRequest({ identifier: email, url, provider }) {
+        const res = await fetch("https://api.eu.resend.com/emails", {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${provider.apiKey}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            from: provider.from || "Irish Jazz Forum <onboarding@contact.irishjazzforum.com>",
+            to: email,
+            subject: "Sign in to Irish Jazz Forum",
+            html: `<div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:32px 24px">
+              <h2 style="font-size:20px;font-weight:700;color:#111827;margin-bottom:8px">Sign in to Irish Jazz Forum</h2>
+              <p style="color:#6b7280;margin-bottom:24px">Click the button below to sign in. This link expires in 24 hours.</p>
+              <a href="${url}" style="display:inline-block;background:#4CBB5A;color:#fff;font-weight:600;padding:12px 28px;border-radius:8px;text-decoration:none;font-size:15px">Sign in</a>
+              <p style="color:#9ca3af;font-size:12px;margin-top:24px">If you didn't request this, you can safely ignore this email.</p>
+            </div>`,
+          }),
+        });
+        if (!res.ok) {
+          const body = await res.text();
+          throw new Error(`Resend EU API error ${res.status}: ${body}`);
+        }
+      },
     }),
   ],
   callbacks: {

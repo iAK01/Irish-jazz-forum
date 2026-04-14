@@ -40,12 +40,16 @@ function SignInContent() {
       return;
     }
 
-    await signIn("resend", {
+    const result = await signIn("resend", {
       email: email.trim(),
       callbackUrl,
       redirect: false,
     });
     setEmailLoading(false);
+    if (result?.error) {
+      setEmailError("We couldn't send the sign-in link right now. Please try again shortly.");
+      return;
+    }
     setEmailSent(true);
   };
 
