@@ -867,8 +867,6 @@ export default function WorkingGroupsAdminPage() {
           <div className="space-y-5">
             {groups.map((group) => {
               const assignedUsers = assignedUsersByGroup.get(group._id) || [];
-              const previewUsers = assignedUsers.slice(0, 6);
-              const hiddenCount = Math.max(assignedUsers.length - previewUsers.length, 0);
 
               return (
                 <div
@@ -1005,9 +1003,7 @@ export default function WorkingGroupsAdminPage() {
                             Assigned People
                           </h4>
                         <p className="text-sm text-zinc-500">
-                          {hiddenCount > 0
-                            ? `Showing 6 of ${assignedUsers.length}`
-                            : `${assignedUsers.length} currently assigned`}
+                          {assignedUsers.length} currently assigned
                         </p>
                       </div>
 
@@ -1017,7 +1013,7 @@ export default function WorkingGroupsAdminPage() {
                         </div>
                       ) : (
                         <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                          {previewUsers.map((user) => {
+                          {assignedUsers.map((user: any) => {
                             const isCoordinator = user._id === group.coordinator._id;
                             const isQuickActionLoading =
                               quickActionUserId === `${group._id}:${user._id}`;
@@ -1067,11 +1063,6 @@ export default function WorkingGroupsAdminPage() {
                               </div>
                             );
                           })}
-                          {hiddenCount > 0 && (
-                            <div className="flex items-center justify-center rounded-xl border border-dashed border-zinc-300 bg-zinc-50 px-4 py-4 text-sm text-zinc-500">
-                              +{hiddenCount} more assigned people
-                            </div>
-                          )}
                         </div>
                       )}
                     </div>
