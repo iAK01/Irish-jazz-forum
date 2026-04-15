@@ -69,6 +69,12 @@ interface Post {
   deleted: boolean;
 }
 
+interface WorkingGroupMember {
+  _id: string;
+  name: string;
+  email: string;
+}
+
 interface WorkingGroup {
   _id: string;
   name: string;
@@ -76,6 +82,8 @@ interface WorkingGroup {
   description: string;
   isPrivate: boolean;
   googleDriveFolderId?: string;
+  coordinator?: WorkingGroupMember;
+  members?: WorkingGroupMember[];
 }
 
 interface Pagination {
@@ -186,11 +194,12 @@ export default function WorkingGroupThreadView() {
 
       // Access check: private groups block non-members UNLESS thread is publicToMembers
       if (currentGroup.isPrivate && !currentThread.publicToMembers) {
+        const userId = currentUser.id ?? currentUser._id ?? "";
         const hasPrivateAccess =
           currentUser.role === "super_admin" ||
           currentUser.role === "admin" ||
-          (currentUser.workingGroups &&
-            currentUser.workingGroups.includes(currentGroup._id));
+          currentGroup.coordinator?._id === userId ||
+          (currentGroup.members || []).some((m: WorkingGroupMember) => m._id === userId);
 
         if (!hasPrivateAccess) {
           setError("You don't have access to this working group");
@@ -342,7 +351,7 @@ export default function WorkingGroupThreadView() {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
             </svg>
           </div>
-          <h3 style={{ fontSize: "1.5rem", fontWeight: 700, color: "#111827", marginBottom: "0.75rem" }}>{error || "Thread not found"}</h3>
+          <h3 style={{ fontSize: "1.5rem", fontWeight: 700, color: "white", marginBottom: "0.75rem" }}>{error || "Thread not found"}</h3>
           <button
             onClick={() => router.push("/dashboard/forum")}
             style={{ padding: "0.75rem 1.5rem", borderRadius: "0.5rem", fontWeight: 600, backgroundColor: "var(--color-ijf-accent)", color: "var(--color-ijf-bg)", cursor: "pointer" }}
