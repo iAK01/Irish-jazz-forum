@@ -6,6 +6,7 @@ import { DiscussionThreadModel } from "@/models/Discussionthread";
 import { WorkingGroupModel } from "@/models/Workinggroup";
 import { UserModel } from "@/models/User";
 import { requireAuth } from "@/lib/auth";
+import { isGroupMember } from "@/lib/forumAccess";
 import { parseMentionIds } from "@/lib/parseMentions";
 import { withReactionState } from "@/lib/reactions";
 import { sendMentionNotificationEmail } from "@/lib/email";
@@ -47,13 +48,11 @@ export async function GET(request: Request) {
     if (workingGroup === "general") {
       query = { workingGroups: { $size: 0 }, deleted: { $ne: true } };
     } else {
-      const isMember =
-        currentUser.role === "super_admin" ||
-        currentUser.role === "admin" ||
-        currentUser.role === "steering" ||
-        (currentUser.workingGroups || [])
-          .map((g: any) => g.toString())
-          .includes(groupId);
+      const isMember = await isGroupMember(
+        currentUser._id.toString(),
+        [groupId!],
+        currentUser.role
+      );
 
       if (isMember) {
         query = { workingGroups: groupId, deleted: { $ne: true } };
@@ -135,14 +134,10 @@ export async function POST(request: Request) {
 
       groupIds = resolvedGroups.map((g) => g._id.toString());
 
-      const hasAccess = groupIds.some(
-        (gid: string) =>
-          currentUser.role === "super_admin" ||
-          currentUser.role === "admin" ||
-          currentUser.role === "steering" ||
-          (currentUser.workingGroups || [])
-            .map((g: any) => g.toString())
-            .includes(gid)
+      const hasAccess = await isGroupMember(
+        currentUser._id.toString(),
+        groupIds,
+        currentUser.role
       );
 
       if (!hasAccess) {

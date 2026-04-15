@@ -6,6 +6,7 @@ import { DiscussionThreadModel } from "@/models/Discussionthread";
 import { DiscussionPostModel } from "@/models/Discussionpost";
 import { WorkingGroupModel } from "@/models/Workinggroup";
 import { requireAuth } from "@/lib/auth";
+import { requireThreadAccess } from "@/lib/forumAccess";
 import { createDeletedAttachmentsFolder, moveFileToFolder } from "@/lib/googledrive";
 import { deleteMultipleFilesFromGCS } from "@/lib/gcs";
 import { withReactionState } from "@/lib/reactions";
@@ -37,26 +38,7 @@ export async function GET(
       );
     }
 
-    if (thread.workingGroups && thread.workingGroups.length > 0) {
-      const groupIds = thread.workingGroups.map((g: any) => g.toString());
-
-      const hasAccess =
-        currentUser.role === "super_admin" ||
-        currentUser.role === "admin" ||
-        currentUser.role === "steering" ||
-        groupIds.some((id: string) =>
-          (currentUser.workingGroups || [])
-            .map((g: any) => g.toString())
-            .includes(id)
-        );
-
-      if (!hasAccess) {
-        return NextResponse.json(
-          { success: false, error: "Access denied to this thread" },
-          { status: 403 }
-        );
-      }
-    }
+    await requireThreadAccess(thread);
 
     await DiscussionThreadModel.findByIdAndUpdate(threadId, {
       $inc: { viewCount: 1 },
@@ -104,26 +86,7 @@ export async function PATCH(
       );
     }
 
-    if (thread.workingGroups && thread.workingGroups.length > 0) {
-      const groupIds = thread.workingGroups.map((g: any) => g.toString());
-
-      const hasAccess =
-        currentUser.role === "super_admin" ||
-        currentUser.role === "admin" ||
-        currentUser.role === "steering" ||
-        groupIds.some((id: string) =>
-          (currentUser.workingGroups || [])
-            .map((g: any) => g.toString())
-            .includes(id)
-        );
-
-      if (!hasAccess) {
-        return NextResponse.json(
-          { success: false, error: "Access denied" },
-          { status: 403 }
-        );
-      }
-    }
+    await requireThreadAccess(thread);
 
     if (action === "incrementView") {
       await DiscussionThreadModel.findByIdAndUpdate(threadId, {

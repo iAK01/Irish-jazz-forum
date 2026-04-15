@@ -7,6 +7,7 @@ import { DiscussionPostModel } from "@/models/Discussionpost";
 import { UserModel } from "@/models/User";
 import { WorkingGroupModel } from "@/models/Workinggroup";
 import { requireAuth } from "@/lib/auth";
+import { requireThreadAccess } from "@/lib/forumAccess";
 import { parseMentionIds } from "@/lib/parseMentions";
 import { withReactionState } from "@/lib/reactions";
 import { sendMentionNotificationEmail } from "@/lib/email";
@@ -41,26 +42,7 @@ export async function GET(
       );
     }
 
-    if (thread.workingGroups && thread.workingGroups.length > 0 && !thread.publicToMembers) {
-      const groupIds = thread.workingGroups.map((g: any) => g.toString());
-
-      const hasAccess =
-        currentUser.role === "super_admin" ||
-        currentUser.role === "admin" ||
-        currentUser.role === "steering" ||
-        groupIds.some((id: string) =>
-          (currentUser.workingGroups || [])
-            .map((g: any) => g.toString())
-            .includes(id)
-        );
-
-      if (!hasAccess) {
-        return NextResponse.json(
-          { success: false, error: "Access denied to this thread" },
-          { status: 403 }
-        );
-      }
-    }
+    await requireThreadAccess(thread);
 
     const posts = await DiscussionPostModel.find({
       threadId: threadId,
@@ -134,26 +116,7 @@ export async function POST(
       );
     }
 
-    if (thread.workingGroups && thread.workingGroups.length > 0 && !thread.publicToMembers) {
-      const groupIds = thread.workingGroups.map((g: any) => g.toString());
-
-      const hasAccess =
-        currentUser.role === "super_admin" ||
-        currentUser.role === "admin" ||
-        currentUser.role === "steering" ||
-        groupIds.some((id: string) =>
-          (currentUser.workingGroups || [])
-            .map((g: any) => g.toString())
-            .includes(id)
-        );
-
-      if (!hasAccess) {
-        return NextResponse.json(
-          { success: false, error: "Access denied to post in this thread" },
-          { status: 403 }
-        );
-      }
-    }
+    await requireThreadAccess(thread);
 
     // Parse mention IDs from the HTML content
     const mentionIds = parseMentionIds(content);
