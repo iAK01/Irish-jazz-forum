@@ -477,6 +477,28 @@ export default function WorkingGroupsAdminPage() {
       }
 
       await fetchData();
+
+      // Notify users who were added or removed
+      const previousUserIds = assignedUsersByGroup.get(group._id)?.map((u) => u._id) || [];
+      const added = targetUserIds.filter((id) => !previousUserIds.includes(id));
+      const removed = previousUserIds.filter((id) => !targetUserIds.includes(id));
+      await Promise.allSettled([
+        ...added.map((userId) =>
+          fetch(`/api/users/${userId}/notify`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ groupId: group._id, action: "added" }),
+          })
+        ),
+        ...removed.map((userId) =>
+          fetch(`/api/users/${userId}/notify`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ groupId: group._id, action: "removed" }),
+          })
+        ),
+      ]);
+
       closeAssignmentModal();
     } catch (error) {
       setAssignmentModal((current) => ({
@@ -571,6 +593,27 @@ export default function WorkingGroupsAdminPage() {
       );
 
       await fetchData();
+
+      // Notify user of group additions and removals
+      const addedGroups = nextWorkingGroups.filter((id) => !currentWorkingGroups.includes(id));
+      const removedGroups = currentWorkingGroups.filter((id) => !nextWorkingGroups.includes(id));
+      await Promise.allSettled([
+        ...addedGroups.map((groupId) =>
+          fetch(`/api/users/${user._id}/notify`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ groupId, action: "added" }),
+          })
+        ),
+        ...removedGroups.map((groupId) =>
+          fetch(`/api/users/${user._id}/notify`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ groupId, action: "removed" }),
+          })
+        ),
+      ]);
+
       closePersonAssignmentModal();
     } catch (error) {
       setPersonAssignmentModal((current) => ({
@@ -626,6 +669,13 @@ export default function WorkingGroupsAdminPage() {
       }
 
       await fetchData();
+
+      // Notify the user they've been removed
+      fetch(`/api/users/${user._id}/notify`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ groupId: group._id, action: "removed" }),
+      }).catch(() => {}); // fire-and-forget
     } catch (error) {
       alert(error instanceof Error ? error.message : "Failed to unassign user");
     } finally {
@@ -789,6 +839,14 @@ export default function WorkingGroupsAdminPage() {
             <p className="text-sm text-zinc-500 mt-1">
               Use this page to staff working groups quickly.
             </p>
+            <div className="flex items-start gap-2.5 mt-3 bg-amber-50 border border-amber-300 rounded-lg px-4 py-3 max-w-2xl">
+              <svg className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+              </svg>
+              <p className="text-sm text-amber-800 leading-relaxed">
+                <strong>Heads up:</strong> Adding or removing someone from a working group automatically sends them an email notification. Please be deliberate — don't add or remove people unless you mean it.
+              </p>
+            </div>
           </div>
           <button
             onClick={() => setShowCreateForm(true)}
@@ -1315,6 +1373,15 @@ export default function WorkingGroupsAdminPage() {
                     {assignmentModal.selectedUserIds.length} selected
                   </span>
                 </div>
+              </div>
+
+              <div className="flex items-start gap-2.5 mb-4 bg-amber-50 border border-amber-300 rounded-lg px-4 py-3">
+                <svg className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+                </svg>
+                <p className="text-sm text-amber-800 leading-relaxed">
+                  <strong>Heads up:</strong> Saving changes will automatically email anyone who is added or removed.
+                </p>
               </div>
 
               <div className="mb-4">
