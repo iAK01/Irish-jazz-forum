@@ -112,6 +112,17 @@ function transformMemberData(m: any) {
       offersResidencies: m.careerSupport?.offersResidencies ?? false,
     },
 
+    // ── Contact Info & Social Links ───────────────────────────
+    contactInfo: {
+      website:  m.contactInfo?.website  || "",
+      facebook: m.contactInfo?.facebook || "",
+      instagram:m.contactInfo?.instagram|| "",
+      youtube:  m.contactInfo?.youtube  || "",
+      spotify:  m.contactInfo?.spotify  || "",
+      bandcamp: m.contactInfo?.bandcamp || "",
+      other:    m.contactInfo?.other    || [],
+    },
+
     // ── Media: nested as mediaPresence{} ─────────────────────
     mediaPresence: {
       hasRegularMediaCoverage: m.mediaPresence?.hasRegularMediaCoverage ?? false,

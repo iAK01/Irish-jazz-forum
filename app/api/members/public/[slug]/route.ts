@@ -20,10 +20,10 @@ export async function GET(
       membershipStatus: "active",
     })
       .select(
-        `name slug memberType region cityTown county shortTagline longBio 
-        logoUrl heroImageUrl galleryImageUrls publicTags keyProjects pressQuotes 
-        contactInfo.website contactInfo.socialMedia geographicReach 
-        primaryArtformTags activityModes partnerships.networkMemberships`
+        `name slug memberType region cityTown county shortTagline longBio
+        logoUrl heroImageUrl galleryImageUrls publicTags keyProjects pressQuotes
+        contactInfo geographicReach primaryArtformTags activityModes
+        partnerships.networkMemberships`
       )
       .lean();
 

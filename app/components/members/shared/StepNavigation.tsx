@@ -7,6 +7,7 @@ interface StepNavigationProps {
   onNext: () => void;
   canGoNext: boolean;
   isLastStep: boolean;
+  nextStepTitle?: string;
 }
 
 export default function StepNavigation({
@@ -16,51 +17,65 @@ export default function StepNavigation({
   onNext,
   canGoNext,
   isLastStep,
+  nextStepTitle,
 }: StepNavigationProps) {
   return (
-    <div className="mt-8 border-t border-zinc-200 dark:border-zinc-800 pt-6">
-      {/* Progress Indicator */}
-      <div className="mb-6">
-        <div className="flex justify-between items-center mb-2">
-          <span className="text-sm text-zinc-600 dark:text-zinc-400">
-            Step {currentStep} of {totalSteps}
-          </span>
-          <span className="text-sm text-zinc-600 dark:text-zinc-400">
-            {Math.round((currentStep / totalSteps) * 100)}% Complete
-          </span>
-        </div>
-        <div className="w-full bg-zinc-200 dark:bg-zinc-700 rounded-full h-2">
-          <div
-            className="bg-ijf-accent h-2 rounded-full transition-all duration-300"
-            style={{ width: `${(currentStep / totalSteps) * 100}%` }}
-          />
-        </div>
+    <div style={{
+      marginTop: "32px",
+      paddingTop: "20px",
+      borderTop: "1px solid #f0f0f0",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "space-between",
+      gap: "12px",
+    }}>
+      {/* Previous */}
+      <button
+        type="button"
+        onClick={onPrevious}
+        disabled={currentStep === 1}
+        style={{
+          padding: "10px 22px",
+          backgroundColor: "white",
+          color: currentStep === 1 ? "#d1d5db" : "#374151",
+          border: `1px solid ${currentStep === 1 ? "#e5e7eb" : "#d1d5db"}`,
+          borderRadius: "8px",
+          fontSize: "14px",
+          fontWeight: 600,
+          cursor: currentStep === 1 ? "not-allowed" : "pointer",
+        }}
+      >
+        ← Previous
+      </button>
+
+      {/* Required fields hint */}
+      <div style={{ fontSize: "12px", color: "#9ca3af", textAlign: "center" }}>
+        {!canGoNext && "Please complete required fields"}
       </div>
 
-      {/* Navigation Buttons */}
-      <div className="flex justify-between items-center">
-        <button
-          type="button"
-          onClick={onPrevious}
-          disabled={currentStep === 1}
-          className="px-6 py-2 border border-zinc-300 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300 rounded hover:bg-zinc-50 dark:hover:bg-zinc-800 disabled:opacity-50 disabled:cursor-not-allowed font-medium"
-        >
-          Previous
-        </button>
-
-        <div className="text-sm text-zinc-500 dark:text-zinc-400">
-          {!canGoNext && "Please complete required fields"}
-        </div>
-
-        <button
-          type="button"
-          onClick={onNext}
-          disabled={!canGoNext}
-          className="px-6 py-2 bg-ijf-primary text-ijf-surface rounded hover:bg-ijf-primary/90 disabled:opacity-50 disabled:cursor-not-allowed font-medium"
-        >
-          {isLastStep ? "Submit" : "Next"}
-        </button>
-      </div>
+      {/* Next / Save */}
+      <button
+        type="button"
+        onClick={onNext}
+        disabled={!canGoNext}
+        style={{
+          padding: "10px 22px",
+          backgroundColor: canGoNext ? "#4CBB5A" : "#d1d5db",
+          color: "white",
+          border: "none",
+          borderRadius: "8px",
+          fontSize: "14px",
+          fontWeight: 600,
+          cursor: canGoNext ? "pointer" : "not-allowed",
+          whiteSpace: "nowrap",
+        }}
+      >
+        {isLastStep
+          ? "Save Profile ✓"
+          : nextStepTitle
+            ? `Next: ${nextStepTitle} →`
+            : "Next →"}
+      </button>
     </div>
   );
 }

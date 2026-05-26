@@ -36,14 +36,12 @@ interface MemberProfile {
   }[];
   contactInfo?: {
     website?: string;
-    socialMedia?: {
-      facebook?: string;
-      instagram?: string;
-      twitter?: string;
-      youtube?: string;
-      spotify?: string;
-      bandcamp?: string;
-    };
+    facebook?: string;
+    instagram?: string;
+    youtube?: string;
+    spotify?: string;
+    bandcamp?: string;
+    other?: string[];
   };
   partnerships?: {
     networkMemberships: string[];
@@ -353,11 +351,14 @@ const slug = params.slug as string;  // Remove await, just cast directly
                 </a>
               )}
 
-              {/* Social Media */}
-              {member.contactInfo?.socialMedia && (
+              {/* Social Links */}
+              {(["facebook", "instagram", "youtube", "spotify", "bandcamp"] as const).some(
+                k => member.contactInfo?.[k]
+              ) && (
                 <div className="flex flex-wrap gap-2 mt-4">
-                  {Object.entries(member.contactInfo.socialMedia).map(([platform, url]) => 
-                    url ? (
+                  {(["facebook", "instagram", "youtube", "spotify", "bandcamp"] as const).map(platform => {
+                    const url = member.contactInfo?.[platform];
+                    return url ? (
                       <a
                         key={platform}
                         href={url}
@@ -365,14 +366,14 @@ const slug = params.slug as string;  // Remove await, just cast directly
                         rel="noopener noreferrer"
                         className="w-10 h-10 rounded-lg flex items-center justify-center hover:opacity-80 transition cursor-pointer"
                         style={{ backgroundColor: 'var(--color-ijf-bg)' }}
-                        title={platform}
+                        title={platform.charAt(0).toUpperCase() + platform.slice(1)}
                       >
                         <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={getSocialIcon(platform)} />
                         </svg>
                       </a>
-                    ) : null
-                  )}
+                    ) : null;
+                  })}
                 </div>
               )}
             </div>

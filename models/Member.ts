@@ -215,14 +215,27 @@ export interface Member extends Document {
   };
 
   // ==========================================
+  // CONTACT INFO & SOCIAL LINKS
+  // ==========================================
+  contactInfo?: {
+    website?: string;
+    facebook?: string;
+    instagram?: string;
+    youtube?: string;
+    spotify?: string;    // music members (artist, collective, label)
+    bandcamp?: string;   // music members (artist, collective, label)
+    other: string[];     // free text — X/Twitter, SoundCloud, LinkedIn, etc.
+  };
+
+  // ==========================================
   // MEDIA & VISIBILITY
   // ==========================================
   mediaPresence: {
     hasRegularMediaCoverage: boolean;
     featuredInNationalMedia: string[];
     featuredInInternationalMedia: string[];
-    hasActiveWebsite: boolean;
-    socialMediaPlatforms: string[];
+    hasActiveWebsite: boolean;       // legacy — kept for backward compat
+    socialMediaPlatforms: string[];  // legacy — kept for backward compat
     participatesInJazzIreland: boolean;
   };
 
@@ -492,6 +505,17 @@ const MemberSchema = new Schema<Member>(
       hasBookingAgency: { type: Boolean, default: false },
       providesRehearsalSpace: { type: Boolean, default: false },
       offersResidencies: { type: Boolean, default: false },
+    },
+
+    // Contact Info & Social Links
+    contactInfo: {
+      website: String,
+      facebook: String,
+      instagram: String,
+      youtube: String,
+      spotify: String,
+      bandcamp: String,
+      other: [{ type: String }],
     },
 
     // Media & Visibility
