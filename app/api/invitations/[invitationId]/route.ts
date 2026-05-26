@@ -137,6 +137,14 @@ export async function PATCH(
       const newExpiry = new Date();
       newExpiry.setDate(newExpiry.getDate() + 30);
       invitation.expiresAt = newExpiry;
+
+      // Record activity
+      invitation.activity.push({
+        type: "resend",
+        sentAt: new Date(),
+        sentByName: user.name || "Admin",
+      });
+
       await invitation.save();
 
       // Resend email
@@ -195,6 +203,15 @@ export async function PATCH(
       const newExpiry = new Date();
       newExpiry.setDate(newExpiry.getDate() + 30);
       invitation.expiresAt = newExpiry;
+
+      // Record activity
+      invitation.activity.push({
+        type: "followup",
+        sentAt: new Date(),
+        sentByName: user.name || "Admin",
+        subject,
+      });
+
       await invitation.save();
 
       const invitationLink = `${process.env.NEXT_PUBLIC_BASE_URL}/join?token=${invitation.token}`;

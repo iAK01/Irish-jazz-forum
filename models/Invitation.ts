@@ -4,6 +4,14 @@ import { Schema, model, models, Document, Types } from "mongoose";
 
 export type InvitationStatus = "pending" | "accepted" | "expired" | "revoked" | "completed";
 export type InvitationType = "new_member" | "join_member";
+export type InvitationActivityType = "resend" | "followup";
+
+export interface InvitationActivity {
+  type: InvitationActivityType;
+  sentAt: Date;
+  sentByName: string;
+  subject?: string; // only for followup
+}
 
 export interface Invitation extends Document {
   token: string;
@@ -17,6 +25,7 @@ export interface Invitation extends Document {
   usedAt?: Date;
   memberCreated?: Types.ObjectId;
   message?: string;
+  activity: InvitationActivity[];
 }
 
 const InvitationSchema = new Schema<Invitation>(
@@ -73,6 +82,14 @@ const InvitationSchema = new Schema<Invitation>(
     message: {
       type: String,
     },
+    activity: [
+      {
+        type: { type: String, enum: ["resend", "followup"], required: true },
+        sentAt: { type: Date, required: true, default: Date.now },
+        sentByName: { type: String, required: true },
+        subject: { type: String },
+      },
+    ],
   },
   {
     timestamps: true,

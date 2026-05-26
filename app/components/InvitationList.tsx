@@ -3,7 +3,41 @@
 "use client";
 
 import { useState } from "react";
-import type { InvitationListItem } from "@/types/invitation";
+import type { InvitationListItem, InvitationActivityItem } from "@/types/invitation";
+
+function ActivityTrail({ activity }: { activity?: InvitationActivityItem[] }) {
+  if (!activity || activity.length === 0) return null;
+
+  const formatShort = (dateString: string) =>
+    new Date(dateString).toLocaleDateString("en-IE", { day: "numeric", month: "short" });
+
+  return (
+    <div className="mt-3 pt-3 border-t border-gray-100">
+      <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1.5">Activity</p>
+      <div className="space-y-1">
+        {activity.map((entry, i) => (
+          <div key={i} className="flex items-start gap-2 text-xs text-gray-500">
+            <span className="flex-shrink-0 mt-0.5">
+              {entry.type === "resend" ? "🔁" : "💬"}
+            </span>
+            <span>
+              <span className="font-medium text-gray-700">
+                {entry.type === "resend" ? "Resent" : "Follow-up"}
+              </span>
+              {" · "}
+              {formatShort(entry.sentAt)}
+              {" · "}
+              {entry.sentByName}
+              {entry.subject && (
+                <span className="text-gray-400"> — "{entry.subject}"</span>
+              )}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 export type InvitationFilter =
   | "all"
@@ -318,6 +352,8 @@ export default function InvitationList({
                   </p>
                 )}
               </div>
+
+              <ActivityTrail activity={invitation.activity} />
 
               {/* Actions */}
               <div className="flex flex-wrap gap-2">

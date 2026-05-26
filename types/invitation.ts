@@ -35,6 +35,13 @@ export interface InvitationValidateResponse {
   error?: string;
 }
 
+export interface InvitationActivityItem {
+  type: "resend" | "followup";
+  sentAt: string;
+  sentByName: string;
+  subject?: string;
+}
+
 export interface InvitationListItem {
   _id: string;
   email: string;
@@ -51,6 +58,7 @@ export interface InvitationListItem {
     name: string;
     slug: string;
   };
+  activity?: InvitationActivityItem[];
 }
 
 export interface InvitationListResponse {
