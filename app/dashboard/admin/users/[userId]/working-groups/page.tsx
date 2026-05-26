@@ -124,17 +124,26 @@ export default function UserWorkingGroupsPage() {
         }
       }
 
-      // Send notification emails for newly added groups
+      // Send notification emails for additions and removals
       const newlyAdded = selectedGroups.filter((id) => !originalGroups.includes(id));
-      await Promise.allSettled(
-        newlyAdded.map((groupId) =>
+      const newlyRemoved = originalGroups.filter((id) => !selectedGroups.includes(id));
+
+      await Promise.allSettled([
+        ...newlyAdded.map((groupId) =>
           fetch(`/api/users/${userId}/notify`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ groupId }),
+            body: JSON.stringify({ groupId, action: "added" }),
           })
-        )
-      );
+        ),
+        ...newlyRemoved.map((groupId) =>
+          fetch(`/api/users/${userId}/notify`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ groupId, action: "removed" }),
+          })
+        ),
+      ]);
 
       alert("Working groups updated successfully!");
       router.push("/dashboard/admin/users");
@@ -188,6 +197,16 @@ export default function UserWorkingGroupsPage() {
       userName={session.user.name}
     >
       <div className="max-w-4xl mx-auto">
+
+        {/* Email notification warning */}
+        <div className="flex items-start gap-3 bg-amber-50 border border-amber-300 rounded-lg px-4 py-3 mb-6">
+          <svg className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+          </svg>
+          <p className="text-sm text-amber-800 leading-relaxed">
+            <strong>Heads up:</strong> Adding or removing someone from a working group automatically sends them an email notification. Please be deliberate — don't add or remove people unless you mean it.
+          </p>
+        </div>
         {/* User Info */}
         <div className="bg-white dark:bg-zinc-800 rounded-lg p-6 mb-6 border border-zinc-200 dark:border-zinc-700">
           <h2 className="text-xl font-bold text-zinc-900 dark:text-zinc-100 mb-2">

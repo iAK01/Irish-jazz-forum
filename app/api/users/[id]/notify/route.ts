@@ -1,5 +1,5 @@
 // /app/api/users/[id]/notify/route.ts
-// Sends a "you've been added to a working group" notification to a specific user.
+// Sends working group add/remove notifications to a specific user.
 
 import { NextResponse } from "next/server";
 import { requireAuth } from "@/lib/auth";
@@ -11,6 +11,10 @@ import {
   generateWorkingGroupAddedEmail,
   generateWorkingGroupAddedSubject,
 } from "@/lib/email-templates/working-group-added";
+import {
+  generateWorkingGroupRemovedEmail,
+  generateWorkingGroupRemovedSubject,
+} from "@/lib/email-templates/working-group-removed";
 
 export async function POST(
   request: Request,
@@ -22,11 +26,17 @@ export async function POST(
 
     const { id } = await params;
     const body = await request.json();
-    const { groupId } = body;
+    const { groupId, action } = body; // action: "added" | "removed"
 
     if (!groupId) {
       return NextResponse.json(
         { success: false, error: "groupId is required" },
+        { status: 400 }
+      );
+    }
+    if (action !== "added" && action !== "removed") {
+      return NextResponse.json(
+        { success: false, error: "action must be 'added' or 'removed'" },
         { status: 400 }
       );
     }
@@ -50,19 +60,33 @@ export async function POST(
     }
 
     const baseUrl = (process.env.NEXT_PUBLIC_BASE_URL || "").replace(/\/+$/, "");
-    const forumUrl = `${baseUrl}/dashboard/forum/${group.slug}`;
+    const senderName = sender.name || "The Irish Jazz Forum Team";
+    const recipientName = user.name || user.email;
 
-    await sendEmail({
-      to: user.email,
-      subject: generateWorkingGroupAddedSubject(group.name),
-      html: generateWorkingGroupAddedEmail({
-        recipientName: user.name || user.email,
-        groupName: group.name,
-        groupDescription: group.description,
-        forumUrl,
-        addedByName: sender.name || "The Irish Jazz Forum Team",
-      }),
-    });
+    if (action === "added") {
+      await sendEmail({
+        to: user.email,
+        subject: generateWorkingGroupAddedSubject(group.name),
+        html: generateWorkingGroupAddedEmail({
+          recipientName,
+          groupName: group.name,
+          groupDescription: group.description,
+          forumUrl: `${baseUrl}/dashboard/forum/${group.slug}`,
+          addedByName: senderName,
+        }),
+      });
+    } else {
+      await sendEmail({
+        to: user.email,
+        subject: generateWorkingGroupRemovedSubject(group.name),
+        html: generateWorkingGroupRemovedEmail({
+          recipientName,
+          groupName: group.name,
+          senderName,
+          forumUrl: `${baseUrl}/dashboard/forum`,
+        }),
+      });
+    }
 
     return NextResponse.json({ success: true });
   } catch (error: unknown) {
