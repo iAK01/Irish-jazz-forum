@@ -5,6 +5,8 @@ import { useEffect, useState } from "react";
 import DashboardLayout from "@/app/components/dashboard/DashboardLayout";
 import Link from "next/link";
 
+const REMIND_COOLDOWN_DAYS = 7;
+
 interface Member {
   _id: string;
   name: string;
@@ -14,6 +16,24 @@ interface Member {
   membershipStatus: string;
   joinedAt: string;
   users?: { userId: string; userEmail: string; role: string }[];
+  lastProfileReminderSentAt?: string;
+}
+
+function daysSince(dateStr: string): number {
+  return Math.floor((Date.now() - new Date(dateStr).getTime()) / (1000 * 60 * 60 * 24));
+}
+
+function reminderCooldownLabel(member: Member): string | null {
+  if (!member.lastProfileReminderSentAt) return null;
+  const days = daysSince(member.lastProfileReminderSentAt);
+  if (days === 0) return "Reminded today";
+  if (days === 1) return "Reminded yesterday";
+  return `Reminded ${days}d ago`;
+}
+
+function reminderOnCooldown(member: Member): boolean {
+  if (!member.lastProfileReminderSentAt) return false;
+  return daysSince(member.lastProfileReminderSentAt) < REMIND_COOLDOWN_DAYS;
 }
 
 type RegionFilter =
@@ -40,6 +60,15 @@ interface InviteModalState {
   loading: boolean;
   sent: boolean;
   error: string;
+}
+
+interface RemindModalState {
+  open: boolean;
+  member: Member | null;
+  loading: boolean;
+  sent: boolean;
+  error: string;
+  sentTo: string[];
 }
 
 const regionFilterLabels: Record<RegionFilter, string> = {
@@ -76,6 +105,14 @@ export default function MembersListPage() {
     loading: false,
     sent: false,
     error: "",
+  });
+  const [remindModal, setRemindModal] = useState<RemindModalState>({
+    open: false,
+    member: null,
+    loading: false,
+    sent: false,
+    error: "",
+    sentTo: [],
   });
 
   useEffect(() => {
@@ -210,6 +247,32 @@ export default function MembersListPage() {
         ...prev,
         loading: false,
         error: err instanceof Error ? err.message : "Failed to send invitation",
+      }));
+    }
+  };
+
+  const openRemindModal = (member: Member, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setRemindModal({ open: true, member, loading: false, sent: false, error: "", sentTo: [] });
+  };
+
+  const closeRemindModal = () => {
+    setRemindModal({ open: false, member: null, loading: false, sent: false, error: "", sentTo: [] });
+  };
+
+  const handleSendReminder = async () => {
+    if (!remindModal.member) return;
+    setRemindModal((prev) => ({ ...prev, loading: true, error: "" }));
+    try {
+      const res = await fetch(`/api/members/${remindModal.member.slug}/remind`, { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to send reminder");
+      setRemindModal((prev) => ({ ...prev, loading: false, sent: true, sentTo: data.data?.sentTo || [] }));
+    } catch (err: unknown) {
+      setRemindModal((prev) => ({
+        ...prev,
+        loading: false,
+        error: err instanceof Error ? err.message : "Failed to send reminder",
       }));
     }
   };
@@ -593,6 +656,23 @@ export default function MembersListPage() {
                             className="px-3 py-1 bg-blue-500 hover:bg-blue-600 text-white rounded text-xs font-medium transition">
                             Invite User
                           </button>
+                          {(member.users?.length ?? 0) > 0 && (() => {
+                            const onCooldown = reminderOnCooldown(member);
+                            const cooldownLabel = reminderCooldownLabel(member);
+                            return (
+                              <button
+                                onClick={(e) => !onCooldown && openRemindModal(member, e)}
+                                disabled={onCooldown}
+                                className={`px-3 py-1 rounded text-xs font-medium transition ${
+                                  onCooldown
+                                    ? "bg-zinc-100 text-zinc-400 cursor-not-allowed"
+                                    : "bg-amber-500 hover:bg-amber-600 text-white"
+                                }`}
+                                title={onCooldown ? `${cooldownLabel} — cooldown ${REMIND_COOLDOWN_DAYS} days` : "Send a profile completion reminder"}>
+                                {onCooldown ? cooldownLabel : "Remind"}
+                              </button>
+                            );
+                          })()}
                           <Link href={`/dashboard/admin/members/${member.slug}`}
                             onClick={(e) => e.stopPropagation()}
                             className="px-3 py-1 bg-zinc-200 hover:bg-zinc-300 text-zinc-800 rounded text-xs font-medium transition">
@@ -746,6 +826,90 @@ export default function MembersListPage() {
                 {deleteModal.loading ? "Deleting..." : "Yes, Delete Organisation"}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+      {/* Profile Reminder Modal */}
+      {remindModal.open && remindModal.member && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
+          <div className="bg-white dark:bg-zinc-800 rounded-xl shadow-2xl max-w-md w-full p-6">
+            {remindModal.sent ? (
+              <div className="text-center py-4">
+                <div className="w-12 h-12 rounded-full bg-amber-100 flex items-center justify-center mx-auto mb-4">
+                  <svg className="w-6 h-6 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                </div>
+                <h3 className="text-lg font-bold text-zinc-900 dark:text-zinc-100 mb-2">Reminder sent</h3>
+                <p className="text-sm text-zinc-600 dark:text-zinc-400 mb-2">
+                  Profile completion email sent to:
+                </p>
+                <ul className="mb-6 space-y-1">
+                  {remindModal.sentTo.map((email) => (
+                    <li key={email} className="text-sm font-medium text-zinc-800 dark:text-zinc-200">{email}</li>
+                  ))}
+                </ul>
+                <button onClick={closeRemindModal}
+                  className="px-6 py-2 bg-zinc-900 text-white rounded-lg text-sm font-medium hover:bg-zinc-700 transition">
+                  Done
+                </button>
+              </div>
+            ) : (
+              <>
+                <div className="mb-5">
+                  <h3 className="text-lg font-bold text-zinc-900 dark:text-zinc-100">Send profile reminder</h3>
+                  <p className="text-sm text-zinc-500 mt-1">
+                    An automated email will be sent asking{" "}
+                    <strong className="text-zinc-700 dark:text-zinc-300">{remindModal.member.name}</strong>{" "}
+                    to complete their profile.
+                  </p>
+                  {remindModal.member.lastProfileReminderSentAt && (
+                    <p className="mt-2 text-xs text-zinc-400">
+                      Last reminded:{" "}
+                      {new Date(remindModal.member.lastProfileReminderSentAt).toLocaleDateString("en-IE", {
+                        day: "numeric", month: "long", year: "numeric",
+                      })}
+                      {" "}({reminderCooldownLabel(remindModal.member)})
+                    </p>
+                  )}
+                </div>
+
+                <div className="bg-zinc-50 dark:bg-zinc-700 rounded-lg p-4 mb-5">
+                  <p className="text-xs font-semibold uppercase text-zinc-500 mb-2">Will be emailed</p>
+                  {(remindModal.member.users?.length ?? 0) > 0 ? (
+                    <ul className="space-y-1">
+                      {remindModal.member.users!.map((u) => (
+                        <li key={u.userId} className="flex items-center gap-2 text-sm text-zinc-700 dark:text-zinc-300">
+                          {u.userEmail}
+                          {u.role === "primary" && (
+                            <span className="px-1.5 py-0.5 text-xs font-medium bg-amber-100 text-amber-800 rounded">Primary</span>
+                          )}
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="text-sm text-zinc-500 italic">No linked users</p>
+                  )}
+                </div>
+
+                {remindModal.error && (
+                  <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
+                    <p className="text-sm text-red-700">{remindModal.error}</p>
+                  </div>
+                )}
+
+                <div className="flex gap-3">
+                  <button onClick={closeRemindModal} disabled={remindModal.loading}
+                    className="flex-1 px-4 py-2 bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-700 dark:hover:bg-zinc-600 text-zinc-900 dark:text-zinc-100 rounded-lg font-medium text-sm transition disabled:opacity-50">
+                    Cancel
+                  </button>
+                  <button onClick={handleSendReminder} disabled={remindModal.loading}
+                    className="flex-1 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-lg font-medium text-sm transition disabled:opacity-50">
+                    {remindModal.loading ? "Sending..." : "Send Reminder"}
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}

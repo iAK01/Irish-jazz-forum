@@ -155,6 +155,30 @@ export async function sendMentionNotificationEmail(params: {
   });
 }
 
+export async function sendCompleteProfileEmail(params: {
+  to: string | string[];
+  memberName: string;
+  profileLink: string;
+  missingItems?: string[];
+}) {
+  const { generateCompleteProfileEmail, generateCompleteProfileSubject } = await import(
+    '@/lib/email-templates/complete-profile'
+  );
+
+  const html = generateCompleteProfileEmail({
+    memberName: params.memberName,
+    profileLink: params.profileLink,
+    missingItems: params.missingItems,
+  });
+
+  return sendEmail({
+    to: params.to,
+    subject: generateCompleteProfileSubject(params.memberName),
+    html,
+    from: 'Irish Jazz Forum <hello@irishjazzforum.com>',
+  });
+}
+
 export async function sendForumDigestEmail(params: {
   to: string;
   payload: import("@/lib/forumDigest").ForumDigestPayload;

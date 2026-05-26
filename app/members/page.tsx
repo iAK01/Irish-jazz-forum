@@ -3,6 +3,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useSession } from "next-auth/react";
 import Link from "next/link";
 
 interface PublicMember {
@@ -18,12 +19,21 @@ interface PublicMember {
   publicTags: string[];
 }
 
+type RemindStatus = "idle" | "loading" | "sent" | "error";
+
 export default function PublicMembersPage() {
+  const { data: session } = useSession();
+  const isAdmin = session?.user?.role === "admin" || session?.user?.role === "super_admin";
+
   const [members, setMembers] = useState<PublicMember[]>([]);
   const [filteredMembers, setFilteredMembers] = useState<PublicMember[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  
+
+  // Per-card reminder state keyed by slug
+  const [remindStatus, setRemindStatus] = useState<Record<string, RemindStatus>>({});
+  const [remindError, setRemindError] = useState<Record<string, string>>({});
+
   const [searchQuery, setSearchQuery] = useState("");
   const [typeFilter, setTypeFilter] = useState("all");
   const [regionFilter, setRegionFilter] = useState("all");
@@ -110,6 +120,25 @@ export default function PublicMembersPage() {
     }
 
     setFilteredMembers(filtered);
+  };
+
+  const handleRemind = async (slug: string, e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (remindStatus[slug] === "loading" || remindStatus[slug] === "sent") return;
+    setRemindStatus((prev) => ({ ...prev, [slug]: "loading" }));
+    setRemindError((prev) => ({ ...prev, [slug]: "" }));
+    try {
+      const res = await fetch(`/api/members/${slug}/remind`, { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to send reminder");
+      setRemindStatus((prev) => ({ ...prev, [slug]: "sent" }));
+    } catch (err: any) {
+      setRemindStatus((prev) => ({ ...prev, [slug]: "error" }));
+      setRemindError((prev) => ({ ...prev, [slug]: err.message }));
+      // Reset to idle after 4 seconds so they can read the error
+      setTimeout(() => setRemindStatus((prev) => ({ ...prev, [slug]: "idle" })), 4000);
+    }
   };
 
   const getMemberTypeIcon = (type: string | string[]) => {
@@ -291,10 +320,39 @@ export default function PublicMembersPage() {
       className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
     />
   ) : (
-                      <div className="w-full h-full flex items-center justify-center" style={{ backgroundColor: 'var(--color-ijf-bg)' }}>
+                      <div className="w-full h-full flex items-center justify-center relative" style={{ backgroundColor: 'var(--color-ijf-bg)' }}>
                         <svg className="w-16 h-16 text-white opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={getMemberTypeIcon(member.memberType)} />
                         </svg>
+                        {isAdmin && (
+                          <button
+                            onClick={(e) => handleRemind(member.slug, e)}
+                            disabled={remindStatus[member.slug] === "loading" || remindStatus[member.slug] === "sent"}
+                            className="absolute bottom-3 right-3 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold shadow-lg transition-all"
+                            style={{
+                              backgroundColor:
+                                remindStatus[member.slug] === "sent" ? "#16a34a" :
+                                remindStatus[member.slug] === "error" ? "#dc2626" :
+                                "#d4af37",
+                              color:
+                                remindStatus[member.slug] === "sent" || remindStatus[member.slug] === "error"
+                                  ? "#fff"
+                                  : "#1a1f2e",
+                            }}
+                            title={remindError[member.slug] || "Send profile completion reminder"}
+                          >
+                            {remindStatus[member.slug] === "loading" && (
+                              <svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24">
+                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
+                              </svg>
+                            )}
+                            {remindStatus[member.slug] === "sent" ? "✓ Reminded" :
+                             remindStatus[member.slug] === "error" ? "✗ " + (remindError[member.slug]?.split(".")[0] || "Failed") :
+                             remindStatus[member.slug] === "loading" ? "Sending…" :
+                             "Remind to complete"}
+                          </button>
+                        )}
                       </div>
                     )}
                   </div>
@@ -374,10 +432,35 @@ export default function PublicMembersPage() {
       className="w-full h-full object-cover"
     />
   ) : (
-                        <div className="w-full h-full flex items-center justify-center" style={{ backgroundColor: 'var(--color-ijf-bg)' }}>
+                        <div className="w-full h-full flex items-center justify-center relative" style={{ backgroundColor: 'var(--color-ijf-bg)' }}>
                           <svg className="w-10 h-10 text-white opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={getMemberTypeIcon(member.memberType)} />
                           </svg>
+                          {isAdmin && (
+                            <div className="absolute inset-0 flex items-end justify-center pb-1">
+                              <button
+                                onClick={(e) => handleRemind(member.slug, e)}
+                                disabled={remindStatus[member.slug] === "loading" || remindStatus[member.slug] === "sent"}
+                                className="px-1.5 py-0.5 rounded text-[10px] font-semibold shadow transition-all"
+                                style={{
+                                  backgroundColor:
+                                    remindStatus[member.slug] === "sent" ? "#16a34a" :
+                                    remindStatus[member.slug] === "error" ? "#dc2626" :
+                                    "#d4af37",
+                                  color:
+                                    remindStatus[member.slug] === "sent" || remindStatus[member.slug] === "error"
+                                      ? "#fff"
+                                      : "#1a1f2e",
+                                }}
+                                title={remindError[member.slug] || "Send profile completion reminder"}
+                              >
+                                {remindStatus[member.slug] === "sent" ? "✓" :
+                                 remindStatus[member.slug] === "error" ? "✗" :
+                                 remindStatus[member.slug] === "loading" ? "…" :
+                                 "Remind"}
+                              </button>
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>

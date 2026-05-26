@@ -329,6 +329,9 @@ export interface Member extends Document {
     consentDate: Date;
     consentVersion: string;
   };
+
+  // Admin tooling
+  lastProfileReminderSentAt?: Date;
 }
 
 const MemberSchema = new Schema<Member>(
@@ -604,6 +607,9 @@ const MemberSchema = new Schema<Member>(
       consentDate: { type: Date, required: true, default: Date.now },
       consentVersion: { type: String, required: true, default: "1.0" },
     },
+
+    // Admin tooling
+    lastProfileReminderSentAt: { type: Date },
   },
   {
     timestamps: true,
