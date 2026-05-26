@@ -8,6 +8,7 @@ import { UserModel } from "@/models/User";
 import {
   generateInvitationEmail,
   generateInvitationSubject,
+  generateFollowUpEmail,
 } from "@/lib/email-templates/invitation";
 import { sendEmail } from "@/lib/email";
 
@@ -95,7 +96,7 @@ export async function PATCH(
 
     const { invitationId } = await params;
     const body = await request.json();
-    const { action } = body; // "resend" or "revoke"
+    const { action, subject, message } = body; // action: "resend" | "revoke" | "followup"
 
     const invitation = await InvitationModel.findById(invitationId);
 
@@ -170,9 +171,63 @@ export async function PATCH(
           expiresAt: invitation.expiresAt.toISOString(),
         },
       });
+    } else if (action === "followup") {
+      // Can only follow up on pending or expired invitations
+      if (!["pending", "expired"].includes(invitation.status)) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: `Cannot send follow-up for invitation with status: ${invitation.status}`,
+          },
+          { status: 400 }
+        );
+      }
+
+      if (!subject || !message) {
+        return NextResponse.json(
+          { success: false, error: "Subject and message are required for follow-up" },
+          { status: 400 }
+        );
+      }
+
+      // Reset to pending if expired, extend expiry 30 days from now
+      invitation.status = "pending";
+      const newExpiry = new Date();
+      newExpiry.setDate(newExpiry.getDate() + 30);
+      invitation.expiresAt = newExpiry;
+      await invitation.save();
+
+      const invitationLink = `${process.env.NEXT_PUBLIC_BASE_URL}/join?token=${invitation.token}`;
+      const expiryDateFormatted = newExpiry.toLocaleDateString("en-IE", {
+        day: "numeric",
+        month: "long",
+        year: "numeric",
+      });
+
+      const emailHtml = generateFollowUpEmail({
+        senderName: user.name || "The Irish Jazz Forum Team",
+        invitationLink,
+        expiryDate: expiryDateFormatted,
+        subject,
+        message,
+      });
+
+      await sendEmail({
+        to: invitation.email,
+        subject,
+        html: emailHtml,
+      });
+
+      return NextResponse.json({
+        success: true,
+        message: "Follow-up sent successfully",
+        data: {
+          expiresAt: invitation.expiresAt.toISOString(),
+        },
+      });
     } else {
       return NextResponse.json(
-        { success: false, error: "Invalid action. Use 'resend' or 'revoke'" },
+        { success: false, error: "Invalid action. Use 'resend', 'revoke', or 'followup'" },
         { status: 400 }
       );
     }

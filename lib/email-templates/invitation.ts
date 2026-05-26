@@ -116,3 +116,90 @@ export function generateInvitationEmail({
 export function generateInvitationSubject(inviterName: string): string {
   return `${inviterName} invited you to join the Irish Jazz Forum`;
 }
+
+interface FollowUpEmailParams {
+  senderName: string;
+  invitationLink: string;
+  expiryDate: string;
+  subject: string;
+  message: string;
+}
+
+export function generateFollowUpEmail({
+  senderName,
+  invitationLink,
+  expiryDate,
+  message,
+}: FollowUpEmailParams): string {
+  return `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Irish Jazz Forum</title>
+</head>
+<body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #f3f4f6;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f3f4f6; padding: 40px 20px;">
+    <tr>
+      <td align="center">
+        <table width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
+
+          <!-- Header -->
+          <tr>
+            <td style="background: linear-gradient(135deg, #1a1f2e 0%, #2d3748 100%); padding: 30px; text-align: center;">
+              <p style="margin: 0; color: #cbd5e0; font-size: 16px; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase;">Irish Jazz Forum</p>
+            </td>
+          </tr>
+
+          <!-- Content -->
+          <tr>
+            <td style="padding: 40px 30px;">
+              <p style="margin: 0 0 24px 0; color: #1f2937; font-size: 16px; line-height: 1.7; white-space: pre-line;">${message}</p>
+
+              <!-- CTA Button -->
+              <table width="100%" cellpadding="0" cellspacing="0">
+                <tr>
+                  <td align="center" style="padding: 24px 0;">
+                    <a href="${invitationLink}" style="display: inline-block; background-color: #d4af37; color: #1a1f2e; text-decoration: none; padding: 16px 40px; border-radius: 8px; font-weight: 600; font-size: 16px; box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);">
+                      Accept Invitation →
+                    </a>
+                  </td>
+                </tr>
+              </table>
+
+              <p style="margin: 0 0 8px 0; color: #6b7280; font-size: 14px; line-height: 1.6; text-align: center;">
+                This invitation expires on <strong>${expiryDate}</strong>
+              </p>
+
+              <p style="margin: 24px 0 0 0; color: #374151; font-size: 15px; line-height: 1.6;">
+                — ${senderName}
+              </p>
+
+              <p style="margin: 24px 0 0 0; color: #9ca3af; font-size: 13px; line-height: 1.6;">
+                If the button doesn't work, copy and paste this link:<br>
+                <a href="${invitationLink}" style="color: #d4af37; word-break: break-all;">${invitationLink}</a>
+              </p>
+            </td>
+          </tr>
+
+          <!-- Footer -->
+          <tr>
+            <td style="background-color: #f9fafb; padding: 24px 30px; text-align: center; border-top: 1px solid #e5e7eb;">
+              <p style="margin: 0 0 8px 0; color: #6b7280; font-size: 13px;">
+                Questions? <a href="mailto:hello@irishjazzforum.com" style="color: #d4af37; text-decoration: none;">hello@irishjazzforum.com</a>
+              </p>
+              <p style="margin: 0; color: #9ca3af; font-size: 12px;">
+                © ${new Date().getFullYear()} Irish Jazz Forum. All rights reserved.
+              </p>
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
+  `.trim();
+}
