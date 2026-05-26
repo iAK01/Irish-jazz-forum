@@ -32,6 +32,7 @@ export default function UserWorkingGroupsPage() {
   const [user, setUser] = useState<User | null>(null);
   const [allGroups, setAllGroups] = useState<WorkingGroup[]>([]);
   const [selectedGroups, setSelectedGroups] = useState<string[]>([]);
+  const [originalGroups, setOriginalGroups] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -53,6 +54,7 @@ export default function UserWorkingGroupsPage() {
         if (foundUser) {
           setUser(foundUser);
           setSelectedGroups(foundUser.workingGroups || []);
+          setOriginalGroups(foundUser.workingGroups || []);
         }
       }
 
@@ -121,6 +123,18 @@ export default function UserWorkingGroupsPage() {
           });
         }
       }
+
+      // Send notification emails for newly added groups
+      const newlyAdded = selectedGroups.filter((id) => !originalGroups.includes(id));
+      await Promise.allSettled(
+        newlyAdded.map((groupId) =>
+          fetch(`/api/users/${userId}/notify`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ groupId }),
+          })
+        )
+      );
 
       alert("Working groups updated successfully!");
       router.push("/dashboard/admin/users");
