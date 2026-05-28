@@ -5,6 +5,12 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import DashboardLayout from "@/app/components/dashboard/DashboardLayout";
 
+interface WorkingGroupMemberSummary {
+  _id: string;
+  name: string;
+  image?: string;
+}
+
 interface WorkingGroupStats {
   _id: string;
   slug: string;
@@ -14,9 +20,11 @@ interface WorkingGroupStats {
   googleDriveFolderId?: string | null;
   coordinatorId?: string | null;
   coordinatorName?: string | null;
+  coordinatorImage?: string | null;
   isCoordinator: boolean;
   isMember: boolean;
   memberCount: number;
+  members?: WorkingGroupMemberSummary[];
   threadCount: number;
   newThreadCount?: number;
   lastActivityAt?: string;
@@ -238,122 +246,153 @@ export default function ForumHomePage() {
     </div>
   );
 
-  const GroupCard = ({ group, showActions }: { group: WorkingGroupStats; showActions: boolean }) => (
-    <div
-      style={{
-        backgroundColor: "white",
-        borderRadius: "0.75rem",
-        boxShadow: "0 2px 4px rgba(0,0,0,0.06)",
-        border: group.isMember ? "2px solid var(--color-ijf-accent)" : "1px solid #e5e7eb",
-        padding: isMobile ? "1rem" : "1.25rem",
-        display: "flex",
-        flexDirection: "column",
-        gap: "0.875rem",
-        transition: "box-shadow 0.2s",
-        cursor: "pointer",
-      }}
-      onMouseEnter={(e) => { (e.currentTarget as HTMLDivElement).style.boxShadow = "0 6px 20px rgba(0,0,0,0.1)"; }}
-      onMouseLeave={(e) => { (e.currentTarget as HTMLDivElement).style.boxShadow = "0 2px 4px rgba(0,0,0,0.06)"; }}
-    >
-      {/* Top row: name + thread count */}
-      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "0.75rem" }}>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.25rem" }}>
-            {group.isCoordinator && (
-              <span style={{ fontSize: "0.65rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", padding: "0.15rem 0.5rem", borderRadius: "9999px", backgroundColor: "rgba(228,185,91,0.18)", color: "#92701a" }}>
-                Coordinator
-              </span>
-            )}
-            {group.isMember && !group.isCoordinator && (
-              <span style={{ fontSize: "0.65rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", padding: "0.15rem 0.5rem", borderRadius: "9999px", backgroundColor: "#f0fdf4", color: "#166534" }}>
-                Member
-              </span>
-            )}
-          </div>
-          <h3 style={{ fontSize: isMobile ? "1rem" : "1.125rem", fontWeight: 700, color: "#111827", margin: 0, lineHeight: 1.3 }}>
-            {group.name}
-          </h3>
-          {group.coordinatorName && !group.isCoordinator && (
-            <p style={{ fontSize: "0.75rem", color: "#6b7280", marginTop: "0.2rem" }}>
-              Led by {group.coordinatorName}
-            </p>
-          )}
-          <div style={{ display: "flex", flexWrap: "wrap", gap: "0.4rem", marginTop: "0.375rem" }}>
-            {group.memberCount > 0 && (
-              <span style={{ display: "inline-flex", alignItems: "center", padding: "0.2rem 0.55rem", borderRadius: "9999px", backgroundColor: "rgba(228,185,91,0.12)", color: "#8a6612", fontSize: "0.72rem", fontWeight: 700 }}>
-                {group.memberCount} {group.memberCount === 1 ? "person assigned" : "people assigned"}
-              </span>
-            )}
-          </div>
+  const MemberAvatar = ({ member, isCoord }: { member: WorkingGroupMemberSummary; isCoord?: boolean }) => (
+    <div style={{ display: "flex", alignItems: "center", gap: "0.375rem" }} title={member.name}>
+      {member.image ? (
+        <img src={member.image} alt={member.name} style={{ width: "1.5rem", height: "1.5rem", borderRadius: "9999px", border: isCoord ? "2px solid var(--color-ijf-accent)" : "2px solid #e5e7eb", flexShrink: 0 }} />
+      ) : (
+        <div style={{ width: "1.5rem", height: "1.5rem", borderRadius: "9999px", backgroundColor: isCoord ? "var(--color-ijf-accent)" : "#e5e7eb", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "0.55rem", fontWeight: 700, color: isCoord ? "var(--color-ijf-bg)" : "#6b7280", flexShrink: 0, border: isCoord ? "2px solid var(--color-ijf-accent)" : "2px solid #e5e7eb" }}>
+          {member.name.charAt(0).toUpperCase()}
         </div>
-        <div style={{ textAlign: "right", flexShrink: 0 }}>
-          <div style={{ fontSize: isMobile ? "1.5rem" : "1.875rem", fontWeight: 700, color: "var(--color-ijf-primary)", lineHeight: 1 }}>
-            {group.threadCount}
-          </div>
-          <div style={{ fontSize: "0.7rem", color: "#6b7280" }}>
-            {group.threadCount === 1 ? "thread" : "threads"}
-          </div>
-          {group.newThreadCount ? (
-            <div style={{ fontSize: "0.72rem", fontWeight: 700, color: "#166534", marginTop: "0.2rem" }}>
-              {group.newThreadCount} new
-            </div>
-          ) : null}
-        </div>
-      </div>
-
-      {/* Action buttons */}
-      <div style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem" }}>
-        <button
-          onClick={() => router.push(`/dashboard/forum/${group.slug}`)}
-          style={{ padding: "0.5rem 0.875rem", borderRadius: "0.5rem", fontSize: "0.8125rem", fontWeight: 600, backgroundColor: "var(--color-ijf-accent)", color: "var(--color-ijf-bg)", cursor: "pointer", whiteSpace: "nowrap" }}
-        >
-          Open Forum
-        </button>
-
-        {showActions && (
-          <>
-            <button
-              onClick={() => router.push(`/dashboard/forum/new?workingGroup=${group.slug}`)}
-              style={{ padding: "0.5rem 0.875rem", borderRadius: "0.5rem", fontSize: "0.8125rem", fontWeight: 600, border: "1px solid #d1d5db", backgroundColor: "white", color: "#374151", cursor: "pointer", whiteSpace: "nowrap" }}
-            >
-              + New Thread
-            </button>
-
-            {group.googleDriveFolderId && (
-              <button
-                onClick={() => window.open(`https://drive.google.com/drive/folders/${group.googleDriveFolderId}`, "_blank", "noopener,noreferrer")}
-                style={{ padding: "0.5rem 0.875rem", borderRadius: "0.5rem", fontSize: "0.8125rem", fontWeight: 600, border: "1px solid #d1d5db", backgroundColor: "white", color: "#374151", cursor: "pointer", whiteSpace: "nowrap" }}
-              >
-                Open Drive
-              </button>
-            )}
-
-            <button
-              onClick={() => openEmailModal(group)}
-              style={{ padding: "0.5rem 0.875rem", borderRadius: "0.5rem", fontSize: "0.8125rem", fontWeight: 600, border: "1px solid rgba(228,185,91,0.5)", backgroundColor: "rgba(228,185,91,0.1)", color: "#92701a", cursor: "pointer", whiteSpace: "nowrap" }}
-            >
-              Email Members
-            </button>
-          </>
-        )}
-      </div>
-
-      {group.lastActivityAt && (
-        <p style={{ fontSize: "0.75rem", color: "#9ca3af", margin: 0 }}>
-          Last activity: {new Date(group.lastActivityAt).toLocaleDateString("en-IE", { day: "numeric", month: "short", year: "numeric" })}
-        </p>
       )}
-
-      <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", paddingTop: "0.625rem", borderTop: "1px solid #f3f4f6" }}>
-        <svg width="14" height="14" fill="none" stroke={group.threadCount === 0 ? "#d1d5db" : "#9ca3af"} strokeWidth={2} viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
-        </svg>
-        <span style={{ fontSize: "0.72rem", color: "#6b7280" }}>
-          {group.threadCount === 0 ? "No discussions yet" : "Active discussions"}
-        </span>
-      </div>
+      <span style={{ fontSize: "0.75rem", color: isCoord ? "#111827" : "#4b5563", fontWeight: isCoord ? 600 : 400 }}>
+        {member.name.split(" ")[0]}
+      </span>
     </div>
   );
+
+  const GroupCard = ({ group, showActions }: { group: WorkingGroupStats; showActions: boolean }) => {
+    const coordinator = group.members?.find((m) => m._id === group.coordinatorId);
+    const otherMembers = group.members?.filter((m) => m._id !== group.coordinatorId) || [];
+    const visibleOthers = otherMembers.slice(0, isMobile ? 3 : 5);
+    const hiddenCount = otherMembers.length - visibleOthers.length;
+
+    return (
+      <div
+        onClick={() => router.push(`/dashboard/forum/${group.slug}`)}
+        style={{
+          backgroundColor: "white",
+          borderRadius: "0.75rem",
+          boxShadow: "0 2px 4px rgba(0,0,0,0.06)",
+          border: group.isMember ? "2px solid var(--color-ijf-accent)" : "1px solid #e5e7eb",
+          padding: isMobile ? "1rem" : "1.25rem",
+          display: "flex",
+          flexDirection: "column",
+          gap: "0.875rem",
+          transition: "box-shadow 0.2s",
+          cursor: "pointer",
+        }}
+        onMouseEnter={(e) => { (e.currentTarget as HTMLDivElement).style.boxShadow = "0 6px 20px rgba(0,0,0,0.1)"; }}
+        onMouseLeave={(e) => { (e.currentTarget as HTMLDivElement).style.boxShadow = "0 2px 4px rgba(0,0,0,0.06)"; }}
+      >
+        {/* Top row: role badge + name + thread count */}
+        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "0.75rem" }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.25rem" }}>
+              {group.isCoordinator && (
+                <span style={{ fontSize: "0.65rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", padding: "0.15rem 0.5rem", borderRadius: "9999px", backgroundColor: "rgba(228,185,91,0.18)", color: "#92701a" }}>
+                  Coordinator
+                </span>
+              )}
+              {group.isMember && !group.isCoordinator && (
+                <span style={{ fontSize: "0.65rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", padding: "0.15rem 0.5rem", borderRadius: "9999px", backgroundColor: "#f0fdf4", color: "#166534" }}>
+                  Member
+                </span>
+              )}
+            </div>
+            <h3 style={{ fontSize: isMobile ? "1rem" : "1.125rem", fontWeight: 700, color: "#111827", margin: 0, lineHeight: 1.3 }}>
+              {group.name}
+            </h3>
+          </div>
+          <div style={{ textAlign: "right", flexShrink: 0 }}>
+            <div style={{ fontSize: isMobile ? "1.5rem" : "1.875rem", fontWeight: 700, color: "var(--color-ijf-primary)", lineHeight: 1 }}>
+              {group.threadCount}
+            </div>
+            <div style={{ fontSize: "0.7rem", color: "#6b7280" }}>
+              {group.threadCount === 1 ? "thread" : "threads"}
+            </div>
+            {group.newThreadCount ? (
+              <div style={{ fontSize: "0.72rem", fontWeight: 700, color: "#166534", marginTop: "0.2rem" }}>
+                {group.newThreadCount} new
+              </div>
+            ) : null}
+          </div>
+        </div>
+
+        {/* Members row */}
+        {group.members && group.members.length > 0 && (
+          <div style={{ display: "flex", flexWrap: "wrap", gap: "0.625rem", alignItems: "center" }}>
+            {coordinator && (
+              <>
+                <MemberAvatar member={coordinator} isCoord />
+                {visibleOthers.length > 0 && (
+                  <div style={{ width: "1px", height: "1.25rem", backgroundColor: "#e5e7eb", flexShrink: 0 }} />
+                )}
+              </>
+            )}
+            {visibleOthers.map((m) => (
+              <MemberAvatar key={m._id} member={m} />
+            ))}
+            {hiddenCount > 0 && (
+              <span style={{ fontSize: "0.72rem", color: "#9ca3af", fontWeight: 500 }}>+{hiddenCount} more</span>
+            )}
+          </div>
+        )}
+
+        {/* Action buttons — stop propagation so clicking a button doesn't also fire the card click */}
+        <div style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem" }} onClick={(e) => e.stopPropagation()}>
+          <button
+            onClick={() => router.push(`/dashboard/forum/${group.slug}`)}
+            style={{ padding: "0.5rem 0.875rem", borderRadius: "0.5rem", fontSize: "0.8125rem", fontWeight: 600, backgroundColor: "var(--color-ijf-accent)", color: "var(--color-ijf-bg)", cursor: "pointer", whiteSpace: "nowrap" }}
+          >
+            Open Forum
+          </button>
+
+          {showActions && (
+            <>
+              <button
+                onClick={() => router.push(`/dashboard/forum/new?workingGroup=${group.slug}`)}
+                style={{ padding: "0.5rem 0.875rem", borderRadius: "0.5rem", fontSize: "0.8125rem", fontWeight: 600, border: "1px solid #d1d5db", backgroundColor: "white", color: "#374151", cursor: "pointer", whiteSpace: "nowrap" }}
+              >
+                + New Thread
+              </button>
+
+              {group.googleDriveFolderId && (
+                <button
+                  onClick={() => window.open(`https://drive.google.com/drive/folders/${group.googleDriveFolderId}`, "_blank", "noopener,noreferrer")}
+                  style={{ padding: "0.5rem 0.875rem", borderRadius: "0.5rem", fontSize: "0.8125rem", fontWeight: 600, border: "1px solid #d1d5db", backgroundColor: "white", color: "#374151", cursor: "pointer", whiteSpace: "nowrap" }}
+                >
+                  Open Drive
+                </button>
+              )}
+
+              <button
+                onClick={() => openEmailModal(group)}
+                style={{ padding: "0.5rem 0.875rem", borderRadius: "0.5rem", fontSize: "0.8125rem", fontWeight: 600, border: "1px solid rgba(228,185,91,0.5)", backgroundColor: "rgba(228,185,91,0.1)", color: "#92701a", cursor: "pointer", whiteSpace: "nowrap" }}
+              >
+                Email Members
+              </button>
+            </>
+          )}
+        </div>
+
+        {group.lastActivityAt && (
+          <p style={{ fontSize: "0.75rem", color: "#9ca3af", margin: 0 }}>
+            Last activity: {new Date(group.lastActivityAt).toLocaleDateString("en-IE", { day: "numeric", month: "short", year: "numeric" })}
+          </p>
+        )}
+
+        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", paddingTop: "0.625rem", borderTop: "1px solid #f3f4f6" }}>
+          <svg width="14" height="14" fill="none" stroke={group.threadCount === 0 ? "#d1d5db" : "#9ca3af"} strokeWidth={2} viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+          </svg>
+          <span style={{ fontSize: "0.72rem", color: "#6b7280" }}>
+            {group.threadCount === 0 ? "No discussions yet" : "Active discussions"}
+          </span>
+        </div>
+      </div>
+    );
+  };
 
   return (
     <DashboardLayout title="IJF Discussion Forum" userName={session.user.name} hideGreeting>

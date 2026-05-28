@@ -2,7 +2,6 @@ import { NextResponse } from "next/server";
 import dbConnect from "@/lib/mongodb";
 import { WorkingGroupModel } from "@/models/Workinggroup";
 import { DiscussionThreadModel } from "@/models/Discussionthread";
-import { UserModel } from "@/models/User";
 import { requireAuth } from "@/lib/auth";
 import { isPrivilegedForumRole, buildAccessibleThreadQuery } from "@/lib/forumDiscovery";
 import mongoose from "mongoose";
@@ -146,6 +145,12 @@ export async function GET() {
           (m: any) => m._id?.toString() === currentUser._id.toString()
         );
 
+      const memberList = (group.members || []).map((m: any) => ({
+        _id: m._id?.toString(),
+        name: m.name,
+        image: m.image || null,
+      }));
+
       return {
         _id: group._id,
         slug: group.slug,
@@ -155,9 +160,11 @@ export async function GET() {
         googleDriveFolderId: group.googleDriveFolderId || null,
         coordinatorId: coordId || null,
         coordinatorName: group.coordinator?.name || null,
+        coordinatorImage: group.coordinator?.image || null,
         isCoordinator,
         isMember,
-        memberCount: (group.members || []).length,
+        memberCount: memberList.length,
+        members: memberList,
         threadCount: groupThreadCounts[index] || 0,
         newThreadCount: groupNewThreadCounts[index] || 0,
         lastActivityAt: (lastActivityResults[index] as any)?.lastActivityAt || null,
