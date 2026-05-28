@@ -358,37 +358,6 @@ export default function ForumHomePage() {
   return (
     <DashboardLayout title="IJF Discussion Forum" userName={session.user.name} hideGreeting>
 
-      {/* Compact header bar */}
-      <div style={{
-        marginBottom: "1.25rem",
-        padding: isMobile ? "0.875rem 1rem" : "1rem 1.5rem",
-        borderRadius: "0.75rem",
-        background: "linear-gradient(135deg, #1e3a5f 0%, #162840 100%)",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "space-between",
-        gap: "1rem",
-        flexWrap: "wrap",
-      }}>
-        <h1 style={{ fontSize: isMobile ? "1.1rem" : "1.25rem", fontWeight: 700, color: "white", margin: 0 }}>
-          Welcome back, {session.user.name?.split(" ")[0]}
-        </h1>
-        <div style={{ display: "flex", gap: "0.625rem", flexWrap: "wrap" }}>
-          <button
-            onClick={() => router.push("/dashboard/forum/whats-new")}
-            style={{ padding: "0.5rem 0.875rem", borderRadius: "0.5rem", backgroundColor: "var(--color-ijf-accent)", color: "var(--color-ijf-bg)", fontWeight: 700, cursor: "pointer", fontSize: "0.875rem" }}
-          >
-            What&apos;s New{whatsNewCount > 0 ? ` (${whatsNewCount})` : ""}
-          </button>
-          <button
-            onClick={() => router.push("/dashboard/forum/search")}
-            style={{ padding: "0.5rem 0.875rem", borderRadius: "0.5rem", backgroundColor: "rgba(255,255,255,0.08)", color: "white", fontWeight: 700, border: "1px solid rgba(255,255,255,0.12)", cursor: "pointer", fontSize: "0.875rem" }}
-          >
-            Search Forum
-          </button>
-        </div>
-      </div>
-
       <div style={{ maxWidth: "72rem", margin: "0 auto", paddingBottom: "2rem" }}>
         {loading ? (
           <div style={{ textAlign: "center", padding: "3rem 0" }}>
@@ -398,7 +367,7 @@ export default function ForumHomePage() {
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: "2rem" }}>
 
-            {/* Members strip */}
+            {/* 1. Members strip */}
             {allMembers.length > 0 && (
               <div style={{ backgroundColor: "white", borderRadius: "0.75rem", border: "1px solid #e5e7eb", padding: isMobile ? "0.875rem 1rem" : "1rem 1.5rem" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: "1rem", flexWrap: "wrap" }}>
@@ -424,6 +393,36 @@ export default function ForumHomePage() {
                 </div>
               </div>
             )}
+
+            {/* 2. Navy bar — personalised greeting + actions */}
+            <div style={{
+              padding: isMobile ? "0.875rem 1rem" : "1rem 1.5rem",
+              borderRadius: "0.75rem",
+              background: "linear-gradient(135deg, #1e3a5f 0%, #162840 100%)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: "1rem",
+              flexWrap: "wrap",
+            }}>
+              <span style={{ fontSize: isMobile ? "1rem" : "1.125rem", fontWeight: 700, color: "white" }}>
+                Welcome back, {session.user.name?.split(" ")[0]}
+              </span>
+              <div style={{ display: "flex", gap: "0.625rem", flexWrap: "wrap" }}>
+                <button
+                  onClick={() => router.push("/dashboard/forum/whats-new")}
+                  style={{ padding: "0.5rem 0.875rem", borderRadius: "0.5rem", backgroundColor: "var(--color-ijf-accent)", color: "var(--color-ijf-bg)", fontWeight: 700, cursor: "pointer", fontSize: "0.875rem" }}
+                >
+                  What&apos;s New{whatsNewCount > 0 ? ` (${whatsNewCount})` : ""}
+                </button>
+                <button
+                  onClick={() => router.push("/dashboard/forum/search")}
+                  style={{ padding: "0.5rem 0.875rem", borderRadius: "0.5rem", backgroundColor: "rgba(255,255,255,0.08)", color: "white", fontWeight: 700, border: "1px solid rgba(255,255,255,0.12)", cursor: "pointer", fontSize: "0.875rem" }}
+                >
+                  Search Forum
+                </button>
+              </div>
+            </div>
 
             {/* Coordinator section */}
             {coordinatedGroups.length > 0 && (
