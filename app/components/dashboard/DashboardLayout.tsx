@@ -12,9 +12,10 @@ interface DashboardLayoutProps {
   title: string;
   userName: string;
   role?: string;
+  hideGreeting?: boolean;
 }
 
-export default function DashboardLayout({ children, title, userName, role }: DashboardLayoutProps) {
+export default function DashboardLayout({ children, title, userName, role, hideGreeting = false }: DashboardLayoutProps) {
   const { data: session } = useSession();
   const pathname = usePathname();
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -241,10 +242,12 @@ export default function DashboardLayout({ children, title, userName, role }: Das
         >
           <div className="mb-8">
             <h1 className="text-4xl font-bold text-ijf-accent mb-2">{title}</h1>
-            <p className="text-ijf-muted">
-              Welcome back, {userName}
-              {role && ` • Role: ${role}`}
-            </p>
+            {!hideGreeting && (
+              <p className="text-ijf-muted">
+                Welcome back, {userName}
+                {role && ` • Role: ${role}`}
+              </p>
+            )}
           </div>
           {children}
         </div>

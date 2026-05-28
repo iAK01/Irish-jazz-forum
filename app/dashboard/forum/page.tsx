@@ -356,14 +356,14 @@ export default function ForumHomePage() {
   );
 
   return (
-    <DashboardLayout title="IJF Discussion Forum" userName={session.user.name}>
+    <DashboardLayout title="IJF Discussion Forum" userName={session.user.name} hideGreeting>
 
       {/* Compact header bar */}
       <div style={{
         marginBottom: "1.25rem",
         padding: isMobile ? "0.875rem 1rem" : "1rem 1.5rem",
         borderRadius: "0.75rem",
-        background: "linear-gradient(135deg, var(--color-ijf-bg) 0%, #1a1f2e 100%)",
+        background: "linear-gradient(135deg, #1e3a5f 0%, #162840 100%)",
         display: "flex",
         alignItems: "center",
         justifyContent: "space-between",
