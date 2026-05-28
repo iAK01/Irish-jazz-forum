@@ -8,9 +8,14 @@ export async function POST() {
     const currentUser = await requireAuth();
     await dbConnect();
 
-    await UserModel.findByIdAndUpdate(currentUser._id, {
-      lastForumVisitAt: new Date(),
-    });
+    await UserModel.findByIdAndUpdate(currentUser._id, [
+      {
+        $set: {
+          previousForumVisitAt: "$lastForumVisitAt",
+          lastForumVisitAt: new Date(),
+        },
+      },
+    ]);
 
     return NextResponse.json({ success: true });
   } catch (error: unknown) {

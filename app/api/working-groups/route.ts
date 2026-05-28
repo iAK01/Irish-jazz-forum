@@ -20,34 +20,11 @@ export async function GET(request: Request) {
       currentUser.role !== "admin" &&
       currentUser.role !== "steering"
     ) {
-      const groupIds = (currentUser.workingGroups || []).map(
-        (id: string) => new mongoose.Types.ObjectId(id)
-      );
-
-      const { DiscussionThreadModel } = require("@/models/Discussionthread");
-
-      const publicThreads = await DiscussionThreadModel.find({
-        publicToMembers: true,
-        deleted: { $ne: true },
-      })
-        .select("workingGroups")
-        .lean();
-
-      const publicGroupIds = [
-        ...new Set(
-          publicThreads.flatMap((t: any) => (t.workingGroups || []) as string[])
-        ),
-      ] as string[];
-
-      const publicGroupObjectIds = publicGroupIds.map(
-        (id) => new mongoose.Types.ObjectId(id)
-      );
-
+      const userObjectId = new mongoose.Types.ObjectId(currentUser._id);
       query.$or = [
         { isPrivate: false },
-        { members: currentUser._id },
-        { _id: { $in: groupIds } },
-        { _id: { $in: publicGroupObjectIds } },
+        { members: userObjectId },
+        { coordinator: userObjectId },
       ];
     }
 

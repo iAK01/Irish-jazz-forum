@@ -48,21 +48,22 @@ export async function GET(request: Request) {
     if (workingGroup === "general") {
       query = { workingGroups: { $size: 0 }, deleted: { $ne: true } };
     } else {
-      const isMember = await isGroupMember(
-        currentUser._id.toString(),
-        [groupId!],
-        currentUser.role
-      );
+      const group = await WorkingGroupModel.findOne({ slug: workingGroup })
+        .select("isPrivate")
+        .lean() as any;
 
-      if (isMember) {
-        query = { workingGroups: groupId, deleted: { $ne: true } };
-      } else {
-        query = {
-          workingGroups: groupId,
-          publicToMembers: true,
-          deleted: { $ne: true },
-        };
+      if (group?.isPrivate) {
+        const isMember = await isGroupMember(
+          currentUser._id.toString(),
+          [groupId!],
+          currentUser.role
+        );
+        if (!isMember) {
+          return NextResponse.json({ success: true, data: [] });
+        }
       }
+
+      query = { workingGroups: groupId, deleted: { $ne: true } };
     }
 
     const threads = await DiscussionThreadModel.find(query)
@@ -76,7 +77,7 @@ export async function GET(request: Request) {
       data: threads.map((thread: any) =>
         withForumVisitState(
           withReactionState(thread, currentUser._id.toString()),
-          currentUser.lastForumVisitAt
+          currentUser.previousForumVisitAt ?? currentUser.lastForumVisitAt
         )
       ),
     });

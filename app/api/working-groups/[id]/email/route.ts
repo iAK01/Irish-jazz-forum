@@ -25,7 +25,7 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const currentUser = await requireAuth(["super_admin"]);
+    const currentUser = await requireAuth();
     await dbConnect();
 
     const { id } = await params;
@@ -51,7 +51,7 @@ export async function POST(
     }
 
     const group = (await WorkingGroupModel.findById(id)
-      .populate("coordinator", "name email")
+      .populate("coordinator", "name email _id")
       .lean()) as
       | {
           _id: unknown;
@@ -66,6 +66,19 @@ export async function POST(
       return NextResponse.json(
         { success: false, error: "Working group not found" },
         { status: 404 }
+      );
+    }
+
+    // Allow admins, super_admins, and the coordinator of this specific group
+    const isAdmin =
+      currentUser.role === "admin" || currentUser.role === "super_admin";
+    const isCoordinator =
+      (group.coordinator as any)?._id?.toString() === currentUser._id.toString();
+
+    if (!isAdmin && !isCoordinator) {
+      return NextResponse.json(
+        { success: false, error: "Access denied" },
+        { status: 403 }
       );
     }
 

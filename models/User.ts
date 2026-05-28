@@ -22,6 +22,7 @@ export interface User extends Document {
   workingGroups?: string[];
   forumDigest?: ForumDigestPreference;
   lastForumVisitAt?: Date | null;
+  previousForumVisitAt?: Date | null;
   lastSeenAt?: Date;
   createdAt: Date;
   updatedAt: Date;
@@ -48,6 +49,10 @@ const UserSchema = new Schema<User>(
       default: "weekly",
     },
     lastForumVisitAt: {
+      type: Date,
+      default: null,
+    },
+    previousForumVisitAt: {
       type: Date,
       default: null,
     },

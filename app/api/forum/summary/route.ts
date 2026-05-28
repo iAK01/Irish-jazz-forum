@@ -1,12 +1,10 @@
-// /app/api/forum/summary/route.ts
-
 import { NextResponse } from "next/server";
 import dbConnect from "@/lib/mongodb";
 import { WorkingGroupModel } from "@/models/Workinggroup";
 import { DiscussionThreadModel } from "@/models/Discussionthread";
 import { UserModel } from "@/models/User";
 import { requireAuth } from "@/lib/auth";
-import { buildAccessibleThreadQuery } from "@/lib/forumDiscovery";
+import { isPrivilegedForumRole, buildAccessibleThreadQuery } from "@/lib/forumDiscovery";
 import mongoose from "mongoose";
 
 export async function GET() {
@@ -14,47 +12,57 @@ export async function GET() {
     const currentUser = await requireAuth();
     await dbConnect();
 
-    const isPrivileged =
-      currentUser.role === "super_admin" ||
-      currentUser.role === "admin" ||
-      currentUser.role === "steering";
+    const isPrivileged = isPrivilegedForumRole(currentUser.role);
+    const userObjectId = new mongoose.Types.ObjectId(currentUser._id);
 
     // --- 1. Fetch accessible working groups ---
     let groupQuery: any = { isActive: true, deleted: { $ne: true } };
 
     if (!isPrivileged) {
-      const userObjectId = new mongoose.Types.ObjectId(currentUser._id);
-
-      const userGroupIds = (currentUser.workingGroups || []).map(
-        (id: string) => new mongoose.Types.ObjectId(id)
-      );
-
       groupQuery.$or = [
         { isPrivate: false },
         { members: userObjectId },
         { coordinator: userObjectId },
-        { _id: { $in: userGroupIds } },
       ];
     }
 
     const groups = await WorkingGroupModel.find(groupQuery)
-      .populate("coordinator", "name email image lastSeenAt")
-      .populate("members", "name email image lastSeenAt")
+      .populate("coordinator", "name email image lastSeenAt _id")
+      .populate("members", "name email image lastSeenAt _id")
       .sort({ name: 1 })
       .lean();
 
-    // workingGroups field on threads stores ObjectId strings — match exactly as threads API does
-    const groupIds = groups.map((g: any) => g._id.toString());
-    const accessibleThreadQuery = buildAccessibleThreadQuery(currentUser);
-    const lastForumVisitAt = currentUser.lastForumVisitAt || null;
+    // Split groups into public and private (for access query)
+    const allPublicGroupIds: string[] = [];
+    const memberPrivateGroupIds: string[] = [];
 
-    // --- 2. General thread count — threads with workingGroups: [] (empty array) ---
+    for (const group of groups as any[]) {
+      const gid = group._id.toString();
+      if (!group.isPrivate) {
+        allPublicGroupIds.push(gid);
+      } else {
+        const isCoord = group.coordinator?._id?.toString() === currentUser._id.toString();
+        const isMem = (group.members || []).some(
+          (m: any) => m._id?.toString() === currentUser._id.toString()
+        );
+        if (isCoord || isMem || isPrivileged) {
+          memberPrivateGroupIds.push(gid);
+        }
+      }
+    }
+
+    const groupIds = groups.map((g: any) => g._id.toString());
+
+    // Use previousForumVisitAt as the "new since last visit" baseline
+    const previousVisitAt = currentUser.previousForumVisitAt ?? currentUser.lastForumVisitAt ?? null;
+
+    // --- 2. General thread count ---
     const generalThreadCount = await DiscussionThreadModel.countDocuments({
       workingGroups: { $size: 0 },
       deleted: { $ne: true },
     });
 
-    // --- 3. Per-group counts — query by ObjectId string, exactly as threads GET does ---
+    // --- 3. Per-group counts + last activity ---
     const [groupThreadCounts, lastActivityResults] = await Promise.all([
       Promise.all(
         groupIds.map((groupId: string) =>
@@ -77,82 +85,41 @@ export async function GET() {
       ),
     ]);
 
+    // --- 4. "New since last visit" counts using previousForumVisitAt ---
     let whatsNewCount = 0;
     let generalNewThreadCount = 0;
     let groupNewThreadCounts: number[] = groupIds.map(() => 0);
 
-    if (lastForumVisitAt) {
-      const freshThreadQuery = {
-        deleted: { $ne: true },
-        lastActivityAt: { $gt: new Date(lastForumVisitAt) },
-        ...accessibleThreadQuery,
-      };
+    if (previousVisitAt) {
+      const accessQuery = isPrivileged
+        ? {}
+        : buildAccessibleThreadQuery(currentUser, undefined, {
+            allPublicGroupIds,
+            memberPrivateGroupIds,
+          });
 
-      const freshThreads = await DiscussionThreadModel.find(freshThreadQuery)
+      const freshThreads = await DiscussionThreadModel.find({
+        deleted: { $ne: true },
+        lastActivityAt: { $gt: new Date(previousVisitAt) },
+        ...accessQuery,
+      })
         .select("workingGroups")
         .lean();
 
       whatsNewCount = freshThreads.length;
       generalNewThreadCount = freshThreads.filter(
-        (thread: any) => !thread.workingGroups || thread.workingGroups.length === 0
+        (t: any) => !t.workingGroups || t.workingGroups.length === 0
       ).length;
       groupNewThreadCounts = groupIds.map((groupId: string) =>
-        freshThreads.filter((thread: any) =>
-          (thread.workingGroups || []).map((value: any) => value.toString()).includes(groupId)
+        freshThreads.filter((t: any) =>
+          (t.workingGroups || []).map((v: any) => v.toString()).includes(groupId)
         ).length
       );
     }
 
-    // If user is a member, also count private threads they can see
-    let memberThreadCounts: number[] = [];
-    if (!isPrivileged && groupIds.length > 0) {
-      memberThreadCounts = await Promise.all(
-        groupIds.map((groupId: string) =>
-          DiscussionThreadModel.countDocuments({
-            workingGroups: groupId,
-            deleted: { $ne: true },
-          })
-        )
-      );
-    }
-
-    const finalThreadCounts =
-      !isPrivileged && memberThreadCounts.length > 0
-        ? memberThreadCounts
-        : groupThreadCounts;
-
-    const assignedUserCounts = groupIds.length
-      ? await UserModel.aggregate([
-          {
-            $match: {
-              workingGroups: { $in: groupIds },
-            },
-          },
-          { $unwind: "$workingGroups" },
-          {
-            $match: {
-              workingGroups: { $in: groupIds },
-            },
-          },
-          {
-            $group: {
-              _id: "$workingGroups",
-              count: { $sum: 1 },
-            },
-          },
-        ])
-      : [];
-
-    const assignedUserCountMap = new Map(
-      assignedUserCounts.map((entry: { _id: string; count: number }) => [
-        entry._id,
-        entry.count,
-      ])
-    );
-
-    // --- 4. Collect all unique members across all groups ---
+    // --- 5. Collect all unique members across all groups ---
     const memberMap = new Map<string, any>();
-    for (const group of groups) {
+    for (const group of groups as any[]) {
       const everyone = [
         ...(group.coordinator ? [group.coordinator] : []),
         ...((group.members as any[]) || []),
@@ -169,21 +136,33 @@ export async function GET() {
       }
     }
 
-    const allMembers = [...memberMap.values()];
+    // --- 6. Build group stats, including isCoordinator and isMember for current user ---
+    const workingGroupStats = (groups as any[]).map((group, index) => {
+      const coordId = group.coordinator?._id?.toString();
+      const isCoordinator = coordId === currentUser._id.toString();
+      const isMember =
+        isCoordinator ||
+        (group.members || []).some(
+          (m: any) => m._id?.toString() === currentUser._id.toString()
+        );
 
-    // --- 5. Build group stats ---
-    const workingGroupStats = groups.map((group: any, index: number) => ({
-      _id: group._id,
-      slug: group.slug,
-      name: group.name,
-      description: group.description,
-      isPrivate: group.isPrivate,
-      coordinatorName: group.coordinator?.name || null,
-      assignedMemberCount: assignedUserCountMap.get(group._id.toString()) || 0,
-      threadCount: finalThreadCounts[index] || 0,
-      newThreadCount: groupNewThreadCounts[index] || 0,
-      lastActivityAt: (lastActivityResults[index] as any)?.lastActivityAt || null,
-    }));
+      return {
+        _id: group._id,
+        slug: group.slug,
+        name: group.name,
+        description: group.description,
+        isPrivate: group.isPrivate,
+        googleDriveFolderId: group.googleDriveFolderId || null,
+        coordinatorId: coordId || null,
+        coordinatorName: group.coordinator?.name || null,
+        isCoordinator,
+        isMember,
+        memberCount: (group.members || []).length,
+        threadCount: groupThreadCounts[index] || 0,
+        newThreadCount: groupNewThreadCounts[index] || 0,
+        lastActivityAt: (lastActivityResults[index] as any)?.lastActivityAt || null,
+      };
+    });
 
     return NextResponse.json({
       success: true,
@@ -191,9 +170,9 @@ export async function GET() {
         generalThreadCount,
         generalNewThreadCount,
         whatsNewCount,
-        lastForumVisitAt,
+        previousForumVisitAt: previousVisitAt,
         workingGroups: workingGroupStats,
-        members: allMembers,
+        members: [...memberMap.values()],
       },
     });
   } catch (error: any) {

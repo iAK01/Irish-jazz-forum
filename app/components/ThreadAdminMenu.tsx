@@ -20,8 +20,10 @@ interface Props {
 
 const STATUSES = [
   { value: "active", label: "Active", color: "#166534", bg: "#dcfce7" },
+  { value: "paused", label: "Paused", color: "#6b21a8", bg: "#f3e8ff" },
   { value: "stalled", label: "Stalled", color: "#854d0e", bg: "#fef9c3" },
   { value: "resolved", label: "Resolved", color: "#1e40af", bg: "#dbeafe" },
+  { value: "declined", label: "Declined", color: "#9f1239", bg: "#fff1f2" },
   { value: "archived", label: "Archived", color: "#374151", bg: "#f3f4f6" },
   { value: "abandoned", label: "Abandoned", color: "#991b1b", bg: "#fee2e2" },
 ];

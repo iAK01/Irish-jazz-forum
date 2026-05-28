@@ -11,8 +11,12 @@ interface WorkingGroupStats {
   name: string;
   description: string;
   isPrivate: boolean;
+  googleDriveFolderId?: string | null;
+  coordinatorId?: string | null;
   coordinatorName?: string | null;
-  assignedMemberCount?: number;
+  isCoordinator: boolean;
+  isMember: boolean;
+  memberCount: number;
   threadCount: number;
   newThreadCount?: number;
   lastActivityAt?: string;
@@ -39,9 +43,27 @@ interface ForumSummaryResponse {
   }>;
 }
 
-interface ForumHomeUser {
-  role?: string;
+interface EmailModalState {
+  open: boolean;
+  group: WorkingGroupStats | null;
+  audience: "members_and_coordinator" | "members_only";
+  subject: string;
+  message: string;
+  sending: boolean;
+  sent: boolean;
+  error: string;
 }
+
+const EMPTY_EMAIL_MODAL: EmailModalState = {
+  open: false,
+  group: null,
+  audience: "members_and_coordinator",
+  subject: "",
+  message: "",
+  sending: false,
+  sent: false,
+  error: "",
+};
 
 export default function ForumHomePage() {
   const { data: session } = useSession();
@@ -53,6 +75,7 @@ export default function ForumHomePage() {
   const [whatsNewCount, setWhatsNewCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [isMobile, setIsMobile] = useState(false);
+  const [emailModal, setEmailModal] = useState<EmailModalState>(EMPTY_EMAIL_MODAL);
 
   useEffect(() => {
     const check = () => setIsMobile(window.innerWidth < 768);
@@ -95,7 +118,7 @@ export default function ForumHomePage() {
       setWorkingGroups(data.workingGroups || []);
 
       const members: OnlineMember[] = (data.members || [])
-        .map((member) => ({ ...member, isOnline: isOnline(member.lastSeenAt) }))
+        .map((m) => ({ ...m, isOnline: isOnline(m.lastSeenAt) }))
         .sort((a: OnlineMember, b: OnlineMember) => {
           if (a.isOnline && !b.isOnline) return -1;
           if (!a.isOnline && b.isOnline) return 1;
@@ -114,6 +137,40 @@ export default function ForumHomePage() {
     }
   };
 
+  const openEmailModal = (group: WorkingGroupStats) => {
+    setEmailModal({
+      open: true,
+      group,
+      audience: "members_and_coordinator",
+      subject: `${group.name}: update from Irish Jazz Forum`,
+      message: "",
+      sending: false,
+      sent: false,
+      error: "",
+    });
+  };
+
+  const sendGroupEmail = async () => {
+    if (!emailModal.group) return;
+    setEmailModal((m) => ({ ...m, sending: true, error: "" }));
+    try {
+      const res = await fetch(`/api/working-groups/${emailModal.group._id}/email`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          audience: emailModal.audience,
+          subject: emailModal.subject,
+          message: emailModal.message,
+        }),
+      });
+      const result = await res.json();
+      if (!res.ok) throw new Error(result.error || "Failed to send");
+      setEmailModal((m) => ({ ...m, sending: false, sent: true }));
+    } catch (err: any) {
+      setEmailModal((m) => ({ ...m, sending: false, error: err.message }));
+    }
+  };
+
   if (!session) {
     return (
       <DashboardLayout title="Discussion Forum" userName="Guest">
@@ -122,11 +179,15 @@ export default function ForumHomePage() {
     );
   }
 
-  const currentUser = session.user as ForumHomeUser;
+  const currentUserRole = (session.user as any).role as string;
   const isPrivileged =
-    currentUser.role === "steering" ||
-    currentUser.role === "admin" ||
-    currentUser.role === "super_admin";
+    currentUserRole === "steering" ||
+    currentUserRole === "admin" ||
+    currentUserRole === "super_admin";
+
+  const coordinatedGroups = workingGroups.filter((g) => g.isCoordinator);
+  const memberOnlyGroups = workingGroups.filter((g) => g.isMember && !g.isCoordinator);
+  const otherGroups = workingGroups.filter((g) => !g.isMember && !g.isCoordinator);
 
   const onlineMembers = allMembers.filter((m) => m.isOnline);
   const offlineMembers = allMembers.filter((m) => !m.isOnline);
@@ -177,47 +238,129 @@ export default function ForumHomePage() {
     </div>
   );
 
+  const GroupCard = ({ group, showActions }: { group: WorkingGroupStats; showActions: boolean }) => (
+    <div
+      style={{
+        backgroundColor: "white",
+        borderRadius: "0.75rem",
+        boxShadow: "0 2px 4px rgba(0,0,0,0.06)",
+        border: group.isMember ? "2px solid var(--color-ijf-accent)" : "1px solid #e5e7eb",
+        padding: isMobile ? "1rem" : "1.25rem",
+        display: "flex",
+        flexDirection: "column",
+        gap: "0.875rem",
+      }}
+    >
+      {/* Top row: name + thread count */}
+      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "0.75rem" }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.25rem" }}>
+            {group.isCoordinator && (
+              <span style={{ fontSize: "0.65rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", padding: "0.15rem 0.5rem", borderRadius: "9999px", backgroundColor: "rgba(228,185,91,0.18)", color: "#92701a" }}>
+                Coordinator
+              </span>
+            )}
+            {group.isMember && !group.isCoordinator && (
+              <span style={{ fontSize: "0.65rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", padding: "0.15rem 0.5rem", borderRadius: "9999px", backgroundColor: "#f0fdf4", color: "#166534" }}>
+                Member
+              </span>
+            )}
+          </div>
+          <h3 style={{ fontSize: isMobile ? "1rem" : "1.125rem", fontWeight: 700, color: "#111827", margin: 0, lineHeight: 1.3 }}>
+            {group.name}
+          </h3>
+          {group.coordinatorName && !group.isCoordinator && (
+            <p style={{ fontSize: "0.75rem", color: "#6b7280", marginTop: "0.2rem" }}>
+              Led by {group.coordinatorName}
+            </p>
+          )}
+        </div>
+        <div style={{ textAlign: "right", flexShrink: 0 }}>
+          <div style={{ fontSize: isMobile ? "1.5rem" : "1.875rem", fontWeight: 700, color: "var(--color-ijf-primary)", lineHeight: 1 }}>
+            {group.threadCount}
+          </div>
+          <div style={{ fontSize: "0.7rem", color: "#6b7280" }}>
+            {group.threadCount === 1 ? "thread" : "threads"}
+          </div>
+          {group.newThreadCount ? (
+            <div style={{ fontSize: "0.72rem", fontWeight: 700, color: "#166534", marginTop: "0.2rem" }}>
+              {group.newThreadCount} new
+            </div>
+          ) : null}
+        </div>
+      </div>
+
+      {/* Action buttons */}
+      <div style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem" }}>
+        <button
+          onClick={() => router.push(`/dashboard/forum/${group.slug}`)}
+          style={{ padding: "0.5rem 0.875rem", borderRadius: "0.5rem", fontSize: "0.8125rem", fontWeight: 600, backgroundColor: "var(--color-ijf-accent)", color: "var(--color-ijf-bg)", cursor: "pointer", whiteSpace: "nowrap" }}
+        >
+          Open Forum
+        </button>
+
+        {showActions && (
+          <>
+            <button
+              onClick={() => router.push(`/dashboard/forum/new?workingGroup=${group.slug}`)}
+              style={{ padding: "0.5rem 0.875rem", borderRadius: "0.5rem", fontSize: "0.8125rem", fontWeight: 600, border: "1px solid #d1d5db", backgroundColor: "white", color: "#374151", cursor: "pointer", whiteSpace: "nowrap" }}
+            >
+              + New Thread
+            </button>
+
+            {group.googleDriveFolderId && (
+              <button
+                onClick={() => window.open(`https://drive.google.com/drive/folders/${group.googleDriveFolderId}`, "_blank", "noopener,noreferrer")}
+                style={{ padding: "0.5rem 0.875rem", borderRadius: "0.5rem", fontSize: "0.8125rem", fontWeight: 600, border: "1px solid #d1d5db", backgroundColor: "white", color: "#374151", cursor: "pointer", whiteSpace: "nowrap" }}
+              >
+                Open Drive
+              </button>
+            )}
+
+            <button
+              onClick={() => openEmailModal(group)}
+              style={{ padding: "0.5rem 0.875rem", borderRadius: "0.5rem", fontSize: "0.8125rem", fontWeight: 600, border: "1px solid rgba(228,185,91,0.5)", backgroundColor: "rgba(228,185,91,0.1)", color: "#92701a", cursor: "pointer", whiteSpace: "nowrap" }}
+            >
+              Email Members
+            </button>
+          </>
+        )}
+      </div>
+
+      {group.lastActivityAt && (
+        <p style={{ fontSize: "0.75rem", color: "#9ca3af", margin: 0 }}>
+          Last activity: {new Date(group.lastActivityAt).toLocaleDateString("en-IE", { day: "numeric", month: "short", year: "numeric" })}
+        </p>
+      )}
+    </div>
+  );
+
   return (
     <DashboardLayout title="IJF Discussion Forum" userName={session.user.name}>
 
       {/* Hero */}
       <div style={{
         marginBottom: "1.5rem",
-        padding: isMobile ? "1.25rem" : "3rem 2rem",
+        padding: isMobile ? "1.25rem" : "2.5rem 2rem",
         borderRadius: "0.75rem",
         background: "linear-gradient(135deg, var(--color-ijf-bg) 0%, #1a1f2e 100%)",
       }}>
-        <h1 style={{ fontSize: isMobile ? "1.5rem" : "2.25rem", fontWeight: 700, color: "white", marginBottom: "0.5rem" }}>
+        <h1 style={{ fontSize: isMobile ? "1.5rem" : "2rem", fontWeight: 700, color: "white", marginBottom: "0.5rem" }}>
           Welcome back, {session.user.name?.split(" ")[0]}
         </h1>
-        <p style={{ fontSize: isMobile ? "0.9rem" : "1.25rem", color: "#d1d5db" }}>
+        <p style={{ fontSize: isMobile ? "0.9rem" : "1.1rem", color: "#d1d5db" }}>
           Collaborate with the Irish jazz community through focused discussions
         </p>
         <div style={{ marginTop: "1rem", display: "flex", gap: "0.75rem", flexWrap: "wrap" }}>
           <button
             onClick={() => router.push("/dashboard/forum/whats-new")}
-            style={{
-              padding: "0.7rem 1rem",
-              borderRadius: "0.625rem",
-              backgroundColor: "var(--color-ijf-accent)",
-              color: "var(--color-ijf-bg)",
-              fontWeight: 700,
-              cursor: "pointer",
-            }}
+            style={{ padding: "0.7rem 1rem", borderRadius: "0.625rem", backgroundColor: "var(--color-ijf-accent)", color: "var(--color-ijf-bg)", fontWeight: 700, cursor: "pointer" }}
           >
             What&apos;s New{whatsNewCount > 0 ? ` (${whatsNewCount})` : ""}
           </button>
           <button
             onClick={() => router.push("/dashboard/forum/search")}
-            style={{
-              padding: "0.7rem 1rem",
-              borderRadius: "0.625rem",
-              backgroundColor: "rgba(255,255,255,0.08)",
-              color: "white",
-              fontWeight: 700,
-              border: "1px solid rgba(255,255,255,0.12)",
-              cursor: "pointer",
-            }}
+            style={{ padding: "0.7rem 1rem", borderRadius: "0.625rem", backgroundColor: "rgba(255,255,255,0.08)", color: "white", fontWeight: 700, border: "1px solid rgba(255,255,255,0.12)", cursor: "pointer" }}
           >
             Search Forum
           </button>
@@ -231,227 +374,99 @@ export default function ForumHomePage() {
             <p style={{ color: "#6b7280", marginTop: "1rem" }}>Loading forum...</p>
           </div>
         ) : (
-          <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: "2rem" }}>
 
             {/* Members strip */}
             {allMembers.length > 0 && (
-              <div style={{
-                backgroundColor: "white",
-                borderRadius: "0.75rem",
-                border: "1px solid #e5e7eb",
-                padding: isMobile ? "0.875rem 1rem" : "1rem 1.5rem",
-              }}>
+              <div style={{ backgroundColor: "white", borderRadius: "0.75rem", border: "1px solid #e5e7eb", padding: isMobile ? "0.875rem 1rem" : "1rem 1.5rem" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: "1rem", flexWrap: "wrap" }}>
                   <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", flexShrink: 0 }}>
                     <div style={{ width: "0.5rem", height: "0.5rem", borderRadius: "9999px", backgroundColor: "#22c55e" }} />
-                    <span style={{ fontSize: "0.75rem", fontWeight: 700, color: "#111827" }}>
-                      {onlineMembers.length} online
-                    </span>
+                    <span style={{ fontSize: "0.75rem", fontWeight: 700, color: "#111827" }}>{onlineMembers.length} online</span>
                     <span style={{ color: "#d1d5db" }}>·</span>
-                    <span style={{ fontSize: "0.75rem", color: "#9ca3af" }}>
-                      {allMembers.length} members
-                    </span>
+                    <span style={{ fontSize: "0.75rem", color: "#9ca3af" }}>{allMembers.length} members</span>
                   </div>
-
                   <div style={{ width: "1px", height: "1.5rem", backgroundColor: "#e5e7eb", flexShrink: 0 }} />
-
                   <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", flexWrap: "wrap" }}>
                     {onlineMembers.map((m) => (
                       <div key={m._id} style={{ display: "flex", alignItems: "center", gap: "0.375rem" }}>
                         <MemberDot member={m} />
-                        {!isMobile && (
-                          <span style={{ fontSize: "0.75rem", fontWeight: 600, color: "#111827" }}>
-                            {m.name.split(" ")[0]}
-                          </span>
-                        )}
+                        {!isMobile && <span style={{ fontSize: "0.75rem", fontWeight: 600, color: "#111827" }}>{m.name.split(" ")[0]}</span>}
                       </div>
                     ))}
-
                     {onlineMembers.length > 0 && offlineMembers.length > 0 && (
                       <div style={{ width: "1px", height: "1.5rem", backgroundColor: "#e5e7eb", flexShrink: 0 }} />
                     )}
-
-                    {offlineMembers.map((m) => (
-                      <MemberDot key={m._id} member={m} />
-                    ))}
+                    {offlineMembers.map((m) => <MemberDot key={m._id} member={m} />)}
                   </div>
                 </div>
               </div>
             )}
 
-            {/* General Discussion */}
-            <div
-              onClick={() => router.push("/dashboard/forum/general")}
-              style={{
-                backgroundColor: "white",
-                borderRadius: "1rem",
-                boxShadow: "0 4px 6px -1px rgba(0,0,0,0.1)",
-                border: "2px solid var(--color-ijf-accent)",
-                padding: isMobile ? "1.25rem" : "2rem",
-                cursor: "pointer",
-                transition: "box-shadow 0.3s",
-              }}
-            >
-              <div style={{ display: "flex", alignItems: isMobile ? "flex-start" : "center", justifyContent: "space-between", gap: "1rem" }}>
-                <div style={{ flex: 1 }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "0.75rem" }}>
-                    <div style={{ width: "2.75rem", height: "2.75rem", borderRadius: "0.75rem", backgroundColor: "var(--color-ijf-accent)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                      <svg className="w-5 h-5" style={{ color: "var(--color-ijf-bg)" }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8h2a2 2 0 012 2v6a2 2 0 01-2 2h-2v4l-4-4H9a1.994 1.994 0 01-1.414-.586m0 0L11 14h4a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2v4l.586-.586z" />
-                      </svg>
-                    </div>
-                    <div>
-                      <h2 style={{ fontSize: isMobile ? "1.1rem" : "1.5rem", fontWeight: 700, color: "#111827" }}>
-                        IJF General Discussion
-                      </h2>
-                      <p style={{ fontSize: "0.8rem", fontWeight: 600, color: "var(--color-ijf-accent)" }}>
-                        Open to all members{generalNewThreadCount > 0 ? ` • ${generalNewThreadCount} new` : ""}
-                      </p>
-                    </div>
-                  </div>
-                  {!isMobile && (
-                    <p style={{ color: "#4b5563", lineHeight: 1.6 }}>
-                      Open forum for all members — announcements, general topics, and cross-group discussions
-                    </p>
-                  )}
+            {/* Coordinator section */}
+            {coordinatedGroups.length > 0 && (
+              <section>
+                <div style={{ marginBottom: "1rem", padding: isMobile ? "1rem" : "1.25rem 1.5rem", borderRadius: "0.75rem", backgroundColor: "rgba(228,185,91,0.1)", border: "1px solid rgba(228,185,91,0.35)" }}>
+                  <p style={{ fontWeight: 700, color: "#111827", fontSize: isMobile ? "1rem" : "1.125rem", marginBottom: "0.25rem" }}>
+                    Hi {session.user.name?.split(" ")[0]}, you coordinate {coordinatedGroups.length === 1 ? "this working group" : "these working groups"}
+                  </p>
+                  <p style={{ fontSize: "0.875rem", color: "#6b7280", margin: 0 }}>
+                    Quick actions are below each group — start a thread, open Drive, or email your members.
+                  </p>
                 </div>
-                <div style={{ textAlign: "center", flexShrink: 0 }}>
-                  <div style={{ fontSize: isMobile ? "2rem" : "3rem", fontWeight: 700, color: "var(--color-ijf-accent)" }}>
-                    {generalThreadCount}
-                  </div>
-                  <div style={{ fontSize: "0.75rem", color: "#6b7280", fontWeight: 500 }}>
-                    {generalThreadCount === 1 ? "thread" : "threads"}
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Working Groups */}
-            {workingGroups.length > 0 && (
-              <div>
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1.25rem" }}>
-                  <h2 style={{ fontSize: isMobile ? "1.25rem" : "1.875rem", fontWeight: 700, color: "#111827" }}>
-                    Your Working Groups
-                  </h2>
-                  <span style={{ padding: "0.25rem 0.75rem", backgroundColor: "#f3f4f6", borderRadius: "9999px", fontSize: "0.8rem", fontWeight: 600, color: "#374151" }}>
-                    {workingGroups.length} {workingGroups.length === 1 ? "group" : "groups"}
-                  </span>
-                </div>
-
-                <div style={{
-                  display: "grid",
-                  gridTemplateColumns: isMobile ? "1fr" : "repeat(2, 1fr)",
-                  gap: "1rem",
-                }}>
-                  {workingGroups.map((group) => (
-                    <div
-                      key={group.slug}
-                      onClick={() => router.push(`/dashboard/forum/${group.slug}`)}
-                      style={{
-                        backgroundColor: "white",
-                        borderRadius: "0.75rem",
-                        boxShadow: "0 2px 4px rgba(0,0,0,0.06)",
-                        border: "2px solid var(--color-ijf-accent)",
-                        padding: isMobile ? "1rem" : "1.5rem",
-                        cursor: "pointer",
-                        transition: "box-shadow 0.3s",
-                      }}
-                    >
-                      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: "1rem" }}>
-                        <div style={{ flex: 1 }}>
-                          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.375rem" }}>
-                            <div style={{ width: "0.5rem", height: "0.5rem", borderRadius: "9999px", backgroundColor: "var(--color-ijf-accent)", flexShrink: 0 }} />
-                            <h3 style={{ fontSize: isMobile ? "1rem" : "1.25rem", fontWeight: 700, color: "#111827" }}>
-                              {group.name}
-                            </h3>
-                          </div>
-                          <div style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem", marginBottom: "0.5rem" }}>
-                            {group.coordinatorName && (
-                              <span
-                                style={{
-                                  display: "inline-flex",
-                                  alignItems: "center",
-                                  gap: "0.35rem",
-                                  padding: "0.25rem 0.6rem",
-                                  borderRadius: "9999px",
-                                  backgroundColor: "#f9fafb",
-                                  color: "#374151",
-                                  fontSize: "0.75rem",
-                                  fontWeight: 600,
-                                  border: "1px solid #e5e7eb",
-                                }}
-                              >
-                                Coordinator: {group.coordinatorName}
-                              </span>
-                            )}
-                            <span
-                              style={{
-                                display: "inline-flex",
-                                alignItems: "center",
-                                gap: "0.35rem",
-                                padding: "0.25rem 0.6rem",
-                                borderRadius: "9999px",
-                                backgroundColor: "rgba(228,185,91,0.12)",
-                                color: "#8a6612",
-                                fontSize: "0.75rem",
-                                fontWeight: 700,
-                              }}
-                            >
-                              {group.assignedMemberCount || 0}{" "}
-                              {group.assignedMemberCount === 1 ? "person assigned" : "people assigned"}
-                            </span>
-                          </div>
-                          {group.lastActivityAt && (
-                            <p style={{ fontSize: "0.75rem", color: "#6b7280" }}>
-                              Last activity: {new Date(group.lastActivityAt).toLocaleDateString("en-IE", { day: "numeric", month: "short", year: "numeric" })}
-                            </p>
-                          )}
-                        </div>
-                        <div style={{ textAlign: "right", marginLeft: "1rem" }}>
-                          <div style={{ fontSize: isMobile ? "1.5rem" : "1.875rem", fontWeight: 700, color: "var(--color-ijf-primary)" }}>
-                            {group.threadCount}
-                          </div>
-                          <div style={{ fontSize: "0.7rem", color: "#6b7280", fontWeight: 500 }}>
-                            {group.threadCount === 1 ? "thread" : "threads"}
-                          </div>
-                          {group.newThreadCount ? (
-                            <div style={{ marginTop: "0.35rem", fontSize: "0.72rem", fontWeight: 700, color: "#166534" }}>
-                              {group.newThreadCount} new
-                            </div>
-                          ) : null}
-                        </div>
-                      </div>
-
-                      <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", paddingTop: "0.75rem", borderTop: "1px solid #f3f4f6" }}>
-                        <svg className="w-4 h-4" style={{ color: "#9ca3af" }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
-                        </svg>
-                        <span style={{ fontSize: "0.75rem", color: "#6b7280" }}>
-                          {group.threadCount === 0 ? "No discussions yet" : "Active discussions"}
-                        </span>
-                      </div>
-                    </div>
+                <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(2, 1fr)", gap: "1rem" }}>
+                  {coordinatedGroups.map((g) => (
+                    <GroupCard key={g.slug} group={g} showActions={true} />
                   ))}
                 </div>
-              </div>
+              </section>
             )}
 
-            {/* No working groups */}
-            {workingGroups.length === 0 && (
-              <div style={{ backgroundColor: "#f9fafb", borderRadius: "0.75rem", padding: "3rem", textAlign: "center", border: "2px dashed #d1d5db" }}>
-                <div style={{ width: "4rem", height: "4rem", backgroundColor: "#e5e7eb", borderRadius: "9999px", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 1rem" }}>
-                  <svg className="w-8 h-8" style={{ color: "#9ca3af" }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-                  </svg>
+            {/* Member section */}
+            {memberOnlyGroups.length > 0 && (
+              <section>
+                <div style={{ marginBottom: "1rem", padding: isMobile ? "1rem" : "1.25rem 1.5rem", borderRadius: "0.75rem", backgroundColor: "#f0fdf4", border: "1px solid #bbf7d0" }}>
+                  <p style={{ fontWeight: 700, color: "#111827", fontSize: isMobile ? "1rem" : "1.125rem", marginBottom: "0.25rem" }}>
+                    {coordinatedGroups.length === 0
+                      ? `Hi ${session.user.name?.split(" ")[0]}, you're a member of ${memberOnlyGroups.length === 1 ? "this working group" : "these working groups"}`
+                      : `You're also a member of ${memberOnlyGroups.length === 1 ? "this group" : "these groups"}`
+                    }
+                  </p>
+                  <p style={{ fontSize: "0.875rem", color: "#4b5563", margin: 0 }}>
+                    Jump straight to the threads or start a new discussion.
+                  </p>
                 </div>
-                <h3 style={{ fontSize: "1.25rem", fontWeight: 700, color: "#111827", marginBottom: "0.5rem" }}>No Working Groups Yet</h3>
-                <p style={{ color: "#4b5563", maxWidth: "28rem", margin: "0 auto" }}>
-                  You are not assigned to any working groups yet. Contact an administrator to join a working group.
-                </p>
-              </div>
+                <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(2, 1fr)", gap: "1rem" }}>
+                  {memberOnlyGroups.map((g) => (
+                    <GroupCard key={g.slug} group={g} showActions={true} />
+                  ))}
+                </div>
+              </section>
             )}
 
-            {/* Privileged note */}
+            {/* All other working groups */}
+            {otherGroups.length > 0 && (
+              <section>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1rem" }}>
+                  <h2 style={{ fontSize: isMobile ? "1.125rem" : "1.5rem", fontWeight: 700, color: "#111827", margin: 0 }}>
+                    {coordinatedGroups.length === 0 && memberOnlyGroups.length === 0
+                      ? "Working Groups"
+                      : "Other Working Groups"
+                    }
+                  </h2>
+                  <span style={{ padding: "0.25rem 0.75rem", backgroundColor: "#f3f4f6", borderRadius: "9999px", fontSize: "0.8rem", fontWeight: 600, color: "#374151" }}>
+                    {otherGroups.length}
+                  </span>
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(2, 1fr)", gap: "1rem" }}>
+                  {otherGroups.map((g) => (
+                    <GroupCard key={g.slug} group={g} showActions={false} />
+                  ))}
+                </div>
+              </section>
+            )}
+
+            {/* Privileged note for admins */}
             {isPrivileged && (
               <div style={{ borderRadius: "0.75rem", padding: isMobile ? "1rem" : "1.5rem", border: "2px solid var(--color-ijf-accent)", backgroundColor: "rgba(228, 185, 91, 0.1)" }}>
                 <div style={{ display: "flex", alignItems: "flex-start", gap: "1rem" }}>
@@ -462,9 +477,9 @@ export default function ForumHomePage() {
                   </div>
                   <div>
                     <h4 style={{ fontWeight: 700, color: "#111827", marginBottom: "0.25rem" }}>
-                      {currentUser.role === "super_admin" ? "Super Admin" : currentUser.role === "admin" ? "Administrator" : "Steering Member"} Access
+                      {currentUserRole === "super_admin" ? "Super Admin" : currentUserRole === "admin" ? "Administrator" : "Steering Member"} Access
                     </h4>
-                    <p style={{ fontSize: "0.875rem", color: "#374151" }}>
+                    <p style={{ fontSize: "0.875rem", color: "#374151", margin: 0 }}>
                       You have access to all working group discussions across the forum.
                     </p>
                   </div>
@@ -472,9 +487,139 @@ export default function ForumHomePage() {
               </div>
             )}
 
+            {/* General Discussion — always at the bottom */}
+            <section>
+              <h2 style={{ fontSize: isMobile ? "1.125rem" : "1.5rem", fontWeight: 700, color: "#111827", marginBottom: "1rem" }}>
+                General Discussion
+              </h2>
+              <div
+                onClick={() => router.push("/dashboard/forum/general")}
+                style={{ backgroundColor: "white", borderRadius: "1rem", boxShadow: "0 4px 6px -1px rgba(0,0,0,0.1)", border: "2px solid var(--color-ijf-accent)", padding: isMobile ? "1.25rem" : "2rem", cursor: "pointer" }}
+              >
+                <div style={{ display: "flex", alignItems: isMobile ? "flex-start" : "center", justifyContent: "space-between", gap: "1rem" }}>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "0.75rem" }}>
+                      <div style={{ width: "2.75rem", height: "2.75rem", borderRadius: "0.75rem", backgroundColor: "var(--color-ijf-accent)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                        <svg className="w-5 h-5" style={{ color: "var(--color-ijf-bg)" }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8h2a2 2 0 012 2v6a2 2 0 01-2 2h-2v4l-4-4H9a1.994 1.994 0 01-1.414-.586m0 0L11 14h4a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2v4l.586-.586z" />
+                        </svg>
+                      </div>
+                      <div>
+                        <h2 style={{ fontSize: isMobile ? "1.1rem" : "1.5rem", fontWeight: 700, color: "#111827", margin: 0 }}>
+                          IJF General Discussion
+                        </h2>
+                        <p style={{ fontSize: "0.8rem", fontWeight: 600, color: "var(--color-ijf-accent)", margin: 0 }}>
+                          Open to all members{generalNewThreadCount > 0 ? ` • ${generalNewThreadCount} new` : ""}
+                        </p>
+                      </div>
+                    </div>
+                    {!isMobile && (
+                      <p style={{ color: "#4b5563", lineHeight: 1.6, margin: 0 }}>
+                        Open forum for all members — announcements, general topics, and cross-group discussions
+                      </p>
+                    )}
+                  </div>
+                  <div style={{ textAlign: "center", flexShrink: 0 }}>
+                    <div style={{ fontSize: isMobile ? "2rem" : "3rem", fontWeight: 700, color: "var(--color-ijf-accent)" }}>
+                      {generalThreadCount}
+                    </div>
+                    <div style={{ fontSize: "0.75rem", color: "#6b7280", fontWeight: 500 }}>
+                      {generalThreadCount === 1 ? "thread" : "threads"}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </section>
+
           </div>
         )}
       </div>
+
+      {/* Email modal */}
+      {emailModal.open && emailModal.group && (
+        <div style={{ position: "fixed", inset: 0, backgroundColor: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 50 }}>
+          <div style={{ backgroundColor: "white", borderRadius: "0.75rem", padding: "2rem", width: "100%", maxWidth: "36rem", margin: "1rem", maxHeight: "90vh", overflowY: "auto" }}>
+            <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: "1.5rem" }}>
+              <div>
+                <h2 style={{ fontSize: "1.25rem", fontWeight: 700, color: "#111827", margin: 0 }}>
+                  Email Group: {emailModal.group.name}
+                </h2>
+                <p style={{ fontSize: "0.875rem", color: "#6b7280", marginTop: "0.25rem" }}>
+                  Send a message to your working group members.
+                </p>
+              </div>
+              <button onClick={() => setEmailModal(EMPTY_EMAIL_MODAL)} style={{ padding: "0.375rem 0.75rem", borderRadius: "0.5rem", backgroundColor: "#f3f4f6", cursor: "pointer", fontSize: "0.875rem" }}>
+                Close
+              </button>
+            </div>
+
+            {emailModal.sent ? (
+              <div style={{ padding: "1.5rem", borderRadius: "0.75rem", backgroundColor: "#f0fdf4", border: "1px solid #bbf7d0", textAlign: "center" }}>
+                <p style={{ fontWeight: 700, color: "#166534", marginBottom: "0.5rem" }}>Email sent</p>
+                <button onClick={() => setEmailModal(EMPTY_EMAIL_MODAL)} style={{ padding: "0.5rem 1.5rem", borderRadius: "0.5rem", backgroundColor: "#166534", color: "white", fontWeight: 600, cursor: "pointer" }}>Done</button>
+              </div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem" }}>
+                  {(["members_and_coordinator", "members_only"] as const).map((opt) => (
+                    <button
+                      key={opt}
+                      onClick={() => setEmailModal((m) => ({ ...m, audience: opt }))}
+                      style={{ padding: "0.75rem", borderRadius: "0.625rem", border: `1px solid ${emailModal.audience === opt ? "rgba(228,185,91,0.5)" : "#e5e7eb"}`, backgroundColor: emailModal.audience === opt ? "rgba(228,185,91,0.1)" : "white", textAlign: "left", cursor: "pointer" }}
+                    >
+                      <p style={{ fontSize: "0.8125rem", fontWeight: 600, color: "#111827", margin: "0 0 0.2rem" }}>
+                        {opt === "members_and_coordinator" ? "Members + you" : "Members only"}
+                      </p>
+                      <p style={{ fontSize: "0.75rem", color: "#6b7280", margin: 0 }}>
+                        {opt === "members_and_coordinator" ? "All group members including yourself" : "All assigned members, excluding yourself"}
+                      </p>
+                    </button>
+                  ))}
+                </div>
+
+                <div>
+                  <label style={{ display: "block", fontSize: "0.875rem", fontWeight: 500, color: "#374151", marginBottom: "0.375rem" }}>Subject</label>
+                  <input
+                    type="text"
+                    value={emailModal.subject}
+                    onChange={(e) => setEmailModal((m) => ({ ...m, subject: e.target.value }))}
+                    style={{ width: "100%", padding: "0.625rem 0.875rem", borderRadius: "0.5rem", border: "1px solid #d1d5db", fontSize: "0.9375rem", boxSizing: "border-box" }}
+                  />
+                </div>
+
+                <div>
+                  <label style={{ display: "block", fontSize: "0.875rem", fontWeight: 500, color: "#374151", marginBottom: "0.375rem" }}>Message</label>
+                  <textarea
+                    rows={7}
+                    value={emailModal.message}
+                    onChange={(e) => setEmailModal((m) => ({ ...m, message: e.target.value }))}
+                    placeholder="Write your update..."
+                    style={{ width: "100%", padding: "0.625rem 0.875rem", borderRadius: "0.5rem", border: "1px solid #d1d5db", fontSize: "0.9375rem", resize: "vertical", boxSizing: "border-box" }}
+                  />
+                </div>
+
+                {emailModal.error && (
+                  <p style={{ fontSize: "0.875rem", color: "#991b1b", backgroundColor: "#fef2f2", padding: "0.75rem", borderRadius: "0.5rem", border: "1px solid #fecaca" }}>{emailModal.error}</p>
+                )}
+
+                <div style={{ display: "flex", gap: "0.75rem" }}>
+                  <button
+                    onClick={sendGroupEmail}
+                    disabled={emailModal.sending || !emailModal.subject.trim() || !emailModal.message.trim()}
+                    style={{ padding: "0.75rem 1.5rem", borderRadius: "0.5rem", backgroundColor: "#111827", color: "white", fontWeight: 600, cursor: "pointer", opacity: emailModal.sending || !emailModal.subject.trim() || !emailModal.message.trim() ? 0.5 : 1 }}
+                  >
+                    {emailModal.sending ? "Sending..." : "Send Email"}
+                  </button>
+                  <button onClick={() => setEmailModal(EMPTY_EMAIL_MODAL)} style={{ padding: "0.75rem 1.5rem", borderRadius: "0.5rem", backgroundColor: "#f3f4f6", cursor: "pointer" }}>
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
     </DashboardLayout>
   );
 }
