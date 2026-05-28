@@ -5,6 +5,99 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import DashboardLayout from "@/app/components/dashboard/DashboardLayout";
 
+function FocusEditor({
+  groupId,
+  currentFocus,
+  canEdit,
+  onSaved,
+}: {
+  groupId: string;
+  currentFocus?: string;
+  canEdit: boolean;
+  onSaved: (groupId: string, value: string) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [input, setInput] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      const res = await fetch(`/api/working-groups/${groupId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "setFocus", currentFocus: input }),
+      });
+      const result = await res.json();
+      if (!res.ok || !result.success) throw new Error(result.error);
+      onSaved(groupId, input);
+      setEditing(false);
+    } catch {
+      // leave editor open on error
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div style={{ borderTop: "1px solid #f3f4f6", paddingTop: "0.75rem" }}>
+      {editing ? (
+        <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }} onClick={(e) => e.stopPropagation()}>
+          <label style={{ fontSize: "0.7rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "#9ca3af" }}>
+            Current focus
+          </label>
+          <textarea
+            autoFocus
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            placeholder="What is this group currently working towards?"
+            maxLength={300}
+            rows={3}
+            style={{ width: "100%", padding: "0.5rem 0.625rem", borderRadius: "0.5rem", border: "1px solid #d1d5db", fontSize: "0.8125rem", resize: "vertical", boxSizing: "border-box", color: "#111827" }}
+          />
+          <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
+            <button
+              onClick={handleSave}
+              disabled={saving}
+              style={{ padding: "0.375rem 0.875rem", borderRadius: "0.375rem", backgroundColor: "var(--color-ijf-accent)", color: "var(--color-ijf-bg)", fontWeight: 600, fontSize: "0.8rem", cursor: "pointer", opacity: saving ? 0.6 : 1 }}
+            >
+              {saving ? "Saving…" : "Save"}
+            </button>
+            <button
+              onClick={() => setEditing(false)}
+              style={{ padding: "0.375rem 0.875rem", borderRadius: "0.375rem", backgroundColor: "#f3f4f6", color: "#374151", fontWeight: 600, fontSize: "0.8rem", cursor: "pointer" }}
+            >
+              Cancel
+            </button>
+            <span style={{ fontSize: "0.7rem", color: "#9ca3af", marginLeft: "auto" }}>{input.length}/300</span>
+          </div>
+        </div>
+      ) : (
+        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "0.5rem" }}>
+          <div style={{ flex: 1 }}>
+            <p style={{ fontSize: "0.7rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "#9ca3af", margin: "0 0 0.25rem" }}>
+              Current focus
+            </p>
+            {currentFocus ? (
+              <p style={{ fontSize: "0.8125rem", color: "#374151", margin: 0, lineHeight: 1.5 }}>{currentFocus}</p>
+            ) : (
+              <p style={{ fontSize: "0.8125rem", color: "#d1d5db", margin: 0, fontStyle: "italic" }}>No current focus set</p>
+            )}
+          </div>
+          {canEdit && (
+            <button
+              onClick={(e) => { e.stopPropagation(); setInput(currentFocus || ""); setEditing(true); }}
+              style={{ flexShrink: 0, padding: "0.25rem 0.5rem", borderRadius: "0.375rem", border: "1px solid #e5e7eb", backgroundColor: "white", color: "#6b7280", fontSize: "0.72rem", cursor: "pointer" }}
+            >
+              {currentFocus ? "Edit" : "+ Set focus"}
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 interface WorkingGroupMemberSummary {
   _id: string;
   name: string;
@@ -85,30 +178,11 @@ export default function ForumHomePage() {
   const [loading, setLoading] = useState(true);
   const [isMobile, setIsMobile] = useState(false);
   const [emailModal, setEmailModal] = useState<EmailModalState>(EMPTY_EMAIL_MODAL);
-  const [focusEditing, setFocusEditing] = useState<string | null>(null);
-  const [focusInput, setFocusInput] = useState("");
-  const [focusSaving, setFocusSaving] = useState(false);
 
-  const saveFocus = async (groupId: string, value: string) => {
-    setFocusSaving(true);
-    try {
-      const res = await fetch(`/api/working-groups/${groupId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "setFocus", currentFocus: value }),
-      });
-      const result = await res.json();
-      if (!res.ok || !result.success) throw new Error(result.error);
-      setWorkingGroups((prev) =>
-        prev.map((g) => g._id === groupId ? { ...g, currentFocus: value } : g)
-      );
-      setFocusEditing(null);
-      setFocusInput("");
-    } catch {
-      // leave editor open
-    } finally {
-      setFocusSaving(false);
-    }
+  const handleFocusSaved = (groupId: string, value: string) => {
+    setWorkingGroups((prev) =>
+      prev.map((g) => g._id === groupId ? { ...g, currentFocus: value } : g)
+    );
   };
 
   useEffect(() => {
@@ -408,65 +482,13 @@ export default function ForumHomePage() {
           )}
         </div>
 
-        {/* Current focus — shown to everyone, editable by coordinators and admins */}
-        <div style={{ borderTop: "1px solid #f3f4f6", paddingTop: "0.75rem" }}>
-          {focusEditing === group._id ? (
-            <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }} onClick={(e) => e.stopPropagation()}>
-              <label style={{ fontSize: "0.7rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "#9ca3af" }}>
-                Current focus
-              </label>
-              <textarea
-                autoFocus
-                value={focusInput}
-                onChange={(e) => setFocusInput(e.target.value)}
-                placeholder="What is this group currently working towards?"
-                maxLength={300}
-                rows={3}
-                style={{ width: "100%", padding: "0.5rem 0.625rem", borderRadius: "0.5rem", border: "1px solid #d1d5db", fontSize: "0.8125rem", resize: "vertical", boxSizing: "border-box", color: "#111827" }}
-              />
-              <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
-                <button
-                  onClick={() => saveFocus(group._id, focusInput)}
-                  disabled={focusSaving}
-                  style={{ padding: "0.375rem 0.875rem", borderRadius: "0.375rem", backgroundColor: "var(--color-ijf-accent)", color: "var(--color-ijf-bg)", fontWeight: 600, fontSize: "0.8rem", cursor: "pointer", opacity: focusSaving ? 0.6 : 1 }}
-                >
-                  {focusSaving ? "Saving…" : "Save"}
-                </button>
-                <button
-                  onClick={() => { setFocusEditing(null); setFocusInput(""); }}
-                  style={{ padding: "0.375rem 0.875rem", borderRadius: "0.375rem", backgroundColor: "#f3f4f6", color: "#374151", fontWeight: 600, fontSize: "0.8rem", cursor: "pointer" }}
-                >
-                  Cancel
-                </button>
-                <span style={{ fontSize: "0.7rem", color: "#9ca3af", marginLeft: "auto" }}>{focusInput.length}/300</span>
-              </div>
-            </div>
-          ) : (
-            <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "0.5rem" }}>
-              <div style={{ flex: 1 }}>
-                <p style={{ fontSize: "0.7rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "#9ca3af", margin: "0 0 0.25rem" }}>
-                  Current focus
-                </p>
-                {group.currentFocus ? (
-                  <p style={{ fontSize: "0.8125rem", color: "#374151", margin: 0, lineHeight: 1.5 }}>
-                    {group.currentFocus}
-                  </p>
-                ) : (
-                  <p style={{ fontSize: "0.8125rem", color: "#d1d5db", margin: 0, fontStyle: "italic" }}>
-                    No current focus set
-                  </p>
-                )}
-              </div>
-              {showActions && (
-                <button
-                  onClick={(e) => { e.stopPropagation(); setFocusEditing(group._id); setFocusInput(group.currentFocus || ""); }}
-                  style={{ flexShrink: 0, padding: "0.25rem 0.5rem", borderRadius: "0.375rem", border: "1px solid #e5e7eb", backgroundColor: "white", color: "#6b7280", fontSize: "0.72rem", cursor: "pointer" }}
-                >
-                  {group.currentFocus ? "Edit" : "+ Set focus"}
-                </button>
-              )}
-            </div>
-          )}
+        <div onClick={(e) => e.stopPropagation()}>
+          <FocusEditor
+            groupId={group._id}
+            currentFocus={group.currentFocus}
+            canEdit={showActions}
+            onSaved={handleFocusSaved}
+          />
         </div>
 
         {group.lastActivityAt && (
