@@ -67,8 +67,7 @@ export async function PATCH(
     const { threadId } = await params;
 
     const body = await request.json();
-    const { pinned, status, publicToMembers, action } = body;
-
+    const { pinned, status, publicToMembers, action, tags } = body;
 
     const thread = await DiscussionThreadModel.findById(threadId).lean() as any;
 
@@ -98,6 +97,46 @@ export async function PATCH(
     const isAdmin =
       currentUser.role === "super_admin" || currentUser.role === "admin";
 
+    const isThreadAuthor =
+      thread.createdBy?.toString() === currentUser._id.toString();
+
+    // Check coordinator status for this thread's working group
+    let isCoordinator = false;
+    if (!isAdmin && !isThreadAuthor && thread.workingGroups?.length > 0) {
+      const wg = await WorkingGroupModel.findById(thread.workingGroups[0])
+        .select("coordinator")
+        .lean() as any;
+      isCoordinator = wg?.coordinator?.toString() === currentUser._id.toString();
+    }
+
+    // Tag updates are allowed for admin, coordinator, or original author
+    if (action === "setTags" && Array.isArray(tags)) {
+      if (!isAdmin && !isCoordinator && !isThreadAuthor) {
+        return NextResponse.json(
+          { success: false, error: "Access denied" },
+          { status: 403 }
+        );
+      }
+      const cleaned = tags
+        .map((t: string) => t.trim().toLowerCase())
+        .filter((t: string) => t.length > 0 && t.length <= 30)
+        .slice(0, 10);
+
+      const updatedThread = await DiscussionThreadModel.findByIdAndUpdate(
+        threadId,
+        { tags: cleaned },
+        { new: true }
+      )
+        .populate("createdBy", "name image email")
+        .lean();
+
+      return NextResponse.json({
+        success: true,
+        data: withReactionState(updatedThread as any, currentUser._id.toString()),
+      });
+    }
+
+    // All other mutations are admin-only
     if (!isAdmin) {
       return NextResponse.json(
         { success: false, error: "Admin access required" },
@@ -105,13 +144,13 @@ export async function PATCH(
       );
     }
 
-const updates: any = {};
-if (typeof pinned === "boolean") updates.pinned = pinned;
-if (action === "pin") updates.pinned = true;
-if (action === "unpin") updates.pinned = false;
-if (status) updates.status = status;
-if (action === "setStatus" && body.status) updates.status = body.status;
-if (typeof publicToMembers === "boolean") updates.publicToMembers = publicToMembers;
+    const updates: any = {};
+    if (typeof pinned === "boolean") updates.pinned = pinned;
+    if (action === "pin") updates.pinned = true;
+    if (action === "unpin") updates.pinned = false;
+    if (status) updates.status = status;
+    if (action === "setStatus" && body.status) updates.status = body.status;
+    if (typeof publicToMembers === "boolean") updates.publicToMembers = publicToMembers;
 
     const updatedThread = await DiscussionThreadModel.findByIdAndUpdate(
       threadId,

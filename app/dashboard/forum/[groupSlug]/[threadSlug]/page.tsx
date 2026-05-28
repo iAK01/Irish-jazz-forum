@@ -131,6 +131,9 @@ export default function WorkingGroupThreadView() {
   const [deleteError, setDeleteError] = useState("");
   const [isMobile, setIsMobile] = useState(false);
   const [quoteReplyTo, setQuoteReplyTo] = useState<QuoteReplyState | null>(null);
+  const [editingTags, setEditingTags] = useState(false);
+  const [tagInput, setTagInput] = useState("");
+  const [savingTags, setSavingTags] = useState(false);
 
   useEffect(() => {
     const check = () => setIsMobile(window.innerWidth < 768);
@@ -369,6 +372,46 @@ export default function WorkingGroupThreadView() {
   const currentUserId = currentUser.id ?? currentUser._id ?? "";
   const isAdmin = currentUser.role === "super_admin" || currentUser.role === "admin";
   const isSuperAdmin = currentUser.role === "super_admin";
+  const isCoordinator = group?.coordinator?._id?.toString() === currentUserId;
+  const isThreadAuthor = thread.createdBy._id?.toString() === currentUserId;
+  const canEditTags = isAdmin || isCoordinator || isThreadAuthor;
+
+  const saveTags = async (newTags: string[]) => {
+    if (!thread) return;
+    setSavingTags(true);
+    try {
+      const res = await fetch(`/api/threads/${thread._id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "setTags", tags: newTags }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) throw new Error(data.error || "Failed to save tags");
+      setThread((t) => t ? { ...t, tags: newTags } : t);
+      setEditingTags(false);
+      setTagInput("");
+    } catch {
+      // leave editing open so user can retry
+    } finally {
+      setSavingTags(false);
+    }
+  };
+
+  const handleTagInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter" || e.key === ",") {
+      e.preventDefault();
+      const value = tagInput.trim().toLowerCase().replace(/,$/, "");
+      if (value && !thread.tags.includes(value) && thread.tags.length < 10) {
+        saveTags([...thread.tags, value]);
+      } else {
+        setTagInput("");
+      }
+    }
+    if (e.key === "Escape") {
+      setEditingTags(false);
+      setTagInput("");
+    }
+  };
 
   return (
     <DashboardLayout title={thread.title} userName={session?.user?.name || ""}>
@@ -389,20 +432,19 @@ export default function WorkingGroupThreadView() {
 
         {/* Header */}
         <div style={{
-          marginBottom: "2rem",
-          padding: isMobile ? "1.25rem" : "2rem",
+          marginBottom: "1.25rem",
+          padding: isMobile ? "1rem 1.125rem" : "1.125rem 1.5rem",
           borderRadius: "0.75rem",
           background: "linear-gradient(135deg, var(--color-ijf-bg) 0%, #1a1f2e 100%)",
         }}>
-          {/* Title row */}
-          <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "1rem", marginBottom: "0.75rem" }}>
-            <div style={{ display: "flex", alignItems: "flex-start", gap: "0.5rem", flex: 1 }}>
-              {thread.pinned && <span style={{ fontSize: "1.5rem", flexShrink: 0 }}>📌</span>}
-              <h1 style={{ fontSize: isMobile ? "1.375rem" : "2rem", fontWeight: 700, color: "white", lineHeight: 1.3 }}>
+          {/* Title + admin menu */}
+          <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "0.75rem", marginBottom: "0.625rem" }}>
+            <div style={{ display: "flex", alignItems: "flex-start", gap: "0.4rem", flex: 1 }}>
+              {thread.pinned && <span style={{ fontSize: "1rem", flexShrink: 0, marginTop: "0.1rem" }}>📌</span>}
+              <h1 style={{ fontSize: isMobile ? "1.125rem" : "1.375rem", fontWeight: 700, color: "white", lineHeight: 1.35, margin: 0 }}>
                 {thread.title}
               </h1>
             </div>
-
             {isAdmin && (
               <ThreadAdminMenu
                 thread={thread}
@@ -414,90 +456,84 @@ export default function WorkingGroupThreadView() {
             )}
           </div>
 
-          {/* Status + visibility + tags */}
-          <div style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem", marginBottom: "1rem" }}>
-            <span style={{
-              ...(statusStyles[thread.status] || statusStyles.archived),
-              padding: "0.2rem 0.75rem",
-              borderRadius: "9999px",
-              fontSize: "0.75rem",
-              fontWeight: 600,
-              border: "1px solid",
-            }}>
-              {thread.status}
-            </span>
-
-            {/* Visibility badge */}
-            <span style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "0.3rem",
-              padding: "0.2rem 0.75rem",
-              borderRadius: "9999px",
-              fontSize: "0.75rem",
-              fontWeight: 600,
-              backgroundColor: thread.publicToMembers ? "rgba(228,185,91,0.2)" : "rgba(255,255,255,0.1)",
-              color: thread.publicToMembers ? "var(--color-ijf-accent)" : "#9ca3af",
-              border: `1px solid ${thread.publicToMembers ? "rgba(228,185,91,0.4)" : "rgba(255,255,255,0.15)"}`,
-            }}>
-              {thread.publicToMembers ? (
-                <>
-                  <svg width="10" height="10" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                    <circle cx="12" cy="12" r="10" /><path d="M2 12h20M12 2a15.3 15.3 0 010 20M12 2a15.3 15.3 0 000 20" />
-                  </svg>
-                  Public
-                </>
-              ) : (
-                <>
-                  <svg width="10" height="10" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                    <rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0110 0v4" />
-                  </svg>
-                  Group only
-                </>
-              )}
-            </span>
-
-            {thread.tags && thread.tags.map((tag, idx) => (
-              <span key={idx} style={{ padding: "0.2rem 0.75rem", fontSize: "0.75rem", fontWeight: 500, borderRadius: "9999px", backgroundColor: "rgba(228,185,91,0.3)", color: "white" }}>
-                {tag}
-              </span>
-            ))}
-          </div>
-
-          {/* Author + date */}
-          <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", fontSize: "0.875rem", color: "#d1d5db" }}>
+          {/* Single metadata row: avatar · author · date · counts · status · tags */}
+          <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: "0.5rem", rowGap: "0.375rem" }}>
             {thread.createdBy.image ? (
-              <img src={thread.createdBy.image} alt={thread.createdBy.name} style={{ width: "2rem", height: "2rem", borderRadius: "9999px" }} />
+              <img src={thread.createdBy.image} alt={thread.createdBy.name} style={{ width: "1.5rem", height: "1.5rem", borderRadius: "9999px", flexShrink: 0 }} />
             ) : (
-              <div style={{ width: "2rem", height: "2rem", borderRadius: "9999px", backgroundColor: "var(--color-ijf-accent)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--color-ijf-bg)", fontSize: "0.8rem", fontWeight: 700, flexShrink: 0 }}>
+              <div style={{ width: "1.5rem", height: "1.5rem", borderRadius: "9999px", backgroundColor: "var(--color-ijf-accent)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--color-ijf-bg)", fontSize: "0.6rem", fontWeight: 700, flexShrink: 0 }}>
                 {thread.createdBy.name.charAt(0)}
               </div>
             )}
-            <span style={{ color: "white", fontWeight: 500 }}>{thread.createdBy.name}</span>
-            <span style={{ color: "#6b7280" }}>•</span>
-            <span>{new Date(thread.createdAt).toLocaleDateString("en-IE", { day: "numeric", month: isMobile ? "short" : "long", year: "numeric" })}</span>
+            <span style={{ fontSize: "0.8125rem", color: "white", fontWeight: 500 }}>{thread.createdBy.name}</span>
+            <span style={{ color: "#4b5563", fontSize: "0.75rem" }}>·</span>
+            <span style={{ fontSize: "0.8rem", color: "#9ca3af" }}>
+              {new Date(thread.createdAt).toLocaleDateString("en-IE", { day: "numeric", month: "short", year: "numeric" })}
+            </span>
+            <span style={{ color: "#4b5563", fontSize: "0.75rem" }}>·</span>
+            <span style={{ fontSize: "0.8rem", color: "#9ca3af" }}>{thread.replyCount} {thread.replyCount === 1 ? "reply" : "replies"}</span>
+            <span style={{ color: "#4b5563", fontSize: "0.75rem" }}>·</span>
+            <span style={{ fontSize: "0.8rem", color: "#9ca3af" }}>{thread.viewCount} views</span>
+
+            {thread.status && thread.status !== "active" && (
+              <span style={{
+                ...(statusStyles[thread.status] || statusStyles.archived),
+                padding: "0.1rem 0.55rem",
+                borderRadius: "9999px",
+                fontSize: "0.7rem",
+                fontWeight: 600,
+                border: "1px solid",
+              }}>
+                {thread.status}
+              </span>
+            )}
+
+            {thread.status === "active" && (
+              <span style={{ padding: "0.1rem 0.55rem", borderRadius: "9999px", fontSize: "0.7rem", fontWeight: 600, backgroundColor: "#dcfce7", color: "#166534", border: "1px solid #bbf7d0" }}>
+                active
+              </span>
+            )}
+
+            {/* Tags — removable chips for eligible users, read-only for everyone else */}
+            {thread.tags && thread.tags.map((tag) => (
+              <span key={tag} style={{ display: "inline-flex", alignItems: "center", gap: "0.25rem", padding: "0.1rem 0.4rem 0.1rem 0.5rem", fontSize: "0.7rem", fontWeight: 500, borderRadius: "9999px", backgroundColor: "rgba(228,185,91,0.25)", color: "#e4b95b" }}>
+                {tag}
+                {canEditTags && (
+                  <button
+                    onClick={() => saveTags(thread.tags.filter((t) => t !== tag))}
+                    disabled={savingTags}
+                    style={{ background: "none", border: "none", cursor: "pointer", color: "#e4b95b", lineHeight: 1, padding: 0, opacity: savingTags ? 0.4 : 0.7, fontSize: "0.8rem" }}
+                    title="Remove tag"
+                  >×</button>
+                )}
+              </span>
+            ))}
+
+            {/* Add tag input — eligible users only */}
+            {canEditTags && !editingTags && (
+              <button
+                onClick={() => setEditingTags(true)}
+                style={{ display: "inline-flex", alignItems: "center", gap: "0.2rem", padding: "0.1rem 0.5rem", fontSize: "0.7rem", fontWeight: 500, borderRadius: "9999px", backgroundColor: "rgba(255,255,255,0.08)", color: "#9ca3af", border: "1px dashed rgba(255,255,255,0.2)", cursor: "pointer" }}
+              >
+                + tag
+              </button>
+            )}
+
+            {canEditTags && editingTags && (
+              <input
+                autoFocus
+                value={tagInput}
+                onChange={(e) => setTagInput(e.target.value)}
+                onKeyDown={handleTagInputKeyDown}
+                onBlur={() => { setEditingTags(false); setTagInput(""); }}
+                placeholder="type + enter"
+                style={{ padding: "0.1rem 0.5rem", fontSize: "0.7rem", borderRadius: "9999px", border: "1px solid rgba(228,185,91,0.5)", backgroundColor: "rgba(228,185,91,0.1)", color: "white", outline: "none", width: "7rem" }}
+              />
+            )}
           </div>
 
-          {/* Stats bar */}
-          <div style={{ display: "flex", gap: "1.5rem", marginTop: "1.5rem", paddingTop: "1rem", borderTop: "1px solid rgba(255,255,255,0.2)" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-              <svg style={{ color: "#d1d5db", width: "1rem", height: "1rem" }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-              </svg>
-              <span style={{ fontSize: "0.875rem", fontWeight: 600, color: "white" }}>{thread.replyCount}</span>
-              <span style={{ fontSize: "0.875rem", color: "#d1d5db" }}>replies</span>
-            </div>
-            <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-              <svg style={{ color: "#d1d5db", width: "1rem", height: "1rem" }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-              </svg>
-              <span style={{ fontSize: "0.875rem", fontWeight: 600, color: "white" }}>{thread.viewCount}</span>
-              <span style={{ fontSize: "0.875rem", color: "#d1d5db" }}>views</span>
-            </div>
-          </div>
-
-          <div style={{ marginTop: "1rem" }}>
+          {/* Reactions */}
+          <div style={{ marginTop: "0.75rem" }}>
             <ReactionBar
               targetType="thread"
               targetId={thread._id}
@@ -506,22 +542,25 @@ export default function WorkingGroupThreadView() {
               variant="dark"
             />
           </div>
-
-          {/* Non-active status warning */}
-          {thread.status && thread.status !== "active" && thread.status !== "open" && (
-            <div style={{
-              ...(statusStyles[thread.status] || statusStyles.archived),
-              marginTop: "1rem",
-              padding: "0.75rem 1rem",
-              borderRadius: "0.5rem",
-              border: "1px solid",
-              fontSize: "0.875rem",
-              fontWeight: 500,
-            }}>
-              This thread is marked as: <strong>{thread.status}</strong>
-            </div>
-          )}
         </div>
+
+        {/* Non-active status note — outside the header, slim left-border style */}
+        {thread.status && thread.status !== "active" && thread.status !== "open" && (
+          <div style={{
+            ...(statusStyles[thread.status] || statusStyles.archived),
+            marginBottom: "1.25rem",
+            padding: "0.625rem 1rem",
+            borderRadius: "0.5rem",
+            borderLeft: "3px solid",
+            fontSize: "0.8125rem",
+            fontWeight: 500,
+          }}>
+            This thread is marked as <strong>{thread.status}</strong>
+            {thread.status === "paused" && " — waiting on an external party to act"}
+            {thread.status === "declined" && " — this proposal was not taken up"}
+            {thread.status === "stalled" && " — progress has stalled"}
+          </div>
+        )}
 
         {/* Delete error */}
         {deleteError && (
