@@ -427,6 +427,9 @@ export default function WorkingGroupThreadList() {
               <button onClick={() => router.push("/dashboard/forum/whats-new")} style={{ padding: "0.625rem 1rem", borderRadius: "0.5rem", fontWeight: 600, backgroundColor: "rgba(255,255,255,0.08)", color: "white", border: "1px solid rgba(255,255,255,0.12)", width: isMobile ? "100%" : "auto", cursor: "pointer", fontSize: "0.875rem" }}>
                 What&apos;s New
               </button>
+              <button onClick={() => router.push("/dashboard/forum/search")} style={{ padding: "0.625rem 1rem", borderRadius: "0.5rem", fontWeight: 600, backgroundColor: "rgba(255,255,255,0.08)", color: "white", border: "1px solid rgba(255,255,255,0.12)", width: isMobile ? "100%" : "auto", cursor: "pointer", fontSize: "0.875rem" }}>
+                Search
+              </button>
 
               {canManage && (
                 <button

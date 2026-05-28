@@ -249,7 +249,11 @@ export default function ForumHomePage() {
         display: "flex",
         flexDirection: "column",
         gap: "0.875rem",
+        transition: "box-shadow 0.2s",
+        cursor: "pointer",
       }}
+      onMouseEnter={(e) => { (e.currentTarget as HTMLDivElement).style.boxShadow = "0 6px 20px rgba(0,0,0,0.1)"; }}
+      onMouseLeave={(e) => { (e.currentTarget as HTMLDivElement).style.boxShadow = "0 2px 4px rgba(0,0,0,0.06)"; }}
     >
       {/* Top row: name + thread count */}
       <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "0.75rem" }}>
@@ -274,6 +278,13 @@ export default function ForumHomePage() {
               Led by {group.coordinatorName}
             </p>
           )}
+          <div style={{ display: "flex", flexWrap: "wrap", gap: "0.4rem", marginTop: "0.375rem" }}>
+            {group.memberCount > 0 && (
+              <span style={{ display: "inline-flex", alignItems: "center", padding: "0.2rem 0.55rem", borderRadius: "9999px", backgroundColor: "rgba(228,185,91,0.12)", color: "#8a6612", fontSize: "0.72rem", fontWeight: 700 }}>
+                {group.memberCount} {group.memberCount === 1 ? "person assigned" : "people assigned"}
+              </span>
+            )}
+          </div>
         </div>
         <div style={{ textAlign: "right", flexShrink: 0 }}>
           <div style={{ fontSize: isMobile ? "1.5rem" : "1.875rem", fontWeight: 700, color: "var(--color-ijf-primary)", lineHeight: 1 }}>
@@ -332,35 +343,46 @@ export default function ForumHomePage() {
           Last activity: {new Date(group.lastActivityAt).toLocaleDateString("en-IE", { day: "numeric", month: "short", year: "numeric" })}
         </p>
       )}
+
+      <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", paddingTop: "0.625rem", borderTop: "1px solid #f3f4f6" }}>
+        <svg width="14" height="14" fill="none" stroke={group.threadCount === 0 ? "#d1d5db" : "#9ca3af"} strokeWidth={2} viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+        </svg>
+        <span style={{ fontSize: "0.72rem", color: "#6b7280" }}>
+          {group.threadCount === 0 ? "No discussions yet" : "Active discussions"}
+        </span>
+      </div>
     </div>
   );
 
   return (
     <DashboardLayout title="IJF Discussion Forum" userName={session.user.name}>
 
-      {/* Hero */}
+      {/* Compact header bar */}
       <div style={{
-        marginBottom: "1.5rem",
-        padding: isMobile ? "1.25rem" : "2.5rem 2rem",
+        marginBottom: "1.25rem",
+        padding: isMobile ? "0.875rem 1rem" : "1rem 1.5rem",
         borderRadius: "0.75rem",
         background: "linear-gradient(135deg, var(--color-ijf-bg) 0%, #1a1f2e 100%)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+        gap: "1rem",
+        flexWrap: "wrap",
       }}>
-        <h1 style={{ fontSize: isMobile ? "1.5rem" : "2rem", fontWeight: 700, color: "white", marginBottom: "0.5rem" }}>
+        <h1 style={{ fontSize: isMobile ? "1.1rem" : "1.25rem", fontWeight: 700, color: "white", margin: 0 }}>
           Welcome back, {session.user.name?.split(" ")[0]}
         </h1>
-        <p style={{ fontSize: isMobile ? "0.9rem" : "1.1rem", color: "#d1d5db" }}>
-          Collaborate with the Irish jazz community through focused discussions
-        </p>
-        <div style={{ marginTop: "1rem", display: "flex", gap: "0.75rem", flexWrap: "wrap" }}>
+        <div style={{ display: "flex", gap: "0.625rem", flexWrap: "wrap" }}>
           <button
             onClick={() => router.push("/dashboard/forum/whats-new")}
-            style={{ padding: "0.7rem 1rem", borderRadius: "0.625rem", backgroundColor: "var(--color-ijf-accent)", color: "var(--color-ijf-bg)", fontWeight: 700, cursor: "pointer" }}
+            style={{ padding: "0.5rem 0.875rem", borderRadius: "0.5rem", backgroundColor: "var(--color-ijf-accent)", color: "var(--color-ijf-bg)", fontWeight: 700, cursor: "pointer", fontSize: "0.875rem" }}
           >
             What&apos;s New{whatsNewCount > 0 ? ` (${whatsNewCount})` : ""}
           </button>
           <button
             onClick={() => router.push("/dashboard/forum/search")}
-            style={{ padding: "0.7rem 1rem", borderRadius: "0.625rem", backgroundColor: "rgba(255,255,255,0.08)", color: "white", fontWeight: 700, border: "1px solid rgba(255,255,255,0.12)", cursor: "pointer" }}
+            style={{ padding: "0.5rem 0.875rem", borderRadius: "0.5rem", backgroundColor: "rgba(255,255,255,0.08)", color: "white", fontWeight: 700, border: "1px solid rgba(255,255,255,0.12)", cursor: "pointer", fontSize: "0.875rem" }}
           >
             Search Forum
           </button>

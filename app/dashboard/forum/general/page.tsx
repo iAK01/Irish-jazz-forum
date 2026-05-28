@@ -88,6 +88,8 @@ export default function GeneralDiscussionPage() {
     archived: { backgroundColor: "#f3f4f6", color: "#374151" },
     stalled: { backgroundColor: "#fef9c3", color: "#854d0e" },
     abandoned: { backgroundColor: "#fee2e2", color: "#991b1b" },
+    paused: { backgroundColor: "#f3e8ff", color: "#6b21a8" },
+    declined: { backgroundColor: "#fff1f2", color: "#9f1239" },
   };
 
   if (!session) {

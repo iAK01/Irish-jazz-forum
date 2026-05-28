@@ -645,6 +645,7 @@ export default function ThreadResources({
   onResourceAdded,
 }: Props) {
   const { workingDocuments, referenceFiles } = collectResources(posts);
+  const [open, setOpen] = useState(false);
   const [mode, setMode] = useState<ResourceMode>(null);
   const [docTitle, setDocTitle] = useState("");
   const [linkTitle, setLinkTitle] = useState("");
@@ -656,6 +657,8 @@ export default function ThreadResources({
   if (!driveFolderId && workingDocuments.length === 0 && referenceFiles.length === 0) {
     return null;
   }
+
+  const totalResources = workingDocuments.length + referenceFiles.length;
 
   const driveFolderUrl = driveFolderId
     ? `https://drive.google.com/drive/folders/${driveFolderId}`
@@ -777,73 +780,54 @@ export default function ThreadResources({
         overflow: "hidden",
       }}
     >
-      <div
+      {/* Accordion header — always visible */}
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
         style={{
-          padding: "1.25rem 1.5rem",
-          borderBottom: "1px solid #f3f4f6",
-          background:
-            "linear-gradient(180deg, rgba(228,185,91,0.09) 0%, rgba(255,255,255,1) 100%)",
+          width: "100%",
+          padding: "1rem 1.5rem",
+          background: "linear-gradient(180deg, rgba(228,185,91,0.09) 0%, rgba(255,255,255,1) 100%)",
+          border: "none",
+          borderBottom: open ? "1px solid #f3f4f6" : "none",
+          borderRadius: open ? "0.9rem 0.9rem 0 0" : "0.9rem",
+          cursor: "pointer",
+          textAlign: "left",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: "1rem",
         }}
       >
-        <div
-          style={{
-            display: "flex",
-            alignItems: "flex-start",
-            justifyContent: "space-between",
-            gap: "1rem",
-            flexWrap: "wrap",
-          }}
-        >
-          <div>
-            <h2 style={{ margin: 0, fontSize: "1.15rem", fontWeight: 700, color: "#111827" }}>
+        <div>
+          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+            <span style={{ fontSize: "1rem", fontWeight: 700, color: "#111827" }}>
               Thread Resources
-            </h2>
-            <p style={{ marginTop: "0.25rem", fontSize: "0.88rem", color: "#6b7280" }}>
-              Key documents and reference files gathered from this thread so the group can work from one place.
-            </p>
-          </div>
-
-          <div style={{ display: "flex", alignItems: "center", gap: "0.65rem", flexWrap: "wrap" }}>
-            {driveFolderUrl && (
-              <>
-                <ResourceActionButton
-                  label="Create Google Doc"
-                  icon={<FilePlus2 size={16} strokeWidth={2.2} />}
-                  active={mode === "create_google_doc"}
-                  onClick={() => toggleMode("create_google_doc")}
-                />
-                <ResourceActionButton
-                  label="Attach Drive Link"
-                  icon={<Plus size={16} strokeWidth={2.2} />}
-                  active={mode === "attach_drive_link"}
-                  onClick={() => toggleMode("attach_drive_link")}
-                />
-                <a
-                  href={driveFolderUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  style={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: "0.5rem",
-                    padding: "0.7rem 1rem",
-                    borderRadius: "0.65rem",
-                    backgroundColor: "var(--color-ijf-accent)",
-                    color: "var(--color-ijf-bg)",
-                    fontWeight: 700,
-                    textDecoration: "none",
-                    flexShrink: 0,
-                  }}
-                >
-                  <FolderOpen size={16} strokeWidth={2.2} />
-                  Open {groupName} Drive Folder
-                </a>
-              </>
+            </span>
+            {totalResources > 0 && (
+              <span style={{ padding: "0.1rem 0.5rem", borderRadius: "9999px", backgroundColor: "rgba(228,185,91,0.18)", color: "#8a6612", fontSize: "0.72rem", fontWeight: 700 }}>
+                {totalResources}
+              </span>
             )}
           </div>
+          <p style={{ margin: 0, marginTop: "0.15rem", fontSize: "0.82rem", color: "#6b7280" }}>
+            Documents, Drive files, and working materials for this thread
+          </p>
         </div>
-      </div>
+        <svg
+          width="18"
+          height="18"
+          fill="none"
+          stroke="#9ca3af"
+          strokeWidth={2}
+          viewBox="0 0 24 24"
+          style={{ transform: open ? "rotate(180deg)" : "none", transition: "transform 0.2s", flexShrink: 0 }}
+        >
+          <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+        </svg>
+      </button>
 
+      {open && (
       <div
         style={{
           padding: "1.25rem 1.5rem 1.5rem",
@@ -851,6 +835,44 @@ export default function ThreadResources({
           gap: "1.5rem",
         }}
       >
+        <div style={{ display: "flex", alignItems: "center", gap: "0.65rem", flexWrap: "wrap" }}>
+          {driveFolderUrl && (
+            <>
+              <ResourceActionButton
+                label="Create Google Doc"
+                icon={<FilePlus2 size={16} strokeWidth={2.2} />}
+                active={mode === "create_google_doc"}
+                onClick={() => toggleMode("create_google_doc")}
+              />
+              <ResourceActionButton
+                label="Attach Drive Link"
+                icon={<Plus size={16} strokeWidth={2.2} />}
+                active={mode === "attach_drive_link"}
+                onClick={() => toggleMode("attach_drive_link")}
+              />
+              <a
+                href={driveFolderUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "0.5rem",
+                  padding: "0.7rem 1rem",
+                  borderRadius: "0.65rem",
+                  backgroundColor: "var(--color-ijf-accent)",
+                  color: "var(--color-ijf-bg)",
+                  fontWeight: 700,
+                  textDecoration: "none",
+                  flexShrink: 0,
+                }}
+              >
+                <FolderOpen size={16} strokeWidth={2.2} />
+                Open {groupName} Drive Folder
+              </a>
+            </>
+          )}
+        </div>
         {mode && (
           <div
             style={{
@@ -1075,6 +1097,7 @@ export default function ThreadResources({
           emptyMessage="No reference files have been shared in this thread yet."
         />
       </div>
+      )}
     </div>
   );
 }

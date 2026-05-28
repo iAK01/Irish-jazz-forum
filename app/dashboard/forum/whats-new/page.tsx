@@ -90,7 +90,7 @@ export default function WhatsNewPage() {
       }
 
       setThreads(result.data || []);
-      setLastCheckedAt(result.meta?.lastForumVisitAt || null);
+      setLastCheckedAt(result.meta?.previousForumVisitAt || result.meta?.lastForumVisitAt || null);
 
       await fetch("/api/forum/visit", { method: "POST" });
     } catch (err: unknown) {

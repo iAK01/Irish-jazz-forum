@@ -236,6 +236,8 @@ export default function GeneralThreadView() {
     archived: { backgroundColor: "#f3f4f6", color: "#374151", borderColor: "#e5e7eb" },
     stalled: { backgroundColor: "#fef9c3", color: "#854d0e", borderColor: "#fef08a" },
     abandoned: { backgroundColor: "#fee2e2", color: "#991b1b", borderColor: "#fecaca" },
+    paused: { backgroundColor: "#f3e8ff", color: "#6b21a8", borderColor: "#e9d5ff" },
+    declined: { backgroundColor: "#fff1f2", color: "#9f1239", borderColor: "#fecdd3" },
   };
 
   if (loading) {
