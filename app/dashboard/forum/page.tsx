@@ -25,6 +25,7 @@ interface WorkingGroupStats {
   isMember: boolean;
   memberCount: number;
   members?: WorkingGroupMemberSummary[];
+  currentFocus?: string;
   threadCount: number;
   newThreadCount?: number;
   lastActivityAt?: string;
@@ -84,6 +85,31 @@ export default function ForumHomePage() {
   const [loading, setLoading] = useState(true);
   const [isMobile, setIsMobile] = useState(false);
   const [emailModal, setEmailModal] = useState<EmailModalState>(EMPTY_EMAIL_MODAL);
+  const [focusEditing, setFocusEditing] = useState<string | null>(null);
+  const [focusInput, setFocusInput] = useState("");
+  const [focusSaving, setFocusSaving] = useState(false);
+
+  const saveFocus = async (groupId: string, value: string) => {
+    setFocusSaving(true);
+    try {
+      const res = await fetch(`/api/working-groups/${groupId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "setFocus", currentFocus: value }),
+      });
+      const result = await res.json();
+      if (!res.ok || !result.success) throw new Error(result.error);
+      setWorkingGroups((prev) =>
+        prev.map((g) => g._id === groupId ? { ...g, currentFocus: value } : g)
+      );
+      setFocusEditing(null);
+      setFocusInput("");
+    } catch {
+      // leave editor open
+    } finally {
+      setFocusSaving(false);
+    }
+  };
 
   useEffect(() => {
     const check = () => setIsMobile(window.innerWidth < 768);
@@ -246,17 +272,17 @@ export default function ForumHomePage() {
     </div>
   );
 
-  const MemberAvatar = ({ member, isCoord }: { member: WorkingGroupMemberSummary; isCoord?: boolean }) => (
-    <div style={{ display: "flex", alignItems: "center", gap: "0.375rem" }} title={member.name}>
+  const PersonChip = ({ member, isCoord }: { member: WorkingGroupMemberSummary; isCoord?: boolean }) => (
+    <div style={{ display: "inline-flex", alignItems: "center", gap: "0.375rem" }}>
       {member.image ? (
-        <img src={member.image} alt={member.name} style={{ width: "1.5rem", height: "1.5rem", borderRadius: "9999px", border: isCoord ? "2px solid var(--color-ijf-accent)" : "2px solid #e5e7eb", flexShrink: 0 }} />
+        <img src={member.image} alt={member.name} style={{ width: "1.625rem", height: "1.625rem", borderRadius: "9999px", border: isCoord ? "2px solid var(--color-ijf-accent)" : "1.5px solid #e5e7eb", flexShrink: 0 }} />
       ) : (
-        <div style={{ width: "1.5rem", height: "1.5rem", borderRadius: "9999px", backgroundColor: isCoord ? "var(--color-ijf-accent)" : "#e5e7eb", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "0.55rem", fontWeight: 700, color: isCoord ? "var(--color-ijf-bg)" : "#6b7280", flexShrink: 0, border: isCoord ? "2px solid var(--color-ijf-accent)" : "2px solid #e5e7eb" }}>
+        <div style={{ width: "1.625rem", height: "1.625rem", borderRadius: "9999px", backgroundColor: isCoord ? "var(--color-ijf-accent)" : "#e5e7eb", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "0.6rem", fontWeight: 700, color: isCoord ? "var(--color-ijf-bg)" : "#6b7280", flexShrink: 0 }}>
           {member.name.charAt(0).toUpperCase()}
         </div>
       )}
-      <span style={{ fontSize: "0.75rem", color: isCoord ? "#111827" : "#4b5563", fontWeight: isCoord ? 600 : 400 }}>
-        {member.name.split(" ")[0]}
+      <span style={{ fontSize: "0.8rem", color: isCoord ? "#111827" : "#374151", fontWeight: isCoord ? 700 : 400 }}>
+        {member.name}
       </span>
     </div>
   );
@@ -264,8 +290,6 @@ export default function ForumHomePage() {
   const GroupCard = ({ group, showActions }: { group: WorkingGroupStats; showActions: boolean }) => {
     const coordinator = group.members?.find((m) => m._id === group.coordinatorId);
     const otherMembers = group.members?.filter((m) => m._id !== group.coordinatorId) || [];
-    const visibleOthers = otherMembers.slice(0, isMobile ? 3 : 5);
-    const hiddenCount = otherMembers.length - visibleOthers.length;
 
     return (
       <div
@@ -291,7 +315,7 @@ export default function ForumHomePage() {
             <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.25rem" }}>
               {group.isCoordinator && (
                 <span style={{ fontSize: "0.65rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", padding: "0.15rem 0.5rem", borderRadius: "9999px", backgroundColor: "rgba(228,185,91,0.18)", color: "#92701a" }}>
-                  Coordinator
+                  You coordinate this
                 </span>
               )}
               {group.isMember && !group.isCoordinator && (
@@ -319,27 +343,35 @@ export default function ForumHomePage() {
           </div>
         </div>
 
-        {/* Members row */}
+        {/* People — coordinator first, then members, then total count */}
         {group.members && group.members.length > 0 && (
-          <div style={{ display: "flex", flexWrap: "wrap", gap: "0.625rem", alignItems: "center" }}>
+          <div style={{ borderTop: "1px solid #f3f4f6", paddingTop: "0.75rem", display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+            {/* Coordinator */}
             {coordinator && (
-              <>
-                <MemberAvatar member={coordinator} isCoord />
-                {visibleOthers.length > 0 && (
-                  <div style={{ width: "1px", height: "1.25rem", backgroundColor: "#e5e7eb", flexShrink: 0 }} />
-                )}
-              </>
+              <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                <span style={{ fontSize: "0.7rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "#92701a", width: "5.5rem", flexShrink: 0 }}>Coordinator</span>
+                <PersonChip member={coordinator} isCoord />
+              </div>
             )}
-            {visibleOthers.map((m) => (
-              <MemberAvatar key={m._id} member={m} />
-            ))}
-            {hiddenCount > 0 && (
-              <span style={{ fontSize: "0.72rem", color: "#9ca3af", fontWeight: 500 }}>+{hiddenCount} more</span>
+            {/* Members */}
+            {otherMembers.length > 0 && (
+              <div style={{ display: "flex", alignItems: "flex-start", gap: "0.5rem" }}>
+                <span style={{ fontSize: "0.7rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "#9ca3af", width: "5.5rem", flexShrink: 0, paddingTop: "0.25rem" }}>Members</span>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: "0.375rem 0.75rem" }}>
+                  {otherMembers.map((m) => (
+                    <PersonChip key={m._id} member={m} />
+                  ))}
+                </div>
+              </div>
             )}
+            {/* Total count */}
+            <p style={{ margin: 0, fontSize: "0.75rem", color: "#9ca3af" }}>
+              {group.memberCount} {group.memberCount === 1 ? "person" : "people"} in this group
+            </p>
           </div>
         )}
 
-        {/* Action buttons — stop propagation so clicking a button doesn't also fire the card click */}
+        {/* Action buttons — stop propagation so buttons don't trigger the card click */}
         <div style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem" }} onClick={(e) => e.stopPropagation()}>
           <button
             onClick={() => router.push(`/dashboard/forum/${group.slug}`)}
@@ -376,20 +408,72 @@ export default function ForumHomePage() {
           )}
         </div>
 
+        {/* Current focus — shown to everyone, editable by coordinators and admins */}
+        <div style={{ borderTop: "1px solid #f3f4f6", paddingTop: "0.75rem" }}>
+          {focusEditing === group._id ? (
+            <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }} onClick={(e) => e.stopPropagation()}>
+              <label style={{ fontSize: "0.7rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "#9ca3af" }}>
+                Current focus
+              </label>
+              <textarea
+                autoFocus
+                value={focusInput}
+                onChange={(e) => setFocusInput(e.target.value)}
+                placeholder="What is this group currently working towards?"
+                maxLength={300}
+                rows={3}
+                style={{ width: "100%", padding: "0.5rem 0.625rem", borderRadius: "0.5rem", border: "1px solid #d1d5db", fontSize: "0.8125rem", resize: "vertical", boxSizing: "border-box", color: "#111827" }}
+              />
+              <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
+                <button
+                  onClick={() => saveFocus(group._id, focusInput)}
+                  disabled={focusSaving}
+                  style={{ padding: "0.375rem 0.875rem", borderRadius: "0.375rem", backgroundColor: "var(--color-ijf-accent)", color: "var(--color-ijf-bg)", fontWeight: 600, fontSize: "0.8rem", cursor: "pointer", opacity: focusSaving ? 0.6 : 1 }}
+                >
+                  {focusSaving ? "Saving…" : "Save"}
+                </button>
+                <button
+                  onClick={() => { setFocusEditing(null); setFocusInput(""); }}
+                  style={{ padding: "0.375rem 0.875rem", borderRadius: "0.375rem", backgroundColor: "#f3f4f6", color: "#374151", fontWeight: 600, fontSize: "0.8rem", cursor: "pointer" }}
+                >
+                  Cancel
+                </button>
+                <span style={{ fontSize: "0.7rem", color: "#9ca3af", marginLeft: "auto" }}>{focusInput.length}/300</span>
+              </div>
+            </div>
+          ) : (
+            <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "0.5rem" }}>
+              <div style={{ flex: 1 }}>
+                <p style={{ fontSize: "0.7rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "#9ca3af", margin: "0 0 0.25rem" }}>
+                  Current focus
+                </p>
+                {group.currentFocus ? (
+                  <p style={{ fontSize: "0.8125rem", color: "#374151", margin: 0, lineHeight: 1.5 }}>
+                    {group.currentFocus}
+                  </p>
+                ) : (
+                  <p style={{ fontSize: "0.8125rem", color: "#d1d5db", margin: 0, fontStyle: "italic" }}>
+                    No current focus set
+                  </p>
+                )}
+              </div>
+              {showActions && (
+                <button
+                  onClick={(e) => { e.stopPropagation(); setFocusEditing(group._id); setFocusInput(group.currentFocus || ""); }}
+                  style={{ flexShrink: 0, padding: "0.25rem 0.5rem", borderRadius: "0.375rem", border: "1px solid #e5e7eb", backgroundColor: "white", color: "#6b7280", fontSize: "0.72rem", cursor: "pointer" }}
+                >
+                  {group.currentFocus ? "Edit" : "+ Set focus"}
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+
         {group.lastActivityAt && (
           <p style={{ fontSize: "0.75rem", color: "#9ca3af", margin: 0 }}>
             Last activity: {new Date(group.lastActivityAt).toLocaleDateString("en-IE", { day: "numeric", month: "short", year: "numeric" })}
           </p>
         )}
-
-        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", paddingTop: "0.625rem", borderTop: "1px solid #f3f4f6" }}>
-          <svg width="14" height="14" fill="none" stroke={group.threadCount === 0 ? "#d1d5db" : "#9ca3af"} strokeWidth={2} viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
-          </svg>
-          <span style={{ fontSize: "0.72rem", color: "#6b7280" }}>
-            {group.threadCount === 0 ? "No discussions yet" : "Active discussions"}
-          </span>
-        </div>
       </div>
     );
   };

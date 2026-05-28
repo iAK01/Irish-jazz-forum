@@ -161,6 +161,7 @@ export async function GET() {
         coordinatorId: coordId || null,
         coordinatorName: group.coordinator?.name || null,
         coordinatorImage: group.coordinator?.image || null,
+        currentFocus: group.currentFocus || "",
         isCoordinator,
         isMember,
         memberCount: memberList.length,

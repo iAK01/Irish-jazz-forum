@@ -13,6 +13,9 @@ export interface WorkingGroup extends Document {
   // Visibility
   isPrivate: boolean; // Only members + steering/admin can see
   
+  // Current focus — plain-text statement of what the group is working on right now
+  currentFocus?: string;
+
   // Google Drive Integration
   googleDriveFolderId?: string; // The group's Google Drive folder ID
   
@@ -67,9 +70,15 @@ const WorkingGroupSchema = new Schema<WorkingGroup>(
       default: false,
       index: true, // Index for filtering private/public groups
     },
+    currentFocus: {
+      type: String,
+      trim: true,
+      maxlength: 300,
+      default: "",
+    },
     googleDriveFolderId: {
       type: String,
-      sparse: true, // Allow null, but index non-null values
+      sparse: true,
     },
     createdBy: {
       type: Schema.Types.ObjectId,

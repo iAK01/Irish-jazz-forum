@@ -16,12 +16,12 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const currentUser = await requireAuth(["admin", "super_admin"]);
+    const currentUser = await requireAuth();
     await dbConnect();
     const { id } = await params;
 
     const body = await request.json();
-    const { name, description, coordinatorId, members, isPrivate, isActive } = body;
+    const { name, description, coordinatorId, members, isPrivate, isActive, action, currentFocus } = body;
 
     const group = await WorkingGroupModel.findById(id).lean() as any;
 
@@ -30,6 +30,28 @@ export async function PATCH(
         { success: false, error: "Working group not found" },
         { status: 404 }
       );
+    }
+
+    const isAdmin = currentUser.role === "admin" || currentUser.role === "super_admin";
+    const isCoordinator = group.coordinator?.toString() === currentUser._id.toString();
+
+    // Coordinators can update the current focus for their own group
+    if (action === "setFocus") {
+      if (!isAdmin && !isCoordinator) {
+        return NextResponse.json({ success: false, error: "Access denied" }, { status: 403 });
+      }
+      const trimmed = typeof currentFocus === "string" ? currentFocus.trim().slice(0, 300) : "";
+      const updated = await WorkingGroupModel.findByIdAndUpdate(
+        id,
+        { currentFocus: trimmed },
+        { new: true }
+      ).lean();
+      return NextResponse.json({ success: true, data: updated });
+    }
+
+    // All other mutations remain admin-only
+    if (!isAdmin) {
+      return NextResponse.json({ success: false, error: "Admin access required" }, { status: 403 });
     }
 
     const updateData: any = {};
